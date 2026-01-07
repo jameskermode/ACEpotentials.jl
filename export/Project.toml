@@ -9,7 +9,9 @@ EquivariantTensors = "5e107534-7145-4f8f-b06f-47a52840c895"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+Polynomials4ML = "897c28a5-e46b-4985-abec-21503370f05e"
 Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [sources.ACEpotentials]
