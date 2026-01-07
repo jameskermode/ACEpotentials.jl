@@ -60,7 +60,7 @@ class IREEModel(IREEBackend):
                 - "local-task" for CPU (default)
                 - "local-sync" for single-threaded CPU
                 - "cuda" for NVIDIA GPU
-                - "metal" for Apple GPU
+                - "vulkan" for Vulkan GPU
         """
         self.vmfb_path = vmfb_path
         self.device_str = device
@@ -74,12 +74,14 @@ class IREEModel(IREEBackend):
                 "Or use SubprocessRunner as fallback."
             ) from e
 
-        # Load the module
-        config = rt.Config(device_str=device)
+        # Load the module using the correct API
+        config = rt.Config(device)  # Pass driver name directly
         self._device = config.device
         with open(vmfb_path, "rb") as f:
             vmfb_data = f.read()
-        self._module = rt.VmModule.from_flatbuffer(config.vm_instance, vmfb_data)
+        self._module = rt.VmModule.from_flatbuffer(
+            config.vm_instance, vmfb_data, warn_if_copy=False
+        )
         self._context = rt.SystemContext(vm_modules=[self._module], config=config)
 
         # Get the main function
@@ -318,6 +320,7 @@ def load_model(
     vmfb_path: str,
     device: str = "local-task",
     prefer_runtime: bool = True,
+    iree_bin: Optional[str] = None,
 ) -> IREEBackend:
     """
     Load an IREE model, automatically choosing the best backend.
@@ -326,15 +329,26 @@ def load_model(
         vmfb_path: Path to compiled .vmfb file
         device: IREE device string
         prefer_runtime: If True, prefer iree-runtime over subprocess
+        iree_bin: Path to IREE bin directory (for subprocess fallback).
+                  Can also be set via IREE_BIN environment variable.
 
     Returns:
         IREEBackend instance (IREEModel or SubprocessRunner)
     """
+    # Get IREE bin path from argument or environment
+    if iree_bin is None:
+        iree_bin = os.environ.get("IREE_BIN")
+
     if prefer_runtime:
         try:
-            return IREEModel(vmfb_path, device)
+            model = IREEModel(vmfb_path, device)
+            return model
         except ImportError:
             print("Warning: iree-runtime not available, falling back to subprocess")
-            return SubprocessRunner(vmfb_path, device)
+            return SubprocessRunner(vmfb_path, device, iree_bin=iree_bin)
+        except Exception as e:
+            # Version mismatch or other runtime error
+            print(f"Warning: iree-runtime failed ({e}), falling back to subprocess")
+            return SubprocessRunner(vmfb_path, device, iree_bin=iree_bin)
     else:
-        return SubprocessRunner(vmfb_path, device)
+        return SubprocessRunner(vmfb_path, device, iree_bin=iree_bin)

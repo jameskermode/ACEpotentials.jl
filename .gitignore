@@ -6,3 +6,6 @@ scratch
 .vscode
 .ipynb_checkpoints
 .CondaPkg
+export/python/src/ace_iree.egg-info/
+export/python/src/ace_iree/__pycache__/
+export/python/.venv/
