@@ -22,6 +22,10 @@ struct CompiledShapes
     max_edges::Int      # Maximum total edges
 end
 
+# Keyword argument constructor
+CompiledShapes(; max_atoms::Int, max_neigs::Int, max_edges::Int) =
+    CompiledShapes(max_atoms, max_neigs, max_edges)
+
 """
 Default shapes for compilation.
 Suitable for systems up to ~4000 atoms with ~50 neighbors each.

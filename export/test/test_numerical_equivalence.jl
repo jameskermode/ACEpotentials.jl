@@ -48,9 +48,10 @@ end
         y = ACEExport.compute_agnesi_transform(r, pcut, pin, rin, req, rcut)
         @test -1 <= y <= 1
 
-        # Test at boundaries
-        y_at_req = ACEExport.compute_agnesi_transform(req, pcut, pin, rin, req, rcut)
-        @test y_at_req ≈ 0 atol=1e-6  # Should be 0 at req
+        # Test at boundaries: Agnesi transform = (1-(r/rcut)^pcut) / (1+(r/req)^pin)
+        # At r=rcut, cutoff factor = 0, so y = 0
+        y_at_rcut = ACEExport.compute_agnesi_transform(rcut, pcut, pin, rin, req, rcut)
+        @test y_at_rcut ≈ 0 atol=1e-6
 
         # Test envelope
         @test ACEExport.compute_envelope(0.0) ≈ 1.0 atol=1e-10
