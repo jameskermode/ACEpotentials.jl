@@ -144,7 +144,7 @@ end
 ## ============================================================================
 
 # Import ETModels types for dispatch
-import ACEpotentials.Models.ETModels: ETACE, ETACEPotential, WrappedSiteCalculator
+import ACEpotentials.ETModels: ETACE, ETACEPotential, WrappedSiteCalculator
 
 """
     prepare_reactant_state(calc::ETACEPotential; T=Float32)
@@ -243,15 +243,15 @@ Extract number of polynomials from rembed layer.
 function _extract_n_polys(rembed)
     # Navigate through EdgeEmbed -> EmbedDP -> basis structure
     try
-        # Try to get from the inner polynomial basis
-        inner = rembed.basis
-        if hasproperty(inner, :basis) && hasproperty(inner.basis, :layers)
+        # EdgeEmbed wraps EmbedDP in a `layer` field
+        inner = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
+        if hasproperty(inner, :post)
+            # SelectLinL structure - get from input dimension
+            return inner.post.in_dim
+        elseif hasproperty(inner, :basis) && hasproperty(inner.basis, :layers)
             # BranchLayer structure
             polys = inner.basis.layers[1]
             return length(polys)
-        elseif hasproperty(inner, :post)
-            # SelectLinL structure - get from input dimension
-            return inner.post.in_dim
         end
     catch
     end
@@ -267,9 +267,10 @@ function _extract_agnesi_params(rembed, rembed_st, n_pairs, T)
     params = zeros(T, 5, n_pairs)
 
     try
-        # Access the transform state which contains Agnesi parameters
-        # Structure: rembed.basis.trans has the NTtransformST with params
-        trans = rembed.basis.trans
+        # EdgeEmbed wraps EmbedDP in a `layer` field
+        # Structure: rembed.layer.trans has the NTtransformST with params
+        inner = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
+        trans = inner.trans
         if hasproperty(trans, :refstate) && hasproperty(trans.refstate, :params)
             agnesi_list = trans.refstate.params
             for (idx, p) in enumerate(agnesi_list)
@@ -278,7 +279,8 @@ function _extract_agnesi_params(rembed, rembed_st, n_pairs, T)
                     params[2, idx] = T(p.pin)
                     params[3, idx] = T(p.rin)
                     params[4, idx] = T(p.req)
-                    params[5, idx] = T(p.rcut)
+                    # rcut may not be in the params, use a default or get from elsewhere
+                    params[5, idx] = hasproperty(p, :rcut) ? T(p.rcut) : T(6.0)
                 end
             end
         end
@@ -312,7 +314,8 @@ function _extract_chebyshev_coeffs(rembed, n_polys, T)
 
     # Try to extract actual coefficients from the polynomial basis
     try
-        inner = rembed.basis
+        # EdgeEmbed wraps EmbedDP in a `layer` field
+        inner = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
         if hasproperty(inner, :basis) && hasproperty(inner.basis, :layers)
             polys = inner.basis.layers[1]
             if hasproperty(polys, :A)

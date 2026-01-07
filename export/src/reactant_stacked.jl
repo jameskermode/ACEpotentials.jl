@@ -10,7 +10,7 @@ using StaticArrays
 using LinearAlgebra: norm
 
 # Import ACEpotentials types
-import ACEpotentials.Models.ETModels: StackedCalculator, WrappedSiteCalculator,
+import ACEpotentials.ETModels: StackedCalculator, WrappedSiteCalculator,
     ETACE, ETPairModel, ETOneBody
 
 ## ============================================================================
