@@ -1,0 +1,25 @@
+name = "ACEExport"
+uuid = "f7e3c1a8-9d2b-4e5f-8c1a-3b4d5e6f7a8b"
+version = "0.1.0"
+
+[deps]
+ACEpotentials = "3b86536b-4e84-4d31-8634-a9e15a86f37c"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+EquivariantTensors = "5e107534-7145-4f8f-b06f-47a52840c895"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[sources.ACEpotentials]
+path = ".."
+
+[compat]
+julia = "1.11"
+Reactant = "0.2"
+Enzyme = "0.13"
+EquivariantTensors = "0.4.3"
+StaticArrays = "1"
+JSON3 = "1"
+NPZ = "0.4"
