@@ -61,10 +61,13 @@ rin0cuts = (x -> (rin = x.rin, r0 = x.r0, rcut = 5.5)).(rin0cuts)
 
 rng = Random.MersenneTwister(1234)
 
+# pair_learnable=true ensures pairbasis is also LearnableRnlrzzBasis
+# (required for convert2et_full compatibility)
 ace_model = M.ace_model(; elements = elements, order = order,
                         Ytype = :solid, level = level, max_level = max_level,
                         maxl = maxl, pair_maxn = max_level,
                         rin0cuts = rin0cuts,
+                        pair_learnable = true,  # Required for convert2et_full
                         init_WB = :glorot_normal, init_Wpair = :glorot_normal)
 
 ps, st = Lux.setup(rng, ace_model)
@@ -207,10 +210,73 @@ stacked_state = ReactantStackedModel(stacked_calc; T=Float32)
 println("   ✓ StackedCalculator extraction successful")
 
 ## ============================================================================
-## Step 6: Verify numerical consistency
+## Step 6: Test FULL model extraction with convert2et_full (E0 + Pair + ACE)
 ## ============================================================================
 
-println("\n6. Verifying numerical consistency...")
+println("\n6. Testing FULL model extraction with convert2et_full...")
+
+# convert2et_full creates a complete StackedCalculator with:
+# 1. ETOneBody - reference energies
+# 2. ETPairModel - pair potential
+# 3. ETACE - many-body ACE
+full_stacked_calc = ETM.convert2et_full(ace_model, ps, st; rng=rng)
+
+@test full_stacked_calc isa ETM.StackedCalculator
+@test length(full_stacked_calc.calcs) == 3
+
+# Verify each component type
+onebody_c = full_stacked_calc.calcs[1]
+pair_c = full_stacked_calc.calcs[2]
+ace_c = full_stacked_calc.calcs[3]
+
+@test onebody_c.model isa ETM.ETOneBody
+@test pair_c.model isa ETM.ETPairModel
+@test ace_c.model isa ETM.ETACE
+
+@printf("   Full StackedCalculator components:\n")
+@printf("     1. ETOneBody (rcut=%.1f)\n", onebody_c.rcut)
+@printf("     2. ETPairModel (rcut=%.1f)\n", pair_c.rcut)
+@printf("     3. ETACE (rcut=%.1f)\n", ace_c.rcut)
+
+# Extract full model to ReactantStackedModel
+full_state = ReactantStackedModel(full_stacked_calc; T=Float32)
+
+@test full_state isa ReactantStackedModel{Float32}
+@test full_state.n_species == nspecies
+@test full_state.has_pair == true  # Now we have a pair model!
+@test full_state.pair_state !== nothing
+@test full_state.ace_state.n_basis == nbasis
+
+@printf("   Extracted full model:\n")
+@printf("     n_species: %d\n", full_state.n_species)
+@printf("     rcut: %.2f Å\n", full_state.rcut)
+@printf("     E0: %s\n", full_state.E0)
+@printf("     has_pair: %s\n", full_state.has_pair)
+
+# Verify pair state extraction
+pair_st = full_state.pair_state
+@test pair_st isa ReactantPairState{Float32}
+@test pair_st.n_species == nspecies
+@test pair_st.n_pairs == nspecies * nspecies
+
+@printf("     pair_state.n_basis: %d\n", pair_st.n_basis)
+@printf("     pair_state.n_polys: %d\n", pair_st.n_polys)
+@printf("     pair_state.agnesi_params: %s\n", size(pair_st.agnesi_params))
+@printf("     pair_state.W_radial: %s\n", size(pair_st.W_radial))
+@printf("     pair_state.W_readout: %s\n", size(pair_st.W_readout))
+
+# Verify ACE state is still correct
+@test full_state.ace_state.n_basis == nbasis
+@test full_state.ace_state.maxl == ace_state.maxl
+@printf("     ace_state.n_basis: %d\n", full_state.ace_state.n_basis)
+
+println("   ✓ Full model (E0 + Pair + ACE) extraction successful")
+
+## ============================================================================
+## Step 7: Verify numerical consistency
+## ============================================================================
+
+println("\n7. Verifying numerical consistency...")
 
 # Check that A2Bmap was correctly converted from sparse to dense
 basis_st = ace_calc.st.basis

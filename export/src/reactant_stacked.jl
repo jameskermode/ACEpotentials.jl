@@ -252,11 +252,12 @@ end
 
 function _extract_n_polys_pair(rembed)
     try
-        # Pair model has different structure: EdgeEmbed(EnvRBranchL(env, rbasis))
+        # Pair model has structure: EdgeEmbed(EnvRBranchL(env, rbasis))
+        # EdgeEmbed wraps in `layer` field
         # where rbasis is EmbedDP(trans, polys, linl)
-        inner = rembed.basis
-        if hasproperty(inner, :rbasis)
-            rbasis = inner.rbasis
+        outer = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
+        if hasproperty(outer, :rbasis)
+            rbasis = outer.rbasis
             if hasproperty(rbasis, :post)
                 return rbasis.post.in_dim
             end
@@ -270,9 +271,10 @@ function _extract_agnesi_params_pair(rembed, rembed_st, n_pairs, T)
     params = zeros(T, 5, n_pairs)
 
     try
-        inner = rembed.basis
-        if hasproperty(inner, :rbasis)
-            trans = inner.rbasis.trans
+        # EdgeEmbed wraps in `layer` field
+        outer = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
+        if hasproperty(outer, :rbasis)
+            trans = outer.rbasis.trans
             if hasproperty(trans, :refstate) && hasproperty(trans.refstate, :params)
                 agnesi_list = trans.refstate.params
                 for (idx, p) in enumerate(agnesi_list)
@@ -281,7 +283,8 @@ function _extract_agnesi_params_pair(rembed, rembed_st, n_pairs, T)
                         params[2, idx] = T(p.pin)
                         params[3, idx] = T(p.rin)
                         params[4, idx] = T(p.req)
-                        params[5, idx] = T(p.rcut)
+                        # rcut may not be in params
+                        params[5, idx] = hasproperty(p, :rcut) ? T(p.rcut) : T(6.0)
                     end
                 end
             end
@@ -308,9 +311,10 @@ function _extract_chebyshev_coeffs_pair(rembed, n_polys, T)
     C[1] = T(0)
 
     try
-        inner = rembed.basis
-        if hasproperty(inner, :rbasis)
-            rbasis = inner.rbasis
+        # EdgeEmbed wraps in `layer` field
+        outer = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
+        if hasproperty(outer, :rbasis)
+            rbasis = outer.rbasis
             if hasproperty(rbasis, :basis) && hasproperty(rbasis.basis, :A)
                 polys = rbasis.basis
                 A = T.(polys.A[1:n_polys])
