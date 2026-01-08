@@ -97,7 +97,7 @@ struct ReactantETACEState{T}
     # Radial basis parameters
     n_polys::Int                     # Number of polynomial basis functions
     n_rnl::Int                       # Number of (n,l) radial basis functions
-    agnesi_params::Matrix{T}         # (5, n_pairs) - pcut, pin, rin, req, rcut per species pair
+    agnesi_params::Matrix{T}         # (7, n_pairs) - pin, pcut, a, b0, b1, rin, req per pair
     poly_A::Vector{T}                # Chebyshev recurrence coefficient A
     poly_B::Vector{T}                # Chebyshev recurrence coefficient B
     poly_C::Vector{T}                # Chebyshev recurrence coefficient C
@@ -214,8 +214,8 @@ function prepare_reactant_state(calc::WrappedSiteCalculator{<:ETACE}; T::Type=Fl
     # Extract Agnesi parameters from rembed.basis.trans
     agnesi_params = _extract_agnesi_params(model.rembed, st.rembed, n_pairs, T)
 
-    # Extract Chebyshev recurrence coefficients
-    poly_A, poly_B, poly_C = _extract_chebyshev_coeffs(model.rembed, n_polys, T)
+    # Extract Chebyshev recurrence coefficients from state
+    poly_A, poly_B, poly_C = _extract_chebyshev_coeffs(st.rembed, n_polys, T)
 
     # Extract radial linear layer weights from ps.rembed.post.W
     # Shape: (n_rnl, n_polys, n_pairs)
@@ -273,39 +273,43 @@ function _extract_n_polys(rembed)
 end
 
 """
-Extract Agnesi transform parameters from rembed layer.
-Returns matrix of shape (5, n_pairs) with [pcut, pin, rin, req, rcut] per pair.
+Extract Agnesi transform parameters from rembed state.
+Returns matrix of shape (7, n_pairs) with [pin, pcut, a, b0, b1, rin, req] per pair.
+These are the full parameters needed for the generalized Agnesi transform.
 """
 function _extract_agnesi_params(rembed, rembed_st, n_pairs, T)
-    params = zeros(T, 5, n_pairs)
+    params = zeros(T, 7, n_pairs)
 
     try
-        # EdgeEmbed wraps EmbedDP in a `layer` field
-        # Structure: rembed.layer.trans has the NTtransformST with params
-        inner = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
-        trans = inner.trans
-        if hasproperty(trans, :refstate) && hasproperty(trans.refstate, :params)
-            agnesi_list = trans.refstate.params
+        # State structure: rembed_st.trans.params is an SVector of NamedTuples
+        # Each NamedTuple has (pin, pcut, a, b0, b1, rin, req)
+        trans_st = rembed_st.trans
+        if hasproperty(trans_st, :params)
+            agnesi_list = trans_st.params
             for (idx, p) in enumerate(agnesi_list)
                 if idx <= n_pairs
-                    params[1, idx] = T(p.pcut)
-                    params[2, idx] = T(p.pin)
-                    params[3, idx] = T(p.rin)
-                    params[4, idx] = T(p.req)
-                    # rcut may not be in the params, use a default or get from elsewhere
-                    params[5, idx] = hasproperty(p, :rcut) ? T(p.rcut) : T(6.0)
+                    params[1, idx] = T(p.pin)
+                    params[2, idx] = T(p.pcut)
+                    params[3, idx] = T(p.a)
+                    params[4, idx] = T(p.b0)
+                    params[5, idx] = T(p.b1)
+                    params[6, idx] = T(p.rin)
+                    params[7, idx] = T(p.req)
                 end
             end
         end
     catch e
         @warn "Could not extract Agnesi params" exception=e
-        # Use reasonable defaults
+        # Use reasonable defaults (computed for typical Si parameters)
+        # pin=2, pcut=2, a computed for max slope at req, b0/b1 for [-1,1] normalization
         for idx in 1:n_pairs
-            params[1, idx] = T(2.0)   # pcut
-            params[2, idx] = T(2.0)   # pin
-            params[3, idx] = T(1.0)   # rin
-            params[4, idx] = T(2.5)   # req
-            params[5, idx] = T(6.0)   # rcut
+            params[1, idx] = T(2)     # pin
+            params[2, idx] = T(2)     # pcut
+            params[3, idx] = T(0.5)   # a (typical value)
+            params[4, idx] = T(-1.0)  # b0
+            params[5, idx] = T(2.0)   # b1
+            params[6, idx] = T(0.5)   # rin
+            params[7, idx] = T(2.5)   # req
         end
     end
 
@@ -313,31 +317,32 @@ function _extract_agnesi_params(rembed, rembed_st, n_pairs, T)
 end
 
 """
-Extract Chebyshev recurrence coefficients.
-For standard Chebyshev polynomials: A=2, B=0, C=-1 (except A[1]=1)
+Extract Chebyshev recurrence coefficients from rembed state.
+The orthonormalized Chebyshev coefficients are stored in st.rembed.basis.layers.layer_1
 """
-function _extract_chebyshev_coeffs(rembed, n_polys, T)
-    # Standard Chebyshev recurrence: T_{n+1}(x) = 2x*T_n(x) - T_{n-1}(x)
-    # Coefficients: A[n]=2 (except A[1]=1), B[n]=0, C[n]=-1 (except C[1]=0)
+function _extract_chebyshev_coeffs(rembed_st, n_polys, T)
+    # Standard Chebyshev fallback: T_{n+1}(x) = 2x*T_n(x) - T_{n-1}(x)
     A = fill(T(2), n_polys)
     A[1] = T(1)
     B = zeros(T, n_polys)
     C = fill(T(-1), n_polys)
     C[1] = T(0)
 
-    # Try to extract actual coefficients from the polynomial basis
+    # Try to extract actual coefficients from the polynomial state
     try
-        # EdgeEmbed wraps EmbedDP in a `layer` field
-        inner = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
-        if hasproperty(inner, :basis) && hasproperty(inner.basis, :layers)
-            polys = inner.basis.layers[1]
-            if hasproperty(polys, :A)
+        # State structure: rembed_st.basis.layers.layer_1 contains (A, B, C)
+        if hasproperty(rembed_st, :basis) && hasproperty(rembed_st.basis, :layers)
+            layers = rembed_st.basis.layers
+            # layer_1 contains the polynomial coefficients
+            if hasproperty(layers, :layer_1) && hasproperty(layers.layer_1, :A)
+                polys = layers.layer_1
                 A = T.(polys.A[1:n_polys])
                 B = T.(polys.B[1:n_polys])
                 C = T.(polys.C[1:n_polys])
             end
         end
-    catch
+    catch e
+        @warn "Could not extract Chebyshev coefficients, using standard" exception=e
     end
 
     return A, B, C

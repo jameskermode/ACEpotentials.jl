@@ -19,30 +19,59 @@ using LinearAlgebra: norm, dot
 ## ============================================================================
 
 """
-    compute_agnesi_transform(r::T, params::NTuple{5,T}) where T
+    compute_agnesi_transform(r::T, pin::Int, pcut::Int, a::T, b0::T, b1::T, rin::T, req::T) where T
 
 Compute Agnesi distance transform: r → y ∈ [-1, 1].
 
-The Agnesi transform maps distances to a bounded domain suitable for
-polynomial basis evaluation. It has smooth decay to zero at the cutoff.
+The generalized Agnesi transform is:
+  s = (r - rin) / (req - rin)
+  x = 1 / (1 + a * s^pin / (1 + s^(pin - pcut)))
+  y = clamp(b1 * x + b0, -1, 1)
 
-Parameters (in order):
-- pcut: Cutoff smoothness exponent
-- pin: Inner smoothness exponent
+This matches EquivariantTensors.eval_agnesi.
+
+Parameters (from agnesi_params):
+- pin: Inner power exponent
+- pcut: Cutoff power exponent
+- a: Scaling parameter (computed to maximize slope at req)
+- b0, b1: Linear normalization to [-1, 1]
 - rin: Inner reference distance
 - req: Equilibrium reference distance
-- rcut: Cutoff radius
-
-Returns y in [-1, 1] where y(0) ≈ 1 and y(rcut) = 0.
 """
-@inline function compute_agnesi_transform(r::T, pcut::T, pin::T, rin::T, req::T, rcut::T) where T
-    x = r / rcut
-    # Smooth cutoff: (1 - x^pcut)
-    cutoff_factor = (one(T) - x^pcut)
-    # Agnesi-like decay
-    inner_factor = one(T) / (one(T) + (r / req)^pin)
-    y = cutoff_factor * inner_factor
+@inline function compute_agnesi_transform(r::T, pin::Integer, pcut::Integer,
+                                           a::T, b0::T, b1::T, rin::T, req::T) where T
+    # Compute scaled distance
+    s = (r - rin) / (req - rin)
+
+    # Agnesi function
+    x = one(T) / (one(T) + a * s^pin / (one(T) + s^(pin - pcut)))
+
+    # Linear map to [-1, 1]
+    y = b1 * x + b0
+
+    # Clamp to [-1, 1]
+    y = max(-one(T), min(one(T), y))
+
     return y
+end
+
+# Legacy signature for compatibility (extracts from 5-param array)
+@inline function compute_agnesi_transform(r::T, pcut::T, pin::T, rin::T, req::T, rcut::T) where T
+    # This is a simplified version - for full accuracy use the 8-param version
+    # Compute 'a' parameter
+    pin_i = Int(pin)
+    pcut_i = Int(pcut)
+    a = T((-2 * pin_i + pcut_i * (-2 + 4 * pin_i)) / (pcut_i + pcut_i^2 + pin_i + pin_i^2))
+
+    # Compute normalization
+    _s_in = zero(T)
+    _s_cut = (rcut - rin) / (req - rin)
+    x_in = one(T) / (one(T) + a * _s_in^pin_i / (one(T) + _s_in^(pin_i - pcut_i) + eps(T)))
+    x_cut = one(T) / (one(T) + a * _s_cut^pin_i / (one(T) + _s_cut^(pin_i - pcut_i) + eps(T)))
+    b1 = T(2) / (x_cut - x_in + eps(T))
+    b0 = -one(T) - T(2) * x_in / (x_cut - x_in + eps(T))
+
+    return compute_agnesi_transform(r, pin_i, pcut_i, a, b0, b1, rin, req)
 end
 
 """
@@ -201,15 +230,18 @@ function compute_radial_embedding(r::T, iz::Int, jz::Int,
     # Get species pair index
     pair_idx = zz_to_pair_index(iz, jz, state.n_species)
 
-    # Extract Agnesi parameters for this pair
-    pcut = state.agnesi_params[1, pair_idx]
-    pin = state.agnesi_params[2, pair_idx]
-    rin = state.agnesi_params[3, pair_idx]
-    req = state.agnesi_params[4, pair_idx]
-    rcut = state.agnesi_params[5, pair_idx]
+    # Extract Agnesi parameters for this pair (7 parameters)
+    # Order: [pin, pcut, a, b0, b1, rin, req]
+    pin = Int(state.agnesi_params[1, pair_idx])
+    pcut = Int(state.agnesi_params[2, pair_idx])
+    a = state.agnesi_params[3, pair_idx]
+    b0 = state.agnesi_params[4, pair_idx]
+    b1 = state.agnesi_params[5, pair_idx]
+    rin = state.agnesi_params[6, pair_idx]
+    req = state.agnesi_params[7, pair_idx]
 
-    # Distance transform
-    y = compute_agnesi_transform(r, pcut, pin, rin, req, rcut)
+    # Distance transform (using 8-param version for full accuracy)
+    y = compute_agnesi_transform(r, pin, pcut, a, b0, b1, rin, req)
 
     # Envelope
     env = compute_envelope(y)
