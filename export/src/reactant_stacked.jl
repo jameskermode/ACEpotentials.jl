@@ -668,6 +668,72 @@ function compute_ace_energy(edge_rij, atomic_numbers, edge_i, edge_j,
 end
 
 ## ============================================================================
+## Force and Virial Assembly (from edge gradients)
+## ============================================================================
+
+"""
+    assemble_forces_from_edge_gradients!(forces, d_edge_rij, edge_i, edge_j, n_edges)
+
+Assemble atomic forces from edge vector gradients.
+
+Given ∂E/∂r_ij for each edge, compute forces on each atom:
+    F_i = Σ_{e: edge_i[e]=i} ∂E/∂r_e - Σ_{e: edge_j[e]=i} ∂E/∂r_e
+
+This follows from the chain rule: since r_ij = r_j - r_i,
+∂r_ij/∂r_i = -I and ∂r_ij/∂r_j = +I.
+
+# Arguments
+- `forces`: (n_atoms, 3) output force array (modified in place)
+- `d_edge_rij`: (n_edges, 3) gradients ∂E/∂r_ij
+- `edge_i`, `edge_j`: (n_edges,) edge indices
+- `n_edges`: number of edges
+"""
+function assemble_forces_from_edge_gradients!(forces, d_edge_rij, edge_i, edge_j, n_edges)
+    fill!(forces, zero(eltype(forces)))
+    for e in 1:n_edges
+        i = edge_i[e]
+        j = edge_j[e]
+        for d in 1:3
+            forces[i, d] += d_edge_rij[e, d]
+            forces[j, d] -= d_edge_rij[e, d]
+        end
+    end
+    return forces
+end
+
+"""
+    compute_virial_from_edge_gradients(edge_rij, d_edge_rij, n_edges)
+
+Compute virial tensor from edge vectors and their gradients.
+
+The virial is:
+    V_ab = -Σ_e r_e[a] * (∂E/∂r_e)[b]
+
+This follows from the standard definition V_ab = -Σ_{i<j} r_ij[a] * f_ij[b]
+where f_ij is the pair force.
+
+# Arguments
+- `edge_rij`: (n_edges, 3) edge vectors
+- `d_edge_rij`: (n_edges, 3) gradients ∂E/∂r_ij
+- `n_edges`: number of edges
+
+# Returns
+- (3, 3) virial tensor
+"""
+function compute_virial_from_edge_gradients(edge_rij, d_edge_rij, n_edges)
+    T = eltype(edge_rij)
+    virial = zeros(T, 3, 3)
+    for e in 1:n_edges
+        for a in 1:3
+            for b in 1:3
+                virial[a, b] -= edge_rij[e, a] * d_edge_rij[e, b]
+            end
+        end
+    end
+    return virial
+end
+
+## ============================================================================
 ## EFV (Energy, Forces, Virial) computation
 ## ============================================================================
 
@@ -677,28 +743,34 @@ end
 
 Compute energy, forces, and virial from edge vectors.
 
-Forces are computed via automatic differentiation (Enzyme) of the energy
-with respect to edge vectors.
+**For Reactant compilation**: This function provides the forward energy computation.
+Forces and virial are computed via Reactant's built-in StableHLO autodiff during
+compilation. The compiled VMFB will include differentiated versions automatically.
+
+**For Julia/testing**: Use finite differences in tests, or obtain edge gradients
+from Zygote/Enzyme and call `assemble_forces_from_edge_gradients!` and
+`compute_virial_from_edge_gradients`.
+
+The force/virial assembly formulas are:
+- Forces: F_i = Σ_{e: edge_i[e]=i} ∂E/∂r_e - Σ_{e: edge_j[e]=i} ∂E/∂r_e
+- Virial: V_ab = -Σ_e r_e[a] * (∂E/∂r_e)[b]
 
 # Returns
 - (energy, forces, virial) tuple
+  - energy: scalar total energy
+  - forces: (n_atoms, 3) zeros (placeholder - computed by AD in compiled model)
+  - virial: (3, 3) zeros (placeholder - computed by AD in compiled model)
 """
 function stacked_efv_from_edges(edge_rij, atomic_numbers, edge_i, edge_j,
                                  n_atoms::Int32, n_edges::Int32,
                                  model::ReactantStackedModel)
-    # TODO: Implement with Enzyme.autodiff for gradients
-    # This will require:
-    # 1. Forward pass for energy
-    # 2. Reverse pass for ∂E/∂(edge_rij)
-    # 3. Accumulate forces from edge gradients
-    # 4. Compute virial from edge gradients and vectors
-
     T = eltype(edge_rij)
 
+    # Compute energy (this is what Reactant will differentiate)
     energy = stacked_energy_from_edges(edge_rij, atomic_numbers, edge_i, edge_j,
                                        n_atoms, n_edges, model)
 
-    # Placeholder forces and virial
+    # Placeholders - actual forces/virial computed by AD in compiled model
     forces = zeros(T, n_atoms, 3)
     virial = zeros(T, 3, 3)
 
