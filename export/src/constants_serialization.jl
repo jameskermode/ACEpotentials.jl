@@ -71,14 +71,19 @@ function export_constants(model::ReactantStackedModel{T}, path::String) where T
     arrays["has_pair"] = Int32[model.has_pair ? 1 : 0]
     if model.has_pair && !isnothing(model.pair_state)
         pair = model.pair_state
+        arrays["pair_n_basis"] = Int32[pair.n_basis]
+        arrays["pair_n_species"] = Int32[pair.n_species]
         arrays["pair_n_pairs"] = Int32[pair.n_pairs]
         arrays["pair_n_polys"] = Int32[pair.n_polys]
+        arrays["pair_rcut"] = Float32[pair.rcut]
         arrays["pair_agnesi_params"] = Float32.(pair.agnesi_params)
         arrays["pair_poly_A"] = Float32.(pair.poly_A)
         arrays["pair_poly_B"] = Float32.(pair.poly_B)
         arrays["pair_poly_C"] = Float32.(pair.poly_C)
-        arrays["pair_W_pair"] = Float32.(pair.W_pair)
-        arrays["pair_W_readout"] = Float32.(pair.W_readout_pair)
+        arrays["pair_W_radial"] = Float32.(pair.W_radial)
+        arrays["pair_rcut_outer"] = Float32[pair.rcut_outer]
+        arrays["pair_p_outer"] = Int32[pair.p_outer]
+        arrays["pair_W_readout"] = Float32.(pair.W_readout)
     end
 
     # Write NPZ file

@@ -94,10 +94,14 @@ aaspecs = st.aaspecs
 specs_mats = [spec_to_matrix(s) for s in aaspecs]
 
 # Convert sparse A2Bmap to dense
+# ET.SparseMatCSX doesn't support findnz, so manually convert
 A2Bmap_sparse = st.A2Bmaps[1]
-A2Bmap = zeros(Float32, size(A2Bmap_sparse)...)
-for (i, j, v) in zip(findnz(A2Bmap_sparse)...)
-    A2Bmap[i, j] = Float32(v)
+A2Bmap = zeros(Float32, A2Bmap_sparse.m, A2Bmap_sparse.n)
+for row in 1:A2Bmap_sparse.m
+    for idx in A2Bmap_sparse.rowptr[row]:(A2Bmap_sparse.rowptr[row+1]-1)
+        col = A2Bmap_sparse.colval[idx]
+        A2Bmap[row, col] = Float32(A2Bmap_sparse.nzval_csr[idx])
+    end
 end
 
 # Random readout weights
@@ -109,46 +113,56 @@ params = randn(Float32, nfeatures)
 @printf("   params: %d\n", length(params))
 
 ## ============================================================================
-## Step 3: Define ACE kernel functions
+## Step 3: Define ACE kernel functions (Reactant-compatible vectorized versions)
 ## ============================================================================
 
 println("\n3. Defining ACE kernel functions...")
 
-# Pooled sparse product
+# Pooled sparse product - vectorized gather for Reactant compatibility
 function pooled_sparse_product(Rnl_3, Ylm_3, spec_R, spec_Y)
-    maxneigs, nnodes, _ = size(Rnl_3)
-    nA = length(spec_R)
-    A = zeros(eltype(Rnl_3), nnodes, nA)
-    for iA in 1:nA
-        for inode in 1:nnodes
-            for j in 1:maxneigs
-                A[inode, iA] += Rnl_3[j, inode, spec_R[iA]] * Ylm_3[j, inode, spec_Y[iA]]
-            end
-        end
-    end
+    # Gather: Rnl_3[:, :, spec_R] gives [maxneigs, nnodes, nA]
+    Rnl_gathered = Rnl_3[:, :, spec_R]
+    Ylm_gathered = Ylm_3[:, :, spec_Y]
+
+    # Elementwise product
+    prod = Rnl_gathered .* Ylm_gathered
+
+    # Sum over first dimension (neighbors)
+    A = dropdims(sum(prod, dims=1), dims=1)  # [nnodes, nA]
+
     return A
 end
 
-# Sparse symmetric product
-function sparse_symm_prod(A, specs_mats)
+# Sparse symmetric product for a single order - vectorized gather
+function sparse_symm_prod_order(A, spec_mat)
+    T = eltype(A)
     nnodes = size(A, 1)
-    total = sum(size(m, 1) for m in specs_mats)
-    AA = zeros(eltype(A), nnodes, total)
-    offset = 0
-    for mat in specs_mats
-        nspec = size(mat, 1)
-        order = size(mat, 2)
-        for i in 1:nspec
-            for inode in 1:nnodes
-                val = one(eltype(A))
-                for k in 1:order
-                    val *= A[inode, mat[i, k]]
-                end
-                AA[inode, offset + i] = val
-            end
-        end
-        offset += nspec
+    nspec = size(spec_mat, 1)
+    order = size(spec_mat, 2)
+
+    if nspec == 0
+        return zeros(T, nnodes, 0)
     end
+
+    if order == 0
+        return ones(T, nnodes, nspec)
+    end
+
+    # First term: A[:, spec_mat[:, 1]] gives [nnodes, nspec]
+    prod = A[:, spec_mat[:, 1]]
+
+    # Multiply by remaining terms
+    for t in 2:order
+        prod = prod .* A[:, spec_mat[:, t]]
+    end
+
+    return prod
+end
+
+# Sparse symmetric product - vectorized gather for Reactant compatibility
+function sparse_symm_prod(A, specs_mats)
+    AA_parts = [sparse_symm_prod_order(A, spec_mat) for spec_mat in specs_mats]
+    AA = hcat(AA_parts...)
     return AA
 end
 
@@ -156,7 +170,8 @@ end
 function ace_evaluate(Rnl_3, Ylm_3, spec_R, spec_Y, specs_mats, A2Bmap)
     A = pooled_sparse_product(Rnl_3, Ylm_3, spec_R, spec_Y)
     AA = sparse_symm_prod(A, specs_mats)
-    BB = AA * A2Bmap
+    # A2Bmap is (n_features, n_AA), so transpose for AA * A2Bmap'
+    BB = AA * A2Bmap'
     return BB
 end
 
