@@ -482,10 +482,14 @@ Compute pair energy from edge vectors.
 Pipeline for each edge:
 1. Compute distance from edge vector
 2. Apply Agnesi transform: r → y ∈ [-1, 1]
-3. Evaluate Chebyshev polynomials
-4. Apply envelope
+3. Evaluate Chebyshev polynomials (NO inner envelope for pair model)
+4. Apply outer cutoff envelope: (s^(-p) - 1) * (1 - s) where s = r/rcut
 5. Linear layer to get pair features
 6. Apply readout weights for center atom species
+
+Note: The pair model uses a different envelope structure than the ACE many-body model.
+The pair model applies EnvRBranchL which uses outer_env * rbasis, where rbasis does NOT
+include the inner (1-y²)² envelope.
 
 # Arguments
 - `edge_rij`: (n_edges, 3) edge vectors
@@ -506,6 +510,10 @@ function compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
     n_polys = pair_state.n_polys
     n_basis = pair_state.n_basis
     rcut = pair_state.rcut
+
+    # Outer envelope parameters
+    rcut_outer = pair_state.rcut_outer
+    p_outer = pair_state.p_outer
 
     # Pre-allocate buffers
     P = Vector{T}(undef, n_polys)
@@ -540,16 +548,18 @@ function compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
         # Apply Agnesi transform (7-param version)
         y = compute_agnesi_transform(r, pin, pcut, a, b0, b1, rin, req)
 
-        # Evaluate Chebyshev polynomials
+        # Evaluate Chebyshev polynomials (NO inner envelope for pair model!)
         compute_chebyshev_basis!(P, y, pair_state.poly_A, pair_state.poly_B, pair_state.poly_C)
 
-        # Apply envelope
-        env = compute_envelope(y)
-        P_env = P .* env
-
-        # Linear layer: W_radial[:, :, pair_idx] * P_env
+        # Linear layer first (before envelope): W_radial[:, :, pair_idx] * P
         # W_radial is (n_basis, n_polys, n_pairs)
-        pair_features = pair_state.W_radial[:, :, pair_idx] * P_env
+        pair_features = pair_state.W_radial[:, :, pair_idx] * P
+
+        # Apply outer cutoff envelope: (s^(-p) - 1) * (1 - s) where s = r/rcut
+        # This is the envelope from EnvRBranchL in the pair model
+        s = r / rcut_outer
+        outer_env = (s^(-p_outer) - one(T)) * (one(T) - s)
+        pair_features = pair_features .* outer_env
 
         # Readout: pair_features · W_readout[:, zi]
         # W_readout is (n_basis, n_species)
