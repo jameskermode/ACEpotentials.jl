@@ -410,20 +410,84 @@ end
 
 """
 Compute pair energy from edge vectors.
+
+Pipeline for each edge:
+1. Compute distance from edge vector
+2. Apply Agnesi transform: r → y ∈ [-1, 1]
+3. Evaluate Chebyshev polynomials
+4. Apply envelope
+5. Linear layer to get pair features
+6. Apply readout weights for center atom species
+
+# Arguments
+- `edge_rij`: (n_edges, 3) edge vectors
+- `atomic_numbers`: (n_atoms,) atomic numbers
+- `edge_i`, `edge_j`: (n_edges,) edge indices
+- `n_atoms`, `n_edges`: counts
+- `pair_state`: ReactantPairState with parameters
+- `species_Z`: species index to atomic number mapping
+
+# Returns
+- Total pair energy (scalar)
 """
 function compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
                              n_atoms::Int32, n_edges::Int32,
                              pair_state::ReactantPairState{T},
                              species_Z::Vector{Int}) where T
-    # TODO: Implement full pair potential evaluation
-    # This requires:
-    # 1. Compute distances from edge_rij
-    # 2. Apply Agnesi transform
-    # 3. Evaluate Chebyshev polynomials
-    # 4. Apply radial weights
-    # 5. Sum site energies
+    energy = zero(T)
+    n_polys = pair_state.n_polys
+    n_basis = pair_state.n_basis
 
-    return zero(T)  # Placeholder
+    # Pre-allocate buffers
+    P = Vector{T}(undef, n_polys)
+
+    for e in 1:n_edges
+        i = edge_i[e]
+        j_atom = edge_j[e]
+
+        # Compute distance
+        rij = SVector{3,T}(edge_rij[e, 1], edge_rij[e, 2], edge_rij[e, 3])
+        r = norm(rij)
+
+        # Get species indices
+        zi = z_to_species_index(Int(atomic_numbers[i]), species_Z)
+        zj = z_to_species_index(Int(atomic_numbers[j_atom]), species_Z)
+
+        # Get pair index (asymmetric: depends on both center and neighbor species)
+        pair_idx = zz_to_pair_index(zi, zj, pair_state.n_species)
+
+        # Extract Agnesi parameters for this pair
+        pcut = pair_state.agnesi_params[1, pair_idx]
+        pin = pair_state.agnesi_params[2, pair_idx]
+        rin = pair_state.agnesi_params[3, pair_idx]
+        req = pair_state.agnesi_params[4, pair_idx]
+        rcut = pair_state.agnesi_params[5, pair_idx]
+
+        # Skip if outside cutoff
+        r > rcut && continue
+
+        # Apply Agnesi transform
+        y = compute_agnesi_transform(r, pcut, pin, rin, req, rcut)
+
+        # Evaluate Chebyshev polynomials
+        compute_chebyshev_basis!(P, y, pair_state.poly_A, pair_state.poly_B, pair_state.poly_C)
+
+        # Apply envelope
+        env = compute_envelope(y)
+        P_env = P .* env
+
+        # Linear layer: W_radial[:, :, pair_idx] * P_env
+        # W_radial is (n_basis, n_polys, n_pairs)
+        pair_features = pair_state.W_radial[:, :, pair_idx] * P_env
+
+        # Readout: pair_features · W_readout[:, zi]
+        # W_readout is (n_basis, n_species)
+        for b in 1:n_basis
+            energy += pair_features[b] * pair_state.W_readout[b, zi]
+        end
+    end
+
+    return energy
 end
 
 """
@@ -435,15 +499,91 @@ This is the main ACE evaluation function that:
 3. Applies sparse symmetric products
 4. Applies coupling matrix (A2Bmap)
 5. Computes readout (linear combination)
+
+# Arguments
+- `edge_rij`: (n_edges, 3) edge vectors rij = rj - ri
+- `atomic_numbers`: (n_atoms,) atomic numbers
+- `edge_i`, `edge_j`: (n_edges,) edge indices (1-based)
+- `n_atoms`, `n_edges`: actual counts
+- `state`: ReactantETACEState with all parameters
+
+# Returns
+- Total ACE energy (scalar)
 """
 function compute_ace_energy(edge_rij, atomic_numbers, edge_i, edge_j,
                             n_atoms::Int32, n_edges::Int32,
                             state::ReactantETACEState{T}) where T
-    # TODO: Implement full ACE evaluation
-    # This requires the full embedding + kernel pipeline
-    # For now, return placeholder
+    n_rnl = state.n_rnl
+    n_ylm = state.nYlm
 
-    return zero(T)  # Placeholder
+    # Step 1: Count neighbors per atom to determine max_neigs
+    neig_count = zeros(Int, n_atoms)
+    for e in 1:n_edges
+        i = edge_i[e]
+        neig_count[i] += 1
+    end
+    max_neigs = maximum(neig_count)
+
+    # Step 2: Build 3D embedding tensors
+    # Rnl_3[j, i, r] = radial embedding r for j-th neighbor of atom i
+    # Ylm_3[j, i, l] = angular embedding l for j-th neighbor of atom i
+    Rnl_3 = zeros(T, max_neigs, n_atoms, n_rnl)
+    Ylm_3 = zeros(T, max_neigs, n_atoms, n_ylm)
+
+    # Track current neighbor index per atom
+    neig_idx = zeros(Int, n_atoms)
+
+    for e in 1:n_edges
+        i = edge_i[e]
+        j_atom = edge_j[e]
+
+        # Get edge vector and compute distance
+        rij = SVector{3,T}(edge_rij[e, 1], edge_rij[e, 2], edge_rij[e, 3])
+        r = norm(rij)
+
+        # Skip if outside cutoff
+        r > state.rcut && continue
+
+        # Compute unit vector (avoid division by zero)
+        rhat = r > eps(T) ? rij / r : SVector{3,T}(zero(T), zero(T), one(T))
+
+        # Get species indices
+        zi = z_to_species_index(Int(atomic_numbers[i]), state.species_Z)
+        zj = z_to_species_index(Int(atomic_numbers[j_atom]), state.species_Z)
+
+        # Compute radial embedding
+        Rnl = compute_radial_embedding(r, zi, zj, state)
+
+        # Compute angular embedding
+        Ylm = compute_ylm_reactant(rhat, state.maxl)
+
+        # Store in 3D tensors
+        neig_idx[i] += 1
+        idx = neig_idx[i]
+        for r_idx in 1:n_rnl
+            Rnl_3[idx, i, r_idx] = Rnl[r_idx]
+        end
+        for l_idx in 1:n_ylm
+            Ylm_3[idx, i, l_idx] = Ylm[l_idx]
+        end
+    end
+
+    # Step 3: Run ACE kernel
+    BB, _, _ = ace_evaluate_reactant(Rnl_3, Ylm_3,
+                                      state.spec_R, state.spec_Y,
+                                      state.specs_mats, state.A2Bmap)
+
+    # Step 4: Compute site energies and sum
+    energy = zero(T)
+    for i in 1:n_atoms
+        zi = z_to_species_index(Int(atomic_numbers[i]), state.species_Z)
+        # Site energy: BB[i, :] · W_readout[:, zi]
+        for b in 1:state.n_basis
+            energy += BB[i, b] * state.W_readout[b, zi]
+        end
+    end
+
+    return energy
 end
 
 ## ============================================================================

@@ -164,12 +164,25 @@ function prepare_reactant_state(calc::WrappedSiteCalculator{<:ETACE}; T::Type=Fl
     rcut = T(calc.rcut)
 
     # -------------------------------------------------------------------------
-    # Extract species info from readout layer
+    # Extract species info from readout layer and Agnesi transform state
     # -------------------------------------------------------------------------
     n_species = model.readout.ncat
-    # Species Z needs to come from the original model - use placeholder for now
-    # In full implementation, extract from model metadata or selector
-    species_Z = collect(1:n_species)
+
+    # Extract species_Z from Agnesi transform state
+    # The zlist is stored in st.rembed.trans.zlist as a tuple of ChemicalSpecies
+    species_Z = try
+        rembed_st = st.rembed
+        trans_st = rembed_st.trans
+        if hasproperty(trans_st, :zlist)
+            zlist = trans_st.zlist
+            [Int(z.atomic_number) for z in zlist]
+        else
+            collect(1:n_species)
+        end
+    catch e
+        @warn "Could not extract species_Z from state" exception=e
+        collect(1:n_species)
+    end
 
     # -------------------------------------------------------------------------
     # Extract ACE tensor state from basis layer
@@ -400,12 +413,12 @@ function zz_to_pair_index_sym(iz::Int, jz::Int, n_species::Int)
 end
 
 """
-    z_to_species_index(Z::Int, species_Z::Vector{Int})
+    z_to_species_index(Z, species_Z::AbstractVector)
 
 Convert atomic number Z to species index (1-based).
 """
-function z_to_species_index(Z::Int, species_Z::Vector{Int})
-    idx = findfirst(==(Z), species_Z)
+function z_to_species_index(Z::Integer, species_Z::AbstractVector{<:Integer})
+    idx = findfirst(==(Int(Z)), species_Z)
     isnothing(idx) && error("Unknown atomic number: $Z")
     return idx
 end
