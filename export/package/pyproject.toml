@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mypotential"
+version = "1.0.0"
+description = "Pre-compiled ACE interatomic potential with IREE runtime"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    {name = "ACE Development Team"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+keywords = ["molecular dynamics", "machine learning", "interatomic potential", "ACE"]
+dependencies = [
+    "numpy>=1.20",
+    "ase>=3.22",
+    "matscipy>=0.8",
+    "iree-runtime>=2.5",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "iree-runtime[cuda]>=2.5",
+]
+vulkan = [
+    "iree-runtime[vulkan]>=2.5",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ACEsuit/ACEpotentials.jl"
+Documentation = "https://acesuit.github.io/ACEpotentials.jl/"
+Repository = "https://github.com/ACEsuit/ACEpotentials.jl"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mypotential"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/mypotential/models" = "mypotential/models"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
