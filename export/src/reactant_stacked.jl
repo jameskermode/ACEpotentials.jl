@@ -30,11 +30,16 @@ struct ReactantPairState{T}
 
     # Radial basis parameters (same structure as ACE)
     n_polys::Int
-    agnesi_params::Matrix{T}         # (5, n_pairs)
+    rcut::T                          # Cutoff radius
+    agnesi_params::Matrix{T}         # (7, n_pairs) - pin, pcut, a, b0, b1, rin, req
     poly_A::Vector{T}
     poly_B::Vector{T}
     poly_C::Vector{T}
     W_radial::Array{T,3}             # (n_basis, n_polys, n_pairs)
+
+    # Outer cutoff envelope: (1 - r/rcut_outer)^p_outer
+    rcut_outer::T                    # Cutoff radius for outer envelope
+    p_outer::Int                     # Power for outer envelope
 
     # Readout
     W_readout::Matrix{T}             # (n_basis, n_species)
@@ -210,24 +215,31 @@ function _extract_pair_state(pair_calc, n_species::Int, T::Type)
     n_basis = model.readout.in_dim
     n_pairs = n_species * n_species
 
+    # Extract cutoff from the pair model
+    rcut = T(pair_calc.rcut)
+
     # Extract radial basis parameters (similar to ACE extraction)
     n_polys = _extract_n_polys_pair(model.rembed)
 
-    # Agnesi parameters
-    agnesi_params = _extract_agnesi_params_pair(model.rembed, st.rembed, n_pairs, T)
+    # Agnesi parameters (7 params: pin, pcut, a, b0, b1, rin, req) - extract from state
+    agnesi_params = _extract_agnesi_params_pair(st.rembed, n_pairs, T)
 
-    # Chebyshev coefficients
-    poly_A, poly_B, poly_C = _extract_chebyshev_coeffs_pair(model.rembed, n_polys, T)
+    # Chebyshev coefficients - extract from state
+    poly_A, poly_B, poly_C = _extract_chebyshev_coeffs_pair(st.rembed, n_polys, T)
 
     # Radial weights
     W_radial = _extract_radial_weights_pair(ps.rembed, n_basis, n_polys, n_pairs, T)
+
+    # Outer envelope parameters from EnvRBranchL
+    rcut_outer, p_outer = _extract_outer_envelope_pair(st.rembed, rcut, T)
 
     # Readout weights
     W_readout = T.(dropdims(ps.readout.W, dims=1))
 
     return ReactantPairState{T}(
         n_basis, n_species, n_pairs,
-        n_polys, agnesi_params, poly_A, poly_B, poly_C, W_radial,
+        n_polys, rcut, agnesi_params, poly_A, poly_B, poly_C, W_radial,
+        rcut_outer, p_outer,
         W_readout
     )
 end
@@ -267,43 +279,67 @@ function _extract_n_polys_pair(rembed)
     return 10
 end
 
-function _extract_agnesi_params_pair(rembed, rembed_st, n_pairs, T)
-    params = zeros(T, 5, n_pairs)
+"""
+Extract Agnesi parameters (7 values) from pair model state.
+Pair state structure: st.rembed.layer.rbasis.trans.params (or st.rembed.rbasis.trans.params)
+Each param tuple has: pin, pcut, a, b0, b1, rin, req
+"""
+function _extract_agnesi_params_pair(rembed_st, n_pairs, T)
+    params = zeros(T, 7, n_pairs)
 
     try
-        # EdgeEmbed wraps in `layer` field
-        outer = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
-        if hasproperty(outer, :rbasis)
-            trans = outer.rbasis.trans
-            if hasproperty(trans, :refstate) && hasproperty(trans.refstate, :params)
-                agnesi_list = trans.refstate.params
-                for (idx, p) in enumerate(agnesi_list)
-                    if idx <= n_pairs
-                        params[1, idx] = T(p.pcut)
-                        params[2, idx] = T(p.pin)
-                        params[3, idx] = T(p.rin)
-                        params[4, idx] = T(p.req)
-                        # rcut may not be in params
-                        params[5, idx] = hasproperty(p, :rcut) ? T(p.rcut) : T(6.0)
-                    end
+        # Navigate to the transform state
+        # Pair model structure: st.rembed.layer.rbasis.trans.params
+        # or possibly st.rembed.rbasis.trans.params
+        trans_st = nothing
+        if hasproperty(rembed_st, :layer) && hasproperty(rembed_st.layer, :rbasis)
+            trans_st = rembed_st.layer.rbasis.trans
+        elseif hasproperty(rembed_st, :rbasis)
+            trans_st = rembed_st.rbasis.trans
+        end
+
+        if trans_st !== nothing && hasproperty(trans_st, :params)
+            agnesi_list = trans_st.params
+            for (idx, p) in enumerate(agnesi_list)
+                if idx <= n_pairs
+                    params[1, idx] = T(p.pin)
+                    params[2, idx] = T(p.pcut)
+                    params[3, idx] = T(p.a)
+                    params[4, idx] = T(p.b0)
+                    params[5, idx] = T(p.b1)
+                    params[6, idx] = T(p.rin)
+                    params[7, idx] = T(p.req)
                 end
             end
+        else
+            @warn "Could not find pair Agnesi params in state, using defaults"
+            _set_default_agnesi_params!(params, n_pairs, T)
         end
     catch e
         @warn "Could not extract pair Agnesi params" exception=e
-        for idx in 1:n_pairs
-            params[1, idx] = T(2.0)
-            params[2, idx] = T(2.0)
-            params[3, idx] = T(1.0)
-            params[4, idx] = T(2.5)
-            params[5, idx] = T(6.0)
-        end
+        _set_default_agnesi_params!(params, n_pairs, T)
     end
 
     return params
 end
 
-function _extract_chebyshev_coeffs_pair(rembed, n_polys, T)
+function _set_default_agnesi_params!(params, n_pairs, T)
+    for idx in 1:n_pairs
+        params[1, idx] = T(2)     # pin
+        params[2, idx] = T(2)     # pcut
+        params[3, idx] = T(0.5)   # a
+        params[4, idx] = T(-1.0)  # b0
+        params[5, idx] = T(2.0)   # b1
+        params[6, idx] = T(0.5)   # rin
+        params[7, idx] = T(2.5)   # req
+    end
+end
+
+"""
+Extract Chebyshev coefficients from pair model state.
+Pair state structure: st.rembed.layer.rbasis.basis has (A, B, C)
+"""
+function _extract_chebyshev_coeffs_pair(rembed_st, n_polys, T)
     A = fill(T(2), n_polys)
     A[1] = T(1)
     B = zeros(T, n_polys)
@@ -311,18 +347,24 @@ function _extract_chebyshev_coeffs_pair(rembed, n_polys, T)
     C[1] = T(0)
 
     try
-        # EdgeEmbed wraps in `layer` field
-        outer = hasproperty(rembed, :layer) ? rembed.layer : rembed.basis
-        if hasproperty(outer, :rbasis)
-            rbasis = outer.rbasis
-            if hasproperty(rbasis, :basis) && hasproperty(rbasis.basis, :A)
-                polys = rbasis.basis
-                A = T.(polys.A[1:n_polys])
-                B = T.(polys.B[1:n_polys])
-                C = T.(polys.C[1:n_polys])
-            end
+        # Navigate to polynomial coefficients in state
+        # Structure: st.rembed.layer.rbasis.basis or st.rembed.rbasis.basis
+        basis_st = nothing
+        if hasproperty(rembed_st, :layer) && hasproperty(rembed_st.layer, :rbasis)
+            basis_st = rembed_st.layer.rbasis.basis
+        elseif hasproperty(rembed_st, :rbasis)
+            basis_st = rembed_st.rbasis.basis
         end
-    catch
+
+        if basis_st !== nothing && hasproperty(basis_st, :A)
+            A = T.(basis_st.A[1:n_polys])
+            B = T.(basis_st.B[1:n_polys])
+            C = T.(basis_st.C[1:n_polys])
+        else
+            @warn "Could not find pair Chebyshev coeffs in state, using standard"
+        end
+    catch e
+        @warn "Could not extract pair Chebyshev coefficients" exception=e
     end
 
     return A, B, C
@@ -346,6 +388,32 @@ function _extract_radial_weights_pair(ps_rembed, n_basis, n_polys, n_pairs, T)
     end
 
     return W
+end
+
+"""
+Extract outer envelope parameters from pair model state.
+EnvRBranchL applies (1 - r/rcut)^p as an outer cutoff envelope.
+"""
+function _extract_outer_envelope_pair(rembed_st, default_rcut, T)
+    rcut_outer = default_rcut
+    p_outer = 1
+
+    try
+        # Structure: st.rembed.envelope has (rcut, p)
+        if hasproperty(rembed_st, :envelope)
+            env_st = rembed_st.envelope
+            if hasproperty(env_st, :rcut)
+                rcut_outer = T(env_st.rcut)
+            end
+            if hasproperty(env_st, :p)
+                p_outer = Int(env_st.p)
+            end
+        end
+    catch e
+        @warn "Could not extract outer envelope params, using defaults" exception=e
+    end
+
+    return rcut_outer, p_outer
 end
 
 ## ============================================================================
@@ -437,6 +505,7 @@ function compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
     energy = zero(T)
     n_polys = pair_state.n_polys
     n_basis = pair_state.n_basis
+    rcut = pair_state.rcut
 
     # Pre-allocate buffers
     P = Vector{T}(undef, n_polys)
@@ -449,6 +518,9 @@ function compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
         rij = SVector{3,T}(edge_rij[e, 1], edge_rij[e, 2], edge_rij[e, 3])
         r = norm(rij)
 
+        # Skip if outside cutoff
+        r > rcut && continue
+
         # Get species indices
         zi = z_to_species_index(Int(atomic_numbers[i]), species_Z)
         zj = z_to_species_index(Int(atomic_numbers[j_atom]), species_Z)
@@ -456,18 +528,17 @@ function compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
         # Get pair index (asymmetric: depends on both center and neighbor species)
         pair_idx = zz_to_pair_index(zi, zj, pair_state.n_species)
 
-        # Extract Agnesi parameters for this pair
-        pcut = pair_state.agnesi_params[1, pair_idx]
-        pin = pair_state.agnesi_params[2, pair_idx]
-        rin = pair_state.agnesi_params[3, pair_idx]
-        req = pair_state.agnesi_params[4, pair_idx]
-        rcut = pair_state.agnesi_params[5, pair_idx]
+        # Extract Agnesi parameters for this pair (7 params: pin, pcut, a, b0, b1, rin, req)
+        pin = Int(pair_state.agnesi_params[1, pair_idx])
+        pcut = Int(pair_state.agnesi_params[2, pair_idx])
+        a = pair_state.agnesi_params[3, pair_idx]
+        b0 = pair_state.agnesi_params[4, pair_idx]
+        b1 = pair_state.agnesi_params[5, pair_idx]
+        rin = pair_state.agnesi_params[6, pair_idx]
+        req = pair_state.agnesi_params[7, pair_idx]
 
-        # Skip if outside cutoff
-        r > rcut && continue
-
-        # Apply Agnesi transform
-        y = compute_agnesi_transform(r, pcut, pin, rin, req, rcut)
+        # Apply Agnesi transform (7-param version)
+        y = compute_agnesi_transform(r, pin, pcut, a, b0, b1, rin, req)
 
         # Evaluate Chebyshev polynomials
         compute_chebyshev_basis!(P, y, pair_state.poly_A, pair_state.poly_B, pair_state.poly_C)
@@ -554,8 +625,8 @@ function compute_ace_energy(edge_rij, atomic_numbers, edge_i, edge_j,
         # Compute radial embedding
         Rnl = compute_radial_embedding(r, zi, zj, state)
 
-        # Compute angular embedding
-        Ylm = compute_ylm_reactant(rhat, state.maxl)
+        # Compute angular embedding (solid harmonics: r^l * Y_lm)
+        Ylm = compute_solid_harmonics_reactant(r, rhat, state.maxl)
 
         # Store in 3D tensors
         neig_idx[i] += 1

@@ -10,7 +10,7 @@ Converts ETACE model state to Reactant-compatible format:
 
 import EquivariantTensors as ET
 import Polynomials4ML as P4ML
-using SparseArrays: findnz
+using SparseArrays: findnz, AbstractSparseMatrix
 using LinearAlgebra: norm
 
 ## ============================================================================
@@ -206,7 +206,10 @@ function prepare_reactant_state(calc::WrappedSiteCalculator{<:ETACE}; T::Type=Fl
     # Number of Chebyshev polynomials
     # Access through the rembed structure
     n_polys = _extract_n_polys(model.rembed)
-    n_rnl = model.readout.in_dim > 0 ? length(spec_R) : 0  # Number of (n,l) basis functions
+
+    # Get n_rnl from the actual radial weight matrix shape (not from spec length!)
+    # ps.rembed.post.W has shape (n_rnl, n_polys, n_pairs)
+    n_rnl = _extract_n_rnl(ps.rembed)
 
     # Number of species pairs
     n_pairs = n_species * n_species
@@ -249,6 +252,21 @@ end
 ## ============================================================================
 ## Parameter extraction helpers
 ## ============================================================================
+
+"""
+Extract n_rnl (number of radial basis outputs) from rembed parameters.
+This comes from the shape of ps.rembed.post.W which is (n_rnl, n_polys, n_pairs).
+"""
+function _extract_n_rnl(ps_rembed)
+    try
+        if hasproperty(ps_rembed, :post) && hasproperty(ps_rembed.post, :W)
+            return size(ps_rembed.post.W, 1)
+        end
+    catch
+    end
+    # Default fallback
+    return 10
+end
 
 """
 Extract number of polynomials from rembed layer.

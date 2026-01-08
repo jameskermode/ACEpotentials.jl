@@ -213,7 +213,9 @@ for i in 1:n_atoms_tetra
 end
 
 n_edges_tetra = Int32(length(edge_i_tetra))
-edge_rij_tetra = reshape(Float32.(edge_rij_tetra), n_edges_tetra, 3)
+# Note: append! creates [x1,y1,z1,x2,y2,z2,...], so reshape(flat, 3, n_edges) gives
+# columns [x1,y1,z1], [x2,y2,z2], ..., then permutedims transposes to rows
+edge_rij_tetra = permutedims(reshape(Float32.(edge_rij_tetra), 3, Int(n_edges_tetra)), (2, 1))
 edge_i_tetra = Int32.(edge_i_tetra)
 edge_j_tetra = Int32.(edge_j_tetra)
 

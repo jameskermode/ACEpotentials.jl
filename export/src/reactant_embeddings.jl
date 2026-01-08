@@ -375,6 +375,66 @@ function compute_ylm_reactant(rhat::SVector{3,T}, maxl::Int) where T
 end
 
 """
+    compute_solid_harmonics_reactant!(Ylm::AbstractVector{T}, r::T, rhat::SVector{3,T}, maxl::Int) where T
+
+Compute SOLID spherical harmonics: r^l * Y_lm(rhat)
+This is what ACE uses when Ytype=:solid.
+
+The solid harmonics are homogeneous polynomials of degree l in (x, y, z).
+"""
+function compute_solid_harmonics_reactant!(Ylm::AbstractVector{T}, r::T, rhat::SVector{3,T}, maxl::Int) where T
+    x, y, z = r * rhat[1], r * rhat[2], r * rhat[3]
+    nYlm = (maxl + 1)^2
+
+    # l = 0: r^0 * Y_00 = 1 / (2√π)
+    Ylm[1] = T(0.28209479177387814)
+
+    maxl == 0 && return Ylm
+
+    # l = 1: r^1 * Y_1m = √(3/4π) * (x, y, z)
+    c1 = T(0.4886025119029199)  # √(3/4π)
+    Ylm[2] = c1 * y   # l=1, m=-1
+    Ylm[3] = c1 * z   # l=1, m=0
+    Ylm[4] = c1 * x   # l=1, m=1
+
+    maxl == 1 && return Ylm
+
+    # l = 2: r^2 * Y_2m - these are quadratic forms in (x, y, z)
+    c2_0 = T(0.31539156525252005)   # √(5/16π)
+    c2_1 = T(1.0925484305920792)    # √(15/4π)
+    c2_2 = T(0.5462742152960396)    # √(15/16π)
+
+    xy = x * y
+    xz = x * z
+    yz = y * z
+    x2 = x * x
+    y2 = y * y
+    z2 = z * z
+    r2 = x2 + y2 + z2
+
+    Ylm[5] = c2_1 * xy                        # l=2, m=-2
+    Ylm[6] = c2_1 * yz                        # l=2, m=-1
+    Ylm[7] = c2_0 * (3 * z2 - r2)            # l=2, m=0
+    Ylm[8] = c2_1 * xz                        # l=2, m=1
+    Ylm[9] = c2_2 * (x2 - y2)                 # l=2, m=2
+
+    maxl > 2 && @warn "compute_solid_harmonics_reactant! only supports maxl ≤ 2, got $maxl"
+
+    return Ylm
+end
+
+"""
+    compute_solid_harmonics_reactant(r::T, rhat::SVector{3,T}, maxl::Int) where T
+
+Allocating version of solid harmonics computation.
+"""
+function compute_solid_harmonics_reactant(r::T, rhat::SVector{3,T}, maxl::Int) where T
+    nYlm = (maxl + 1)^2
+    Ylm = Vector{T}(undef, nYlm)
+    return compute_solid_harmonics_reactant!(Ylm, r, rhat, maxl)
+end
+
+"""
     compute_ylm_reactant_ed!(Ylm::AbstractVector{T}, dYlm::AbstractMatrix{T},
                               rhat::SVector{3,T}, maxl::Int) where T
 
