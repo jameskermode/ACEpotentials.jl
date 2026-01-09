@@ -31,25 +31,71 @@ endif()
 if(EXISTS "${IREE_DIR}/lib/libiree_runtime_unified.a")
     message(STATUS "Found IREE libraries at: ${IREE_DIR}")
     set(IREE_LIBRARY_DIRS ${IREE_DIR}/lib)
+    set(IREE_LIBS_FOUND TRUE)
 else()
-    message(WARNING "IREE libraries not found at ${IREE_DIR}/lib. Set IREE_DIR.")
+    message(STATUS "IREE libraries not found at ${IREE_DIR}/lib. Set IREE_DIR.")
+    set(IREE_LIBS_FOUND FALSE)
 endif()
 
 # Headers come from source checkout (binary dist is incomplete)
 if(EXISTS "${IREE_SRC_DIR}/runtime/src/iree/base/allocator.h")
     message(STATUS "Found IREE headers at: ${IREE_SRC_DIR}/runtime/src")
     set(IREE_INCLUDE_DIRS ${IREE_SRC_DIR}/runtime/src)
+    set(IREE_HEADERS_FOUND TRUE)
 else()
-    message(WARNING "IREE headers not found at ${IREE_SRC_DIR}. Set IREE_SRC_DIR.")
+    message(STATUS "IREE headers not found at ${IREE_SRC_DIR}. Set IREE_SRC_DIR.")
+    set(IREE_HEADERS_FOUND FALSE)
 endif()
 
 # Check LAMMPS
 if(EXISTS "${LAMMPS_SRC_DIR}/lammps.h")
     message(STATUS "Found LAMMPS source at: ${LAMMPS_SRC_DIR}")
+    set(LAMMPS_FOUND TRUE)
 else()
-    message(WARNING "LAMMPS source not found at ${LAMMPS_SRC_DIR}. Set LAMMPS_SRC.")
+    message(STATUS "LAMMPS source not found at ${LAMMPS_SRC_DIR}. Set LAMMPS_SRC.")
+    set(LAMMPS_FOUND FALSE)
 endif()
 
+# Find MPI (optional, required only for LAMMPS ML-IAP plugin)
+find_package(MPI QUIET)
+if(MPI_FOUND)
+    message(STATUS "MPI found")
+else()
+    message(STATUS "MPI not found")
+endif()
+
+# ==============================================================================
+# ACE Forces Library (standalone, no IREE dependency for chain rule functions)
+# ==============================================================================
+# This library provides:
+# - Chebyshev polynomial embeddings and derivatives
+# - Spherical harmonics embeddings and derivatives
+# - Chain rule to convert embedding gradients to atomic forces
+#
+# These are standard mathematical functions, NOT the ACE kernel.
+# The ACE kernel (energy + gradients) comes from compiled VMFB.
+
+add_library(ace_forces SHARED
+    src/ace_forces.c
+)
+
+target_include_directories(ace_forces PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(ace_forces PRIVATE
+    m  # math library
+)
+
+set_target_properties(ace_forces PROPERTIES
+    OUTPUT_NAME "ace_forces"
+    PREFIX "lib"
+    C_STANDARD 99
+)
+
+# ==============================================================================
+# ACE IREE Plugin (LAMMPS ML-IAP with IREE integration)
+# ==============================================================================
 # Collect IREE static libraries (only the essential ones for runtime)
 set(IREE_STATIC_LIBS
     ${IREE_LIBRARY_DIRS}/libiree_runtime_unified.a
@@ -92,72 +138,239 @@ set(IREE_STATIC_LIBS
     ${IREE_LIBRARY_DIRS}/libflatcc_runtime.a
 )
 
-# Build shared library for ML-IAP plugin
-add_library(ace_iree_plugin SHARED
-    src/iree_wrapper.cpp
-    src/mliap_ace_iree.cpp
-)
+# Only build LAMMPS plugin if all dependencies are available
+if(MPI_FOUND AND LAMMPS_FOUND AND IREE_LIBS_FOUND AND IREE_HEADERS_FOUND)
+    message(STATUS "All LAMMPS plugin dependencies found - building ace_iree_plugin")
 
-# Enable native IREE if headers and libraries are found
-if(EXISTS "${IREE_SRC_DIR}/runtime/src/iree/base/allocator.h" AND
-   EXISTS "${IREE_DIR}/lib/libiree_runtime_unified.a")
-    message(STATUS "Native IREE embedding enabled")
+    add_library(ace_iree_plugin SHARED
+        src/iree_wrapper.cpp
+        src/mliap_ace_iree.cpp
+    )
+
     target_compile_definitions(ace_iree_plugin PRIVATE
         IREE_AVAILABLE
         IREE_ALLOCATOR_SYSTEM_CTL=iree_allocator_libc_ctl
     )
-    set(IREE_ENABLED TRUE)
+
+    # IMPORTANT: IREE includes must come BEFORE LAMMPS to avoid header conflicts
+    # (LAMMPS has memory.h which conflicts with system <memory.h> used by IREE)
+    target_include_directories(ace_iree_plugin PRIVATE
+        ${IREE_INCLUDE_DIRS}
+        ${CMAKE_SOURCE_DIR}/src
+        ${LAMMPS_SRC_DIR}
+        ${LAMMPS_SRC_DIR}/ML-IAP
+        ${MPI_CXX_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(ace_iree_plugin PRIVATE
+        ${IREE_STATIC_LIBS}
+        pthread
+        dl
+        m
+    )
+
+    set_target_properties(ace_iree_plugin PROPERTIES
+        OUTPUT_NAME "ace_iree"
+        PREFIX "lib"
+    )
+
+    set(BUILD_LAMMPS_PLUGIN TRUE)
 else()
-    message(STATUS "Native IREE disabled - missing headers or libraries")
-    set(IREE_ENABLED FALSE)
+    message(STATUS "Skipping LAMMPS plugin (missing: MPI=${MPI_FOUND} LAMMPS=${LAMMPS_FOUND} IREE_LIBS=${IREE_LIBS_FOUND} IREE_HEADERS=${IREE_HEADERS_FOUND})")
+    set(BUILD_LAMMPS_PLUGIN FALSE)
 endif()
 
-# Find MPI (required for LAMMPS headers)
-find_package(MPI REQUIRED)
+# ==============================================================================
+# Kokkos-Enabled IREE Pair Style (optional - requires Kokkos + LAMMPS)
+# ==============================================================================
+# Provides zero-copy GPU integration between Kokkos and IREE
+option(BUILD_KOKKOS_PAIR "Build Kokkos-enabled pair_iree_kokkos" OFF)
 
-# IMPORTANT: IREE includes must come BEFORE LAMMPS to avoid header conflicts
-# (LAMMPS has memory.h which conflicts with system <memory.h> used by IREE)
-target_include_directories(ace_iree_plugin PRIVATE
-    ${IREE_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/src
-    ${LAMMPS_SRC_DIR}
-    ${LAMMPS_SRC_DIR}/ML-IAP
-    ${MPI_CXX_INCLUDE_DIRS}
-)
+# Try to find Kokkos
+find_package(Kokkos QUIET)
+if(Kokkos_FOUND)
+    message(STATUS "Found Kokkos: ${Kokkos_DIR}")
+    if(Kokkos_ENABLE_CUDA)
+        message(STATUS "  Kokkos CUDA backend enabled")
+        set(HAS_KOKKOS_CUDA TRUE)
+    endif()
+    if(Kokkos_ENABLE_OPENMP)
+        message(STATUS "  Kokkos OpenMP backend enabled")
+    endif()
+else()
+    message(STATUS "Kokkos not found - pair_iree_kokkos will not be built")
+    set(BUILD_KOKKOS_PAIR OFF)
+endif()
 
-# Link IREE static libs and system libs
-target_link_libraries(ace_iree_plugin PRIVATE
-    ${IREE_STATIC_LIBS}
-    pthread
-    dl
-    m
-)
+# Additional IREE CUDA libraries (for Kokkos+GPU builds)
+if(HAS_KOKKOS_CUDA AND EXISTS "${IREE_LIBRARY_DIRS}/libiree_hal_drivers_cuda_cuda.a")
+    set(IREE_CUDA_LIBS
+        ${IREE_LIBRARY_DIRS}/libiree_hal_drivers_cuda_cuda.a
+        ${IREE_LIBRARY_DIRS}/libiree_hal_drivers_cuda_registration_registration.a
+    )
+    set(HAS_IREE_CUDA TRUE)
+    message(STATUS "Found IREE CUDA libraries")
+else()
+    set(HAS_IREE_CUDA FALSE)
+endif()
 
-# Set output name
-set_target_properties(ace_iree_plugin PROPERTIES
-    OUTPUT_NAME "ace_iree"
-    PREFIX "lib"
-)
+# Build Kokkos pair_style if requested and dependencies available
+if(BUILD_KOKKOS_PAIR AND Kokkos_FOUND AND LAMMPS_FOUND AND IREE_LIBS_FOUND AND IREE_HEADERS_FOUND)
+    message(STATUS "Building Kokkos-enabled pair_iree_kokkos")
 
+    add_library(pair_iree_kokkos SHARED
+        src/pair_iree_kokkos.cpp
+    )
+
+    target_compile_definitions(pair_iree_kokkos PRIVATE
+        IREE_AVAILABLE
+        IREE_ALLOCATOR_SYSTEM_CTL=iree_allocator_libc_ctl
+    )
+
+    if(HAS_IREE_CUDA)
+        target_compile_definitions(pair_iree_kokkos PRIVATE IREE_HAL_HAVE_CUDA_DRIVER)
+    endif()
+
+    target_include_directories(pair_iree_kokkos PRIVATE
+        ${IREE_INCLUDE_DIRS}
+        ${CMAKE_SOURCE_DIR}/src
+        ${LAMMPS_SRC_DIR}
+        ${LAMMPS_SRC_DIR}/KOKKOS
+        ${MPI_CXX_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(pair_iree_kokkos PRIVATE
+        Kokkos::kokkos
+        ${IREE_STATIC_LIBS}
+        $<$<BOOL:${HAS_IREE_CUDA}>:${IREE_CUDA_LIBS}>
+        pthread
+        dl
+        m
+    )
+
+    set_target_properties(pair_iree_kokkos PROPERTIES
+        OUTPUT_NAME "pair_iree_kokkos"
+        PREFIX "lib"
+    )
+
+    set(BUILD_KOKKOS_PAIR_STYLE TRUE)
+else()
+    set(BUILD_KOKKOS_PAIR_STYLE FALSE)
+endif()
+
+# ==============================================================================
+# Non-Kokkos IREE Pair Style (CPU fallback)
+# ==============================================================================
+# Simpler pair_style for CPU-only deployments
+if(LAMMPS_FOUND AND IREE_LIBS_FOUND AND IREE_HEADERS_FOUND)
+    message(STATUS "Building non-Kokkos pair_iree (CPU fallback)")
+
+    add_library(pair_iree SHARED
+        src/pair_iree.cpp
+        src/iree_wrapper.cpp
+    )
+
+    target_compile_definitions(pair_iree PRIVATE
+        IREE_AVAILABLE
+        IREE_ALLOCATOR_SYSTEM_CTL=iree_allocator_libc_ctl
+    )
+
+    target_include_directories(pair_iree PRIVATE
+        ${IREE_INCLUDE_DIRS}
+        ${CMAKE_SOURCE_DIR}/src
+        ${LAMMPS_SRC_DIR}
+        ${MPI_CXX_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(pair_iree PRIVATE
+        ${IREE_STATIC_LIBS}
+        pthread
+        dl
+        m
+    )
+
+    set_target_properties(pair_iree PROPERTIES
+        OUTPUT_NAME "pair_iree"
+        PREFIX "lib"
+    )
+
+    set(BUILD_PAIR_IREE TRUE)
+else()
+    set(BUILD_PAIR_IREE FALSE)
+endif()
+
+# ==============================================================================
 # Installation
-install(TARGETS ace_iree_plugin
+# ==============================================================================
+# Always install ace_forces
+install(TARGETS ace_forces
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
 )
 
 install(FILES
-    src/mliap_ace_iree.h
-    src/iree_wrapper.h
+    src/ace_forces.h
     DESTINATION include/ace_iree
 )
 
+# Install LAMMPS plugin if built
+if(BUILD_LAMMPS_PLUGIN)
+    install(TARGETS ace_iree_plugin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+    )
+
+    install(FILES
+        src/mliap_ace_iree.h
+        src/iree_wrapper.h
+        DESTINATION include/ace_iree
+    )
+endif()
+
+# Install pair_iree if built
+if(BUILD_PAIR_IREE)
+    install(TARGETS pair_iree
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+    )
+
+    install(FILES
+        src/pair_iree.h
+        DESTINATION include/ace_iree
+    )
+endif()
+
+# Install pair_iree_kokkos if built
+if(BUILD_KOKKOS_PAIR_STYLE)
+    install(TARGETS pair_iree_kokkos
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+    )
+
+    install(FILES
+        src/pair_iree_kokkos.h
+        DESTINATION include/ace_iree
+    )
+endif()
+
+# ==============================================================================
 # Print configuration summary
+# ==============================================================================
 message(STATUS "")
-message(STATUS "=== ACE IREE LAMMPS Plugin Configuration ===")
-message(STATUS "  IREE libraries: ${IREE_DIR}/lib")
-message(STATUS "  IREE headers: ${IREE_INCLUDE_DIRS}")
-message(STATUS "  IREE source: ${IREE_SRC_DIR}")
-message(STATUS "  LAMMPS source: ${LAMMPS_SRC_DIR}")
-message(STATUS "  Native IREE: ${IREE_ENABLED}")
-message(STATUS "============================================")
+message(STATUS "=== ACE IREE Configuration ===")
+message(STATUS "  ace_forces library: ENABLED (always built)")
+message(STATUS "  LAMMPS ML-IAP plugin: ${BUILD_LAMMPS_PLUGIN}")
+message(STATUS "  pair_iree (CPU): ${BUILD_PAIR_IREE}")
+message(STATUS "  pair_iree_kokkos (GPU): ${BUILD_KOKKOS_PAIR_STYLE}")
+if(BUILD_LAMMPS_PLUGIN OR BUILD_PAIR_IREE OR BUILD_KOKKOS_PAIR_STYLE)
+    message(STATUS "")
+    message(STATUS "  IREE libraries: ${IREE_DIR}/lib")
+    message(STATUS "  IREE headers: ${IREE_INCLUDE_DIRS}")
+    message(STATUS "  LAMMPS source: ${LAMMPS_SRC_DIR}")
+    if(Kokkos_FOUND)
+        message(STATUS "  Kokkos: ${Kokkos_DIR}")
+        message(STATUS "    CUDA: ${HAS_KOKKOS_CUDA}")
+    endif()
+endif()
+message(STATUS "==============================")
 message(STATUS "")

@@ -448,4 +448,42 @@ docs/
 
 scripts/
 └── runfit.jl                # Command-line fitting script
+
+export/                          # Reactant/IREE export subproject
+├── src/                         # Julia export module
+├── package/                     # Portable Python package
+├── lammps/                      # LAMMPS integration
+├── tools/                       # Development tools (uv-managed)
+└── test/                        # Export tests
+```
+
+## Export Subproject (export/)
+
+The `export/` directory contains a separate subproject for compiling ACE models to IREE VMFB files for use from Python/ASE and LAMMPS without the Julia runtime.
+
+### Python Environment Setup
+
+**IMPORTANT**: The export subproject uses `uv` for Python package management. Before running any Python code in the export subproject, you MUST load the required modules:
+
+```bash
+# Load required modules (run this first, every time)
+module load GCC/13.3.0 OpenMPI/5.0.3 Python/3.12.3 SciPy-bundle/2024.05
+
+# Then use uv for Python operations
+cd export/tools && uv pip install -e ../package  # Install the package
+cd export/tools && uv run python -c "..."        # Run Python commands
+```
+
+**DO NOT** use system pip or conda. Always use the `uv` environment after loading modules.
+
+The `export/tools/` directory contains the uv project configuration with correct IREE dependencies.
+
+### Testing Export Pipeline
+
+```bash
+# Julia export test
+julia +1.11 --project=export export/test/test_extraction.jl
+
+# Python calculator test (after module load)
+cd export/tools && uv run python -c "from mypotential import Calculator; print('OK')"
 ```

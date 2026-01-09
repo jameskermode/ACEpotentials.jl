@@ -29,7 +29,7 @@ include(joinpath(@__DIR__, "..", "src", "reactant_stacked.jl"))
 module ACEExport
     using ..Main: ReactantETACEState, ReactantPairState, ReactantStackedModel,
         prepare_reactant_state, spec_to_matrix, sparse_to_dense,
-        z_to_species_index, zz_to_pair_index, zz_to_pair_index_sym
+        z_to_species_index, zz_to_pair_index
     export ReactantETACEState, ReactantPairState, ReactantStackedModel,
         prepare_reactant_state, spec_to_matrix, sparse_to_dense
 end
@@ -139,9 +139,9 @@ ace_state = ACEExport.prepare_reactant_state(ace_calc; T=Float32)
 @test size(ace_state.A2Bmap, 1) == nbasis
 @printf("   A2Bmap: %s\n", size(ace_state.A2Bmap))
 
-# Check Agnesi params
+# Check Agnesi params (7 parameters: pin, pcut, a, b0, b1, rin, req)
 n_pairs = nspecies * nspecies
-@test size(ace_state.agnesi_params) == (5, n_pairs)
+@test size(ace_state.agnesi_params) == (7, n_pairs)
 @printf("   agnesi_params: %s\n", size(ace_state.agnesi_params))
 
 # Check radial weights

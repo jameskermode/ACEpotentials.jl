@@ -8,8 +8,7 @@ traced by Reactant. Replaces KernelAbstractions-based implementations.
 Pipeline:
 1. PooledSparseProduct: (Rnl, Ylm) → A
 2. SparseSymmProd: A → AA
-3. Coupling: AA → BB
-4. Readout: BB → site energies
+3. Coupling: AA → BB (coupling coefficients)
 =#
 
 ## ============================================================================
@@ -170,116 +169,4 @@ function ace_evaluate_reactant(Rnl_3::AbstractArray{T,3},
     BB = AA * transpose(A2Bmap)
 
     return BB, A, AA
-end
-
-"""
-    ace_evaluate_reactant_simple(Rnl_3, Ylm_3, state::ReactantETACEState)
-
-Simplified wrapper using ReactantETACEState.
-"""
-function ace_evaluate_reactant_simple(Rnl_3::AbstractArray{T,3},
-                                       Ylm_3::AbstractArray{T,3},
-                                       state::ReactantETACEState{T}) where T
-    return ace_evaluate_reactant(Rnl_3, Ylm_3,
-                                  state.spec_R, state.spec_Y,
-                                  state.specs_mats, state.A2Bmap)
-end
-
-## ============================================================================
-## Site Energy Computation
-## ============================================================================
-
-"""
-    compute_site_energies(BB, atomic_numbers, species_Z, W_readout, E0)
-
-Compute site energies from ACE basis with species-aware readout.
-
-# Arguments
-- `BB`: (nnodes, nfeatures) ACE basis
-- `atomic_numbers`: (nnodes,) atomic numbers for each node
-- `species_Z`: Vector mapping species index to atomic number
-- `W_readout`: (nfeatures, n_species) readout weights
-- `E0`: (n_species,) reference energies
-
-# Returns
-- `site_E`: (nnodes,) site energies
-"""
-function compute_site_energies(BB::AbstractMatrix{T},
-                                atomic_numbers::AbstractVector{Int},
-                                species_Z::AbstractVector{Int},
-                                W_readout::AbstractMatrix{T},
-                                E0::AbstractVector{T}) where T
-    nnodes = size(BB, 1)
-    site_E = zeros(T, nnodes)
-
-    for i in 1:nnodes
-        Z = atomic_numbers[i]
-        # Find species index
-        s = findfirst(==(Z), species_Z)
-        if !isnothing(s)
-            # Site energy = BB[i, :] · W_readout[:, s] + E0[s]
-            site_E[i] = dot(view(BB, i, :), view(W_readout, :, s)) + E0[s]
-        end
-    end
-
-    return site_E
-end
-
-"""
-    compute_site_energies_vectorized(BB, species_indices, W_readout, E0)
-
-Vectorized version assuming species_indices are precomputed.
-Better for Reactant tracing.
-"""
-function compute_site_energies_vectorized(BB::AbstractMatrix{T},
-                                           species_indices::AbstractVector{Int},
-                                           W_readout::AbstractMatrix{T},
-                                           E0::AbstractVector{T}) where T
-    nnodes = size(BB, 1)
-    site_E = zeros(T, nnodes)
-
-    for i in 1:nnodes
-        s = species_indices[i]
-        if s > 0  # Valid species
-            site_E[i] = dot(view(BB, i, :), view(W_readout, :, s)) + E0[s]
-        end
-    end
-
-    return site_E
-end
-
-## ============================================================================
-## Energy from Embeddings (for Enzyme differentiation)
-## ============================================================================
-
-"""
-    ace_energy_from_embeddings(Rnl_3, Ylm_3, species_indices, state)
-
-Compute total energy from pre-computed embeddings.
-This is the function to differentiate with Enzyme.
-
-# Arguments
-- `Rnl_3`: (maxneigs, nnodes, nRnl) radial embeddings
-- `Ylm_3`: (maxneigs, nnodes, nYlm) angular embeddings
-- `species_indices`: (nnodes,) species index for each node
-- `state`: ReactantETACEState containing all parameters
-
-# Returns
-- `energy`: Total energy (scalar)
-"""
-function ace_energy_from_embeddings(Rnl_3::AbstractArray{T,3},
-                                     Ylm_3::AbstractArray{T,3},
-                                     species_indices::AbstractVector{Int},
-                                     state::ReactantETACEState{T}) where T
-    # ACE basis evaluation
-    BB, _, _ = ace_evaluate_reactant(Rnl_3, Ylm_3,
-                                      state.spec_R, state.spec_Y,
-                                      state.specs_mats, state.A2Bmap)
-
-    # Site energies with readout
-    site_E = compute_site_energies_vectorized(BB, species_indices,
-                                               state.W_readout, state.E0)
-
-    # Total energy
-    return sum(site_E)
 end

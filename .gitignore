@@ -9,3 +9,8 @@ scratch
 export/python/src/ace_iree.egg-info/
 export/python/src/ace_iree/__pycache__/
 export/python/.venv/
+export/lammps/build/
+export/test_ace_full_gpu_output/
+export/test_ace_full_gpu_cuda_output/
+export/package/src/mypotential/__pycache__/
+export/tools/.venv/

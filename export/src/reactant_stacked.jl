@@ -417,254 +417,268 @@ function _extract_outer_envelope_pair(rembed_st, default_rcut, T)
 end
 
 ## ============================================================================
-## Energy computation functions (for Reactant compilation)
+## Vectorized Energy Computation (Reactant-compatible)
 ## ============================================================================
+## All functions use broadcasting and matrix ops - no scalar loops.
+## For single-species models; multi-species requires additional selection matrices.
 
 """
-    stacked_energy_from_edges(edge_rij, atomic_numbers, edge_i, edge_j,
-                               n_atoms, n_edges, model::ReactantStackedModel)
+    stacked_energy_vectorized(rij, pool_matrix, n_atoms, model, ace_state_params)
 
-Compute total energy from edge vectors and atomic information.
+Compute total stacked energy (E0 + pair + ACE) using vectorized operations.
 
-This function is designed to be compilable with Reactant.
-All control flow is based on compile-time constants (model structure).
+All operations use broadcasting/matmul for Reactant compatibility.
+Single-species version - all atoms use same parameters.
 
 # Arguments
-- `edge_rij`: (n_edges, 3) edge vectors rij = rj - ri
-- `atomic_numbers`: (n_atoms,) atomic numbers
-- `edge_i`, `edge_j`: (n_edges,) edge indices
-- `n_atoms`, `n_edges`: actual counts (for masking padded inputs)
-- `model`: ReactantStackedModel with all parameters
+- `rij`: (n_edges, 3) edge displacement vectors
+- `pool_matrix`: (n_atoms, n_edges) pooling matrix (1 where edge starts from atom)
+- `n_atoms`: number of atoms (for E0 computation)
+- `model`: ReactantStackedModel with E0, pair_state, has_pair
+- `ace_state_params`: Pre-extracted ACE parameters (see extract_ace_params)
 
 # Returns
 - Total energy (scalar)
 """
-function stacked_energy_from_edges(edge_rij, atomic_numbers, edge_i, edge_j,
-                                    n_atoms::Int32, n_edges::Int32,
-                                    model::ReactantStackedModel)
-    T = eltype(edge_rij)
+function stacked_energy_vectorized(
+    rij::AbstractMatrix{T},
+    pool_matrix::AbstractMatrix{T},
+    n_atoms,
+    model::ReactantStackedModel{T},
+    ace_params::NamedTuple
+) where T
+    # 1. One-body: E0[1] * n_atoms (single species)
+    E_onebody = model.E0[1] * n_atoms
 
-    # 1. One-body energy
-    E_onebody = compute_onebody_energy(atomic_numbers, n_atoms, model.E0, model.species_Z)
-
-    # 2. Pair energy (if present)
+    # 2. Pair energy (vectorized)
     E_pair = if model.has_pair && model.pair_state !== nothing
-        compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
-                           n_atoms, n_edges, model.pair_state, model.species_Z)
+        compute_pair_energy_vectorized(rij, model.pair_state)
     else
         zero(T)
     end
 
-    # 3. Many-body ACE energy
-    E_ace = compute_ace_energy(edge_rij, atomic_numbers, edge_i, edge_j,
-                               n_atoms, n_edges, model.ace_state)
+    # 3. ACE many-body (selection matrix approach)
+    E_ace = compute_ace_energy_vectorized(rij, pool_matrix, ace_params)
 
     return E_onebody + E_pair + E_ace
 end
 
-"""
-Compute one-body energy: E = Σᵢ E0[species[i]]
-"""
-function compute_onebody_energy(atomic_numbers, n_atoms::Int32, E0::Vector{T},
-                                 species_Z::Vector{Int}) where T
-    energy = zero(T)
-    for i in 1:n_atoms
-        z = atomic_numbers[i]
-        iz = z_to_species_index(z, species_Z)
-        energy += E0[iz]
-    end
-    return energy
+"""Vectorized pair energy for single-species models."""
+function compute_pair_energy_vectorized(
+    rij::AbstractMatrix{T},
+    pair::ReactantPairState{T}
+) where T
+    # Distance computation
+    r2 = sum(rij .^ 2, dims=2)
+    r_vec = sqrt.(dropdims(r2, dims=2))
+
+    # Agnesi transform (single species: pair_idx=1)
+    a = pair.agnesi_params[3, 1]
+    b0 = pair.agnesi_params[4, 1]
+    b1 = pair.agnesi_params[5, 1]
+    rin = pair.agnesi_params[6, 1]
+    req = pair.agnesi_params[7, 1]
+
+    s = (r_vec .- rin) ./ (req .- rin .+ T(1e-10))
+    x = one(T) ./ (one(T) .+ a .* s .^ 2 ./ T(2))
+    y = b1 .* x .+ b0
+    y = max.(-one(T), min.(one(T), y))
+
+    # Chebyshev basis (no inner envelope for pair)
+    n_polys = pair.n_polys
+    P = chebyshev_basis_vectorized(y, n_polys, pair.poly_A, pair.poly_B, pair.poly_C)
+
+    # Linear layer: P @ W_radial[:,:,1]^T -> [n_edges, n_basis]
+    pair_features = P * transpose(pair.W_radial[:, :, 1])
+
+    # Outer envelope: (s^(-p) - 1) * (1 - s)
+    s_outer = r_vec ./ pair.rcut_outer
+    s_safe = max.(T(1e-6), min.(s_outer, T(0.9999)))
+    outer_env = (s_safe .^ (-pair.p_outer) .- one(T)) .* (one(T) .- s_safe)
+    outer_env = outer_env .* (s_outer .< one(T))  # Zero beyond cutoff
+
+    pair_features_env = pair_features .* reshape(outer_env, :, 1)
+
+    # Readout: sum over edges and basis (single species: W_readout[:,1])
+    return sum(pair_features_env * pair.W_readout[:, 1])
 end
 
-"""
-Compute pair energy from edge vectors.
+"""Vectorized ACE energy using selection matrices."""
+function compute_ace_energy_vectorized(
+    rij::AbstractMatrix{T},
+    pool_matrix::AbstractMatrix{T},
+    p::NamedTuple  # Pre-extracted parameters
+) where T
+    # Distance and direction
+    r2 = sum(rij .^ 2, dims=2)
+    r = sqrt.(r2)
+    r_vec = dropdims(r, dims=2)
+    eps_val = T(1e-6)
+    rhat = rij ./ max.(r, eps_val)
 
-Pipeline for each edge:
-1. Compute distance from edge vector
-2. Apply Agnesi transform: r → y ∈ [-1, 1]
-3. Evaluate Chebyshev polynomials (NO inner envelope for pair model)
-4. Apply outer cutoff envelope: (s^(-p) - 1) * (1 - s) where s = r/rcut
-5. Linear layer to get pair features
-6. Apply readout weights for center atom species
+    # Radial embedding with Agnesi + envelope + W_radial
+    Rnl = radial_embedding_vectorized(r_vec, p.agnesi_a, p.agnesi_b0, p.agnesi_b1,
+                                       p.agnesi_rin, p.agnesi_req, p.n_polys,
+                                       p.poly_A, p.poly_B, p.poly_C, p.W_radial)
 
-Note: The pair model uses a different envelope structure than the ACE many-body model.
-The pair model applies EnvRBranchL which uses outer_env * rbasis, where rbasis does NOT
-include the inner (1-y²)² envelope.
+    # Solid harmonics
+    Ylm = solid_harmonics_vectorized(r_vec, rhat, p.maxl)
 
-# Arguments
-- `edge_rij`: (n_edges, 3) edge vectors
-- `atomic_numbers`: (n_atoms,) atomic numbers
-- `edge_i`, `edge_j`: (n_edges,) edge indices
-- `n_atoms`, `n_edges`: counts
-- `pair_state`: ReactantPairState with parameters
-- `species_Z`: species index to atomic number mapping
+    # Pooled sparse product via selection matrices
+    Rnl_sel = Rnl * transpose(p.selector_R)
+    Ylm_sel = Ylm * transpose(p.selector_Y)
+    A_edge = Rnl_sel .* Ylm_sel
+    A = pool_matrix * A_edge  # Pool to atoms
 
-# Returns
-- Total pair energy (scalar)
-"""
-function compute_pair_energy(edge_rij, atomic_numbers, edge_i, edge_j,
-                             n_atoms::Int32, n_edges::Int32,
-                             pair_state::ReactantPairState{T},
-                             species_Z::Vector{Int}) where T
-    energy = zero(T)
-    n_polys = pair_state.n_polys
-    n_basis = pair_state.n_basis
-    rcut = pair_state.rcut
+    # Sparse symmetric product
+    AA1 = A * transpose(p.symm_sel1)
+    AA2 = (A * transpose(p.symm_sel2_1)) .* (A * transpose(p.symm_sel2_2))
+    AA = hcat(AA1, AA2)
 
-    # Outer envelope parameters
-    rcut_outer = pair_state.rcut_outer
-    p_outer = pair_state.p_outer
-
-    # Pre-allocate buffers
-    P = Vector{T}(undef, n_polys)
-
-    for e in 1:n_edges
-        i = edge_i[e]
-        j_atom = edge_j[e]
-
-        # Compute distance
-        rij = SVector{3,T}(edge_rij[e, 1], edge_rij[e, 2], edge_rij[e, 3])
-        r = norm(rij)
-
-        # Skip if outside cutoff
-        r > rcut && continue
-
-        # Get species indices
-        zi = z_to_species_index(Int(atomic_numbers[i]), species_Z)
-        zj = z_to_species_index(Int(atomic_numbers[j_atom]), species_Z)
-
-        # Get pair index (asymmetric: depends on both center and neighbor species)
-        pair_idx = zz_to_pair_index(zi, zj, pair_state.n_species)
-
-        # Extract Agnesi parameters for this pair (7 params: pin, pcut, a, b0, b1, rin, req)
-        pin = Int(pair_state.agnesi_params[1, pair_idx])
-        pcut = Int(pair_state.agnesi_params[2, pair_idx])
-        a = pair_state.agnesi_params[3, pair_idx]
-        b0 = pair_state.agnesi_params[4, pair_idx]
-        b1 = pair_state.agnesi_params[5, pair_idx]
-        rin = pair_state.agnesi_params[6, pair_idx]
-        req = pair_state.agnesi_params[7, pair_idx]
-
-        # Apply Agnesi transform (7-param version)
-        y = compute_agnesi_transform(r, pin, pcut, a, b0, b1, rin, req)
-
-        # Evaluate Chebyshev polynomials (NO inner envelope for pair model!)
-        compute_chebyshev_basis!(P, y, pair_state.poly_A, pair_state.poly_B, pair_state.poly_C)
-
-        # Linear layer first (before envelope): W_radial[:, :, pair_idx] * P
-        # W_radial is (n_basis, n_polys, n_pairs)
-        pair_features = pair_state.W_radial[:, :, pair_idx] * P
-
-        # Apply outer cutoff envelope: (s^(-p) - 1) * (1 - s) where s = r/rcut
-        # This is the envelope from EnvRBranchL in the pair model
-        s = r / rcut_outer
-        outer_env = (s^(-p_outer) - one(T)) * (one(T) - s)
-        pair_features = pair_features .* outer_env
-
-        # Readout: pair_features · W_readout[:, zi]
-        # W_readout is (n_basis, n_species)
-        for b in 1:n_basis
-            energy += pair_features[b] * pair_state.W_readout[b, zi]
-        end
-    end
-
-    return energy
+    # Coupling and readout
+    BB = AA * transpose(p.A2Bmap)
+    return sum(BB * p.W_readout)
 end
 
-"""
-Compute ACE many-body energy from edge vectors.
+"""Vectorized Chebyshev basis evaluation."""
+function chebyshev_basis_vectorized(y::AbstractVector{T}, n_polys::Int,
+                                     poly_A, poly_B, poly_C) where T
+    P0 = y .* zero(T) .+ T(poly_A[1])
+    n_polys == 1 && return reshape(P0, :, 1)
 
-This is the main ACE evaluation function that:
-1. Computes embeddings (Rnl, Ylm) from edge vectors
-2. Pools over neighbors to get atomic features A
-3. Applies sparse symmetric products
-4. Applies coupling matrix (A2Bmap)
-5. Computes readout (linear combination)
+    P1 = T(poly_A[2]) .* y .+ T(poly_B[2])
+    result = hcat(reshape(P0, :, 1), reshape(P1, :, 1))
+    Pnm2, Pnm1 = P0, P1
 
-# Arguments
-- `edge_rij`: (n_edges, 3) edge vectors rij = rj - ri
-- `atomic_numbers`: (n_atoms,) atomic numbers
-- `edge_i`, `edge_j`: (n_edges,) edge indices (1-based)
-- `n_atoms`, `n_edges`: actual counts
-- `state`: ReactantETACEState with all parameters
+    for n in 3:n_polys
+        Pn = (T(poly_A[n]) .* y .+ T(poly_B[n])) .* Pnm1 .+ T(poly_C[n]) .* Pnm2
+        result = hcat(result, reshape(Pn, :, 1))
+        Pnm2, Pnm1 = Pnm1, Pn
+    end
+    return result
+end
 
-# Returns
-- Total ACE energy (scalar)
-"""
-function compute_ace_energy(edge_rij, atomic_numbers, edge_i, edge_j,
-                            n_atoms::Int32, n_edges::Int32,
-                            state::ReactantETACEState{T}) where T
-    n_rnl = state.n_rnl
-    n_ylm = state.nYlm
+"""Vectorized radial embedding: Agnesi + envelope + W_radial."""
+function radial_embedding_vectorized(r_vec::AbstractVector{T},
+    agnesi_a, agnesi_b0, agnesi_b1, agnesi_rin, agnesi_req,
+    n_polys, poly_A, poly_B, poly_C, W_radial::AbstractMatrix{T}) where T
 
-    # Step 1: Count neighbors per atom to determine max_neigs
-    neig_count = zeros(Int, n_atoms)
+    # Agnesi transform
+    s = (r_vec .- agnesi_rin) ./ (agnesi_req .- agnesi_rin .+ T(1e-10))
+    x = one(T) ./ (one(T) .+ agnesi_a .* s .^ 2 ./ T(2))
+    y = agnesi_b1 .* x .+ agnesi_b0
+    y = max.(-one(T), min.(one(T), y))
+
+    # Inner envelope (1 - y²)²
+    env = (one(T) .- y .^ 2) .^ 2
+
+    # Chebyshev basis
+    P = chebyshev_basis_vectorized(y, n_polys, poly_A, poly_B, poly_C)
+    P_env = P .* reshape(env, :, 1)
+
+    # Linear layer: P_env @ W_radial^T
+    return P_env * transpose(W_radial)
+end
+
+"""Vectorized solid harmonics (r^l * Y_lm) for maxl ≤ 2."""
+function solid_harmonics_vectorized(r_vec::AbstractVector{T},
+                                     rhat::AbstractMatrix{T}, maxl::Int) where T
+    rx = r_vec .* rhat[:, 1]
+    ry = r_vec .* rhat[:, 2]
+    rz = r_vec .* rhat[:, 3]
+
+    # l=0
+    Y00 = r_vec .* zero(T) .+ T(0.28209479177387814)
+    maxl == 0 && return reshape(Y00, :, 1)
+
+    # l=1
+    c1 = T(0.4886025119029199)
+    Y1m1 = c1 .* ry
+    Y10 = c1 .* rz
+    Y1p1 = c1 .* rx
+    maxl == 1 && return hcat(reshape(Y00, :, 1), reshape(Y1m1, :, 1),
+                             reshape(Y10, :, 1), reshape(Y1p1, :, 1))
+
+    # l=2
+    c2_0, c2_1, c2_2 = T(0.31539156525252005), T(1.0925484305920792), T(0.5462742152960396)
+    r2 = r_vec .^ 2
+    Y2m2 = c2_1 .* rx .* ry
+    Y2m1 = c2_1 .* ry .* rz
+    Y20 = c2_0 .* (T(3) .* rz .^ 2 .- r2)
+    Y2p1 = c2_1 .* rx .* rz
+    Y2p2 = c2_2 .* (rx .^ 2 .- ry .^ 2)
+
+    return hcat(reshape(Y00, :, 1), reshape(Y1m1, :, 1), reshape(Y10, :, 1), reshape(Y1p1, :, 1),
+                reshape(Y2m2, :, 1), reshape(Y2m1, :, 1), reshape(Y20, :, 1), reshape(Y2p1, :, 1), reshape(Y2p2, :, 1))
+end
+
+"""Extract ACE parameters into a NamedTuple for vectorized computation."""
+function extract_ace_params(ace::ReactantETACEState{T}) where T
+    # Build selection matrices
+    nRnl, nYlm = ace.n_rnl, ace.nYlm
+    spec_R, spec_Y = Int.(ace.spec_R), Int.(ace.spec_Y)
+    nA = length(spec_R)
+
+    selector_R = zeros(T, nA, nRnl)
+    selector_Y = zeros(T, nA, nYlm)
+    for k in 1:nA
+        selector_R[k, spec_R[k]] = one(T)
+        selector_Y[k, spec_Y[k]] = one(T)
+    end
+
+    # Symmetric product selectors
+    specs_mats = ace.specs_mats
+    symm_sel1 = if length(specs_mats) >= 1 && size(specs_mats[1], 1) > 0
+        sel = zeros(T, size(specs_mats[1], 1), nA)
+        for (k, idx) in enumerate(specs_mats[1][:, 1]); sel[k, idx] = one(T); end
+        sel
+    else
+        zeros(T, 1, nA)
+    end
+
+    symm_sel2_1, symm_sel2_2 = if length(specs_mats) >= 2 && size(specs_mats[2], 1) > 0
+        n2 = size(specs_mats[2], 1)
+        s1, s2 = zeros(T, n2, nA), zeros(T, n2, nA)
+        for (k, row) in enumerate(eachrow(specs_mats[2]))
+            s1[k, row[1]] = one(T)
+            s2[k, row[2]] = one(T)
+        end
+        s1, s2
+    else
+        zeros(T, 1, nA), zeros(T, 1, nA)
+    end
+
+    # Embedding params (single species: pair_idx=1)
+    pair_idx = 1
+    return (
+        selector_R = selector_R,
+        selector_Y = selector_Y,
+        symm_sel1 = symm_sel1,
+        symm_sel2_1 = symm_sel2_1,
+        symm_sel2_2 = symm_sel2_2,
+        A2Bmap = T.(ace.A2Bmap),
+        W_readout = T.(ace.W_readout[:, 1]),
+        n_polys = ace.n_polys,
+        maxl = ace.maxl,
+        agnesi_a = T(ace.agnesi_params[3, pair_idx]),
+        agnesi_b0 = T(ace.agnesi_params[4, pair_idx]),
+        agnesi_b1 = T(ace.agnesi_params[5, pair_idx]),
+        agnesi_rin = T(ace.agnesi_params[6, pair_idx]),
+        agnesi_req = T(ace.agnesi_params[7, pair_idx]),
+        poly_A = T.(ace.poly_A),
+        poly_B = T.(ace.poly_B),
+        poly_C = T.(ace.poly_C),
+        W_radial = T.(ace.W_radial[:, :, pair_idx]),
+    )
+end
+
+"""Build pool matrix from edge indices."""
+function build_pool_matrix(edge_i::AbstractVector, n_atoms::Int, n_edges::Int, ::Type{T}) where T
+    pool = zeros(T, n_atoms, n_edges)
     for e in 1:n_edges
-        i = edge_i[e]
-        neig_count[i] += 1
+        pool[edge_i[e], e] = one(T)
     end
-    max_neigs = maximum(neig_count)
-
-    # Step 2: Build 3D embedding tensors
-    # Rnl_3[j, i, r] = radial embedding r for j-th neighbor of atom i
-    # Ylm_3[j, i, l] = angular embedding l for j-th neighbor of atom i
-    Rnl_3 = zeros(T, max_neigs, n_atoms, n_rnl)
-    Ylm_3 = zeros(T, max_neigs, n_atoms, n_ylm)
-
-    # Track current neighbor index per atom
-    neig_idx = zeros(Int, n_atoms)
-
-    for e in 1:n_edges
-        i = edge_i[e]
-        j_atom = edge_j[e]
-
-        # Get edge vector and compute distance
-        rij = SVector{3,T}(edge_rij[e, 1], edge_rij[e, 2], edge_rij[e, 3])
-        r = norm(rij)
-
-        # Skip if outside cutoff
-        r > state.rcut && continue
-
-        # Compute unit vector (avoid division by zero)
-        rhat = r > eps(T) ? rij / r : SVector{3,T}(zero(T), zero(T), one(T))
-
-        # Get species indices
-        zi = z_to_species_index(Int(atomic_numbers[i]), state.species_Z)
-        zj = z_to_species_index(Int(atomic_numbers[j_atom]), state.species_Z)
-
-        # Compute radial embedding
-        Rnl = compute_radial_embedding(r, zi, zj, state)
-
-        # Compute angular embedding (solid harmonics: r^l * Y_lm)
-        Ylm = compute_solid_harmonics_reactant(r, rhat, state.maxl)
-
-        # Store in 3D tensors
-        neig_idx[i] += 1
-        idx = neig_idx[i]
-        for r_idx in 1:n_rnl
-            Rnl_3[idx, i, r_idx] = Rnl[r_idx]
-        end
-        for l_idx in 1:n_ylm
-            Ylm_3[idx, i, l_idx] = Ylm[l_idx]
-        end
-    end
-
-    # Step 3: Run ACE kernel
-    BB, _, _ = ace_evaluate_reactant(Rnl_3, Ylm_3,
-                                      state.spec_R, state.spec_Y,
-                                      state.specs_mats, state.A2Bmap)
-
-    # Step 4: Compute site energies and sum
-    energy = zero(T)
-    for i in 1:n_atoms
-        zi = z_to_species_index(Int(atomic_numbers[i]), state.species_Z)
-        # Site energy: BB[i, :] · W_readout[:, zi]
-        for b in 1:state.n_basis
-            energy += BB[i, b] * state.W_readout[b, zi]
-        end
-    end
-
-    return energy
+    return pool
 end
 
 ## ============================================================================

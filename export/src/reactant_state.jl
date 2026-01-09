@@ -425,17 +425,6 @@ function zz_to_pair_index(iz::Int, jz::Int, n_species::Int)
 end
 
 """
-    zz_to_pair_index_sym(iz, jz, n_species)
-
-Convert species pair (iz, jz) to symmetric pair index.
-Uses upper triangular indexing: pair(i,j) = pair(j,i).
-"""
-function zz_to_pair_index_sym(iz::Int, jz::Int, n_species::Int)
-    i, j = minmax(iz, jz)
-    return (i - 1) * n_species - (i - 1) * i ÷ 2 + j
-end
-
-"""
     z_to_species_index(Z, species_Z::AbstractVector)
 
 Convert atomic number Z to species index (1-based).
