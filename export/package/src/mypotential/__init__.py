@@ -38,7 +38,7 @@ from ._device import (
     select_device,
     get_device_info,
     print_device_info,
-    list_available_models,
+    list_available_backends,
 )
 
 __all__ = [
@@ -47,5 +47,5 @@ __all__ = [
     'select_device',
     'get_device_info',
     'print_device_info',
-    'list_available_models',
+    'list_available_backends',
 ]

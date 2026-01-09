@@ -1,0 +1,29 @@
+# ACE Export Tools Environment
+# =============================
+#
+# This directory provides the IREE compiler tools needed by create_package.jl.
+# It is NOT a Python package - just a uv environment with IREE installed.
+#
+# Setup:
+#   cd export/tools
+#   uv sync --extra iree
+#
+# Usage from create_package.jl:
+#   source tools/.venv/bin/activate
+#   IREE_COMPILE=$(which iree-compile) julia scripts/create_package.jl ...
+
+[project]
+name = "ace-export-tools"
+version = "0.1.0"
+description = "IREE compiler tools for ACE model export"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+iree = [
+    "iree-base-runtime==3.10.0rc20260106",
+    "iree-base-compiler==3.10.0rc20260106",
+]
+
+[tool.uv]
+find-links = ["https://iree.dev/pip-release-links.html"]

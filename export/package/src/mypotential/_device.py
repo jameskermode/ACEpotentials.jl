@@ -48,25 +48,31 @@ def get_models_dir() -> Path:
     return Path(__file__).parent / "models"
 
 
-def list_available_models() -> dict:
+def list_available_backends(models_dir: Optional[Path] = None) -> dict:
     """
-    List available pre-compiled model files.
+    List available pre-compiled model backends.
+
+    With contribution-based architecture, each backend has multiple VMFB files
+    named <contribution>_<backend>.vmfb (e.g., ace_cpu.vmfb, pair_cpu.vmfb).
 
     Returns:
-        Dictionary mapping backend names to (path, available) tuples
+        Dictionary mapping backend names to list of available VMFB paths
     """
-    models_dir = get_models_dir()
+    if models_dir is None:
+        models_dir = get_models_dir()
+    else:
+        models_dir = Path(models_dir)
 
-    backends = {
-        'cpu': 'model_cpu.vmfb',
-        'cuda': 'model_cuda.vmfb',
-        'vulkan': 'model_vulkan.vmfb',
+    backend_suffixes = {
+        'cpu': '_cpu.vmfb',
+        'cuda': '_cuda.vmfb',
+        'vulkan': '_vulkan.vmfb',
     }
 
     available = {}
-    for backend, filename in backends.items():
-        path = models_dir / filename
-        available[backend] = (path, path.exists())
+    for backend, suffix in backend_suffixes.items():
+        vmfb_files = list(models_dir.glob(f'*{suffix}'))
+        available[backend] = vmfb_files
 
     return available
 
@@ -76,7 +82,11 @@ def select_device(
     models_dir: Optional[Path] = None
 ) -> Tuple[str, Path]:
     """
-    Select the best available device and corresponding model file.
+    Select the best available device and models directory.
+
+    With contribution-based architecture, each backend has multiple VMFB files
+    named <contribution>_<backend>.vmfb. This function selects the device
+    and returns the models directory (not a specific model file).
 
     Args:
         requested: Device to use. Options:
@@ -88,9 +98,9 @@ def select_device(
             If not specified, uses the package's built-in models directory.
 
     Returns:
-        Tuple of (device_string, model_path) where:
+        Tuple of (device_string, models_dir) where:
             - device_string: IREE device string (e.g., 'cuda', 'vulkan', 'local-task')
-            - model_path: Path to the corresponding .vmfb file
+            - models_dir: Path to the directory containing VMFB files
 
     Raises:
         RuntimeError: If no suitable device/model combination is available
@@ -100,20 +110,28 @@ def select_device(
     else:
         models_dir = Path(models_dir)
 
-    # Device configurations: (backend_name, iree_device_string, model_filename)
+    # Backend suffixes for contribution-based naming
+    backend_suffixes = {
+        'cuda': '_cuda.vmfb',
+        'vulkan': '_vulkan.vmfb',
+        'cpu': '_cpu.vmfb',
+    }
+
+    # Device configurations: (backend_name, iree_device_string)
     device_configs = [
-        ('cuda', 'cuda', 'model_cuda.vmfb'),
-        ('vulkan', 'vulkan', 'model_vulkan.vmfb'),
-        ('cpu', 'local-task', 'model_cpu.vmfb'),
+        ('cuda', 'cuda'),
+        ('vulkan', 'vulkan'),
+        ('cpu', 'local-task'),
     ]
 
     if requested == 'auto':
         # Try devices in priority order
-        for backend, iree_device, model_file in device_configs:
-            model_path = models_dir / model_file
+        for backend, iree_device in device_configs:
+            suffix = backend_suffixes[backend]
+            vmfb_files = list(models_dir.glob(f'*{suffix}'))
 
-            if not model_path.exists():
-                logger.debug(f"Model file not found: {model_path}")
+            if not vmfb_files:
+                logger.debug(f"No VMFB files found for {backend}: *{suffix}")
                 continue
 
             # Check device availability
@@ -129,8 +147,8 @@ def select_device(
                 logger.debug(f"IREE cannot use device: {iree_device}")
                 continue
 
-            logger.info(f"Selected device: {backend} ({iree_device})")
-            return iree_device, model_path
+            logger.info(f"Selected device: {backend} ({iree_device}), {len(vmfb_files)} contributions")
+            return iree_device, models_dir
 
         raise RuntimeError(
             "No suitable device found. Available models: "
@@ -142,11 +160,11 @@ def select_device(
         requested_lower = requested.lower()
 
         device_map = {
-            'cuda': ('cuda', 'model_cuda.vmfb'),
-            'gpu': ('cuda', 'model_cuda.vmfb'),  # Alias
-            'vulkan': ('vulkan', 'model_vulkan.vmfb'),
-            'cpu': ('local-task', 'model_cpu.vmfb'),
-            'local-task': ('local-task', 'model_cpu.vmfb'),  # Alias
+            'cuda': 'cuda',
+            'gpu': 'cuda',  # Alias
+            'vulkan': 'vulkan',
+            'cpu': 'local-task',
+            'local-task': 'local-task',  # Alias
         }
 
         if requested_lower not in device_map:
@@ -155,68 +173,73 @@ def select_device(
                 f"Options: {list(device_map.keys())}"
             )
 
-        iree_device, model_file = device_map[requested_lower]
-        model_path = models_dir / model_file
+        iree_device = device_map[requested_lower]
 
-        if not model_path.exists():
+        # Get backend name for suffix lookup
+        backend_name = 'cpu' if iree_device == 'local-task' else iree_device
+        suffix = backend_suffixes.get(backend_name, '_cpu.vmfb')
+        vmfb_files = list(models_dir.glob(f'*{suffix}'))
+
+        if not vmfb_files:
             raise FileNotFoundError(
-                f"Model file not found for {requested}: {model_path}"
+                f"No VMFB files found for {requested}: {models_dir}/*{suffix}"
             )
 
-        return iree_device, model_path
+        return iree_device, models_dir
 
 
-def get_device_info() -> dict:
+def get_device_info(models_dir: Optional[Path] = None) -> dict:
     """
     Get information about available compute devices.
 
     Returns:
         Dictionary with device availability information
     """
-    models = list_available_models()
+    backends = list_available_backends(models_dir)
 
     info = {
         'cuda': {
             'driver_available': _cuda_available(),
             'iree_available': _check_iree_device('cuda') if _cuda_available() else False,
-            'model_available': models['cuda'][1],
-            'model_path': str(models['cuda'][0]),
+            'contributions': len(backends['cuda']),
+            'vmfb_files': [str(p) for p in backends['cuda']],
         },
         'vulkan': {
             'driver_available': _vulkan_available(),
             'iree_available': _check_iree_device('vulkan') if _vulkan_available() else False,
-            'model_available': models['vulkan'][1],
-            'model_path': str(models['vulkan'][0]),
+            'contributions': len(backends['vulkan']),
+            'vmfb_files': [str(p) for p in backends['vulkan']],
         },
         'cpu': {
             'driver_available': True,  # Always available
             'iree_available': _check_iree_device('local-task'),
-            'model_available': models['cpu'][1],
-            'model_path': str(models['cpu'][0]),
+            'contributions': len(backends['cpu']),
+            'vmfb_files': [str(p) for p in backends['cpu']],
         },
     }
 
     return info
 
 
-def print_device_info():
+def print_device_info(models_dir: Optional[Path] = None):
     """Print device availability information."""
-    info = get_device_info()
+    info = get_device_info(models_dir)
 
     print("Device Availability")
     print("=" * 50)
 
     for device, details in info.items():
         status = []
-        if details['driver_available'] and details['iree_available'] and details['model_available']:
-            status.append("READY")
+        n_contrib = details['contributions']
+        if details['driver_available'] and details['iree_available'] and n_contrib > 0:
+            status.append(f"READY ({n_contrib} contributions)")
         else:
             if not details['driver_available']:
                 status.append("no driver")
             if not details['iree_available']:
                 status.append("IREE error")
-            if not details['model_available']:
-                status.append("no model")
+            if n_contrib == 0:
+                status.append("no models")
 
         status_str = ", ".join(status) if status else "unknown"
         print(f"  {device:8s}: {status_str}")
@@ -225,9 +248,9 @@ def print_device_info():
 
     # Show which device would be selected
     try:
-        selected_device, selected_path = select_device('auto')
+        selected_device, selected_dir = select_device('auto', models_dir)
         print(f"Auto-selected: {selected_device}")
-        print(f"Model file: {selected_path}")
+        print(f"Models directory: {selected_dir}")
     except RuntimeError as e:
         print(f"Auto-selection failed: {e}")
 
