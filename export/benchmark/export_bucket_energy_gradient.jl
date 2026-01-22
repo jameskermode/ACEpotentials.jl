@@ -161,7 +161,7 @@ for (max_edges, max_atoms) in buckets
     vmfb_cpu = joinpath(bucket_dir, "energy_gradient_f64_cpu.vmfb")
     println("\n  Compiling CPU VMFB...")
     try
-        run(pipeline(`$iree_compile --iree-input-type=stablehlo --iree-hal-target-backends=llvm-cpu $mlir_path -o $vmfb_cpu`, stderr=devnull))
+        run(pipeline(`$iree_compile --iree-input-type=stablehlo --iree-hal-target-backends=llvm-cpu --iree-vm-target-extension-f64 --iree-input-demote-f64-to-f32=false --iree-llvmcpu-target-cpu=generic $mlir_path -o $vmfb_cpu`, stderr=devnull))
         println("    CPU VMFB: $(filesize(vmfb_cpu)) bytes")
     catch e
         println("    CPU compilation FAILED: $e")
@@ -172,7 +172,7 @@ for (max_edges, max_atoms) in buckets
         vmfb_cuda = joinpath(bucket_dir, "energy_gradient_f64_cuda.vmfb")
         println("  Compiling CUDA VMFB...")
         try
-            run(pipeline(`$iree_compile_cuda --iree-input-type=stablehlo --iree-hal-target-backends=cuda $mlir_path -o $vmfb_cuda`, stderr=devnull))
+            run(pipeline(`$iree_compile_cuda --iree-input-type=stablehlo --iree-hal-target-backends=cuda --iree-vm-target-extension-f64 --iree-input-demote-f64-to-f32=false $mlir_path -o $vmfb_cuda`, stderr=devnull))
             println("    CUDA VMFB: $(filesize(vmfb_cuda)) bytes")
         catch e
             println("    CUDA compilation FAILED: $e")

@@ -5,25 +5,18 @@ Test VMFB Equivalence - Verify exported VMFBs match Julia reference values.
 This test validates that:
 1. VMFB energy matches Julia reference energy
 2. VMFB gradients match Julia reference gradients
-3. Forces computed from gradients match Julia reference forces
 
 Run:
-    cd export/tools && uv run python ../test/test_vmfb_equivalence.py
+    cd export/tools && uv run pytest ../test/test_vmfb_equivalence.py -v
 
 Expected: All tests pass with numerical precision < 1e-10 (float64)
 """
 
-import os
-import sys
-from pathlib import Path
+import pytest
 import numpy as np
+from pathlib import Path
 
-# IREE runtime
-try:
-    from iree import runtime as iree_rt
-except ImportError:
-    print("ERROR: iree.runtime not found. Run from export/tools with: uv run python ...")
-    sys.exit(1)
+from iree import runtime as iree_rt
 
 SCRIPT_DIR = Path(__file__).parent
 BENCHMARK_DIR = SCRIPT_DIR.parent / "benchmark"
@@ -34,132 +27,129 @@ ENERGY_TOL = 1e-10
 GRADIENT_TOL = 1e-10
 
 
-def check_bucket(bucket_name: str) -> dict:
-    """
-    Test a single bucket VMFB against its reference data.
+def get_available_buckets():
+    """Get list of bucket directories that have both VMFB and test data."""
+    buckets = []
+    if BUCKET_DIR.exists():
+        for d in sorted(BUCKET_DIR.iterdir()):
+            if d.is_dir() and d.name.startswith("bucket_"):
+                vmfb = d / "energy_gradient_f64_cpu.vmfb"
+                data = d / "test_data.npz"
+                if vmfb.exists() and data.exists():
+                    buckets.append(d.name)
+    return buckets
 
-    Returns dict with test results.
-    """
+
+AVAILABLE_BUCKETS = get_available_buckets()
+
+
+@pytest.fixture(params=AVAILABLE_BUCKETS)
+def bucket_name(request):
+    """Parametrized fixture for each available bucket."""
+    return request.param
+
+
+@pytest.fixture
+def bucket_data(bucket_name):
+    """Load VMFB module and reference data for a bucket."""
     bucket_path = BUCKET_DIR / bucket_name
     vmfb_path = bucket_path / "energy_gradient_f64_cpu.vmfb"
     test_data_path = bucket_path / "test_data.npz"
-
-    if not vmfb_path.exists():
-        return {"status": "skip", "reason": f"VMFB not found: {vmfb_path}"}
-    if not test_data_path.exists():
-        return {"status": "skip", "reason": f"Test data not found: {test_data_path}"}
 
     # Load VMFB
     module = iree_rt.load_vm_flatbuffer_file(str(vmfb_path), driver="local-task")
 
     # Load reference data
     data = np.load(test_data_path)
-    rij = data["rij"].astype(np.float64)         # (n_edges, 3)
+    rij = data["rij"].astype(np.float64)
     energy_ref = float(data["energy"][0])
-    gradient_ref = data["gradient"].astype(np.float64)  # (n_edges, 3)
-
-    n_edges = rij.shape[0]
-
-    # Run VMFB - expects (3, n_edges) due to column-major conversion
-    rij_T = np.ascontiguousarray(rij.T)  # (3, n_edges)
-    result = module.main(rij_T)
-
-    # Parse output - VMFB returns (energy_scalar, gradient, duplicated_input)
-    # Energy is a scalar, gradient is (3, n_edges)
-    if isinstance(result, tuple) and len(result) >= 2:
-        energy_vmfb = float(np.asarray(result[0]))
-        gradient_vmfb_T = np.asarray(result[1])  # (3, n_edges)
-        gradient_vmfb = gradient_vmfb_T.T        # (n_edges, 3)
-    else:
-        return {"status": "fail", "reason": f"Unexpected output format: {type(result)}"}
-
-    # Compare energy
-    energy_diff = abs(energy_vmfb - energy_ref)
-    energy_ok = energy_diff < ENERGY_TOL
-
-    # Compare gradient
-    gradient_diff = np.max(np.abs(gradient_vmfb - gradient_ref))
-    gradient_ok = gradient_diff < GRADIENT_TOL
+    gradient_ref = data["gradient"].astype(np.float64)
 
     return {
-        "status": "pass" if (energy_ok and gradient_ok) else "fail",
-        "n_edges": n_edges,
+        "module": module,
+        "rij": rij,
         "energy_ref": energy_ref,
-        "energy_vmfb": energy_vmfb,
-        "energy_diff": energy_diff,
-        "energy_ok": energy_ok,
-        "gradient_max_diff": gradient_diff,
-        "gradient_ok": gradient_ok,
+        "gradient_ref": gradient_ref,
+        "n_edges": rij.shape[0],
     }
 
 
-def main():
-    print("=" * 70)
-    print("VMFB Equivalence Test")
-    print("=" * 70)
-    print(f"\nTolerances: energy={ENERGY_TOL}, gradient={GRADIENT_TOL}")
-    print(f"Bucket directory: {BUCKET_DIR}")
+class TestVMFBEquivalence:
+    """Test that VMFB output matches Julia reference values."""
 
-    # Find all buckets
-    buckets = sorted([d.name for d in BUCKET_DIR.iterdir() if d.is_dir() and d.name.startswith("bucket_")])
+    def test_energy_matches_reference(self, bucket_name, bucket_data):
+        """VMFB energy should match Julia reference to numerical precision."""
+        module = bucket_data["module"]
+        rij = bucket_data["rij"]
+        energy_ref = bucket_data["energy_ref"]
 
-    if not buckets:
-        print("\nERROR: No bucket directories found!")
-        sys.exit(1)
+        # Run VMFB - expects (3, n_edges) due to column-major conversion
+        rij_T = np.ascontiguousarray(rij.T)
+        result = module.main(rij_T)
 
-    print(f"\nFound {len(buckets)} buckets: {buckets}")
+        energy_vmfb = float(np.asarray(result[0]))
+        energy_diff = abs(energy_vmfb - energy_ref)
 
-    # Test each bucket
-    results = {}
-    all_pass = True
+        assert energy_diff < ENERGY_TOL, (
+            f"Energy mismatch in {bucket_name}: "
+            f"ref={energy_ref:.10f}, vmfb={energy_vmfb:.10f}, diff={energy_diff:.2e}"
+        )
 
-    for bucket in buckets:
-        print(f"\n--- {bucket} ---")
-        result = check_bucket(bucket)
-        results[bucket] = result
+    def test_gradient_matches_reference(self, bucket_name, bucket_data):
+        """VMFB gradient should match Julia reference to numerical precision."""
+        module = bucket_data["module"]
+        rij = bucket_data["rij"]
+        gradient_ref = bucket_data["gradient_ref"]
 
-        if result["status"] == "skip":
-            print(f"  SKIP: {result['reason']}")
-        elif result["status"] == "pass":
-            print(f"  n_edges: {result['n_edges']}")
-            print(f"  Energy:  {result['energy_ref']:.10f} (ref) vs {result['energy_vmfb']:.10f} (vmfb)")
-            print(f"           diff = {result['energy_diff']:.2e} {'OK' if result['energy_ok'] else 'FAIL'}")
-            print(f"  Gradient max diff: {result['gradient_max_diff']:.2e} {'OK' if result['gradient_ok'] else 'FAIL'}")
-            print(f"  PASS")
-        else:
-            print(f"  FAIL: {result.get('reason', 'Unknown error')}")
-            if "energy_diff" in result:
-                print(f"  Energy diff: {result['energy_diff']:.2e}")
-            if "gradient_max_diff" in result:
-                print(f"  Gradient max diff: {result['gradient_max_diff']:.2e}")
-            all_pass = False
+        # Run VMFB
+        rij_T = np.ascontiguousarray(rij.T)
+        result = module.main(rij_T)
 
-    # Summary
-    print("\n" + "=" * 70)
-    print("SUMMARY")
-    print("=" * 70)
+        gradient_vmfb_T = np.asarray(result[1])  # (3, n_edges)
+        gradient_vmfb = gradient_vmfb_T.T  # (n_edges, 3)
 
-    n_pass = sum(1 for r in results.values() if r["status"] == "pass")
-    n_fail = sum(1 for r in results.values() if r["status"] == "fail")
-    n_skip = sum(1 for r in results.values() if r["status"] == "skip")
+        gradient_diff = np.max(np.abs(gradient_vmfb - gradient_ref))
 
-    print(f"  Passed: {n_pass}")
-    print(f"  Failed: {n_fail}")
-    print(f"  Skipped: {n_skip}")
-
-    if all_pass and n_pass > 0:
-        print("\n  ALL TESTS PASSED - VMFB matches Julia to numerical precision!")
-        return 0
-    else:
-        print("\n  TESTS FAILED")
-        return 1
+        assert gradient_diff < GRADIENT_TOL, (
+            f"Gradient mismatch in {bucket_name}: max_diff={gradient_diff:.2e}"
+        )
 
 
-def test_vmfb_equivalence():
-    """Pytest entry point for VMFB equivalence test."""
-    result = main()
-    assert result == 0, "VMFB equivalence test failed"
+class TestVMFBOutput:
+    """Test VMFB output format and properties."""
 
+    def test_output_is_tuple(self, bucket_data):
+        """VMFB should return a tuple."""
+        module = bucket_data["module"]
+        rij = bucket_data["rij"]
 
-if __name__ == "__main__":
-    sys.exit(main())
+        rij_T = np.ascontiguousarray(rij.T)
+        result = module.main(rij_T)
+
+        assert isinstance(result, tuple), f"Expected tuple, got {type(result)}"
+        assert len(result) >= 2, f"Expected at least 2 outputs, got {len(result)}"
+
+    def test_energy_is_scalar(self, bucket_data):
+        """Energy output should be a scalar."""
+        module = bucket_data["module"]
+        rij = bucket_data["rij"]
+
+        rij_T = np.ascontiguousarray(rij.T)
+        result = module.main(rij_T)
+
+        energy = np.asarray(result[0])
+        assert energy.size == 1, f"Energy should be scalar, got shape {energy.shape}"
+
+    def test_gradient_shape(self, bucket_data):
+        """Gradient should have shape (3, n_edges)."""
+        module = bucket_data["module"]
+        rij = bucket_data["rij"]
+        n_edges = bucket_data["n_edges"]
+
+        rij_T = np.ascontiguousarray(rij.T)
+        result = module.main(rij_T)
+
+        gradient = np.asarray(result[1])
+        assert gradient.shape == (3, n_edges), (
+            f"Expected gradient shape (3, {n_edges}), got {gradient.shape}"
+        )

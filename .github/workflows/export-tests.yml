@@ -144,10 +144,16 @@ jobs:
           cd export/tools
           uv pip install -e ../package
 
+      - name: List downloaded VMFBs
+        run: |
+          echo "=== VMFB Directory Structure ==="
+          find export/benchmark/bucket_energy_gradient -type f -name "*.vmfb" || echo "No VMFB files found"
+          ls -laR export/benchmark/bucket_energy_gradient/ | head -50
+
       - name: Run export tests
         run: |
           cd export/tools
-          uv run pytest ../test/ -v --ignore=../test/test_julia_energy_gradient.jl
+          uv run pytest ../test/ -v
 
       - name: Run package tests
         run: |

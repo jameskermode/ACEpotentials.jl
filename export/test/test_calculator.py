@@ -2,152 +2,166 @@
 """
 Test ASE Calculator with Bucket VMFBs
 
-Verifies the updated calculator correctly loads bucket VMFBs and computes
-energy/forces.
+Verifies the calculator correctly loads bucket VMFBs and computes energy/forces.
 
 Run:
-    cd export/tools && uv run python ../test/test_calculator.py
+    cd export/tools && uv run pytest ../test/test_calculator.py -v
 """
 
-import sys
-from pathlib import Path
+import pytest
 import numpy as np
-
-# Add package to path for testing
-PACKAGE_DIR = Path(__file__).parent.parent / "package" / "src"
-sys.path.insert(0, str(PACKAGE_DIR))
+from pathlib import Path
 
 # Models directory (bucket VMFBs)
 MODELS_DIR = Path(__file__).parent.parent / "benchmark" / "bucket_energy_gradient"
 
-print("=" * 70)
-print("Test ASE Calculator with Bucket VMFBs")
-print("=" * 70)
-print(f"\nPackage dir: {PACKAGE_DIR}")
-print(f"Models dir: {MODELS_DIR}")
 
-# Check dependencies
-try:
-    import ase
+@pytest.fixture
+def calculator():
+    """Create a Calculator instance for testing."""
+    from mypotential import Calculator
+    return Calculator(device='cpu', models_dir=MODELS_DIR, rcut=5.5)
+
+
+@pytest.fixture
+def silicon_supercell():
+    """Create a 2x2x2 silicon supercell."""
     from ase.build import bulk
-    print(f"ASE version: {ase.__version__}")
-except ImportError:
-    print("ERROR: ase not found. Install with: pip install ase")
-    sys.exit(1)
+    atoms = bulk('Si', 'diamond', a=5.43)
+    atoms = atoms * (2, 2, 2)  # 64 atoms
+    return atoms
 
-try:
-    from matscipy.neighbours import neighbour_list
-    print("matscipy: OK")
-except ImportError:
-    print("ERROR: matscipy not found. Install with: pip install matscipy")
-    sys.exit(1)
 
-try:
-    from iree import runtime as iree_rt
-    print("iree.runtime: OK")
-except ImportError:
-    print("ERROR: iree.runtime not found")
-    sys.exit(1)
+class TestCalculatorInit:
+    """Test calculator initialization."""
 
-# Import calculator
-print("\n--- Loading Calculator ---")
-from mypotential import Calculator
-from mypotential._device import print_device_info
+    def test_calculator_creates_successfully(self, calculator):
+        """Calculator should initialize with valid parameters."""
+        assert calculator.device in ('cpu', 'local-task')  # IREE driver name
+        assert calculator.rcut == 5.5
+        assert calculator.num_buckets > 0
+        assert calculator.max_edges > 0
 
-# Show device info
-print_device_info(MODELS_DIR)
+    def test_calculator_loads_buckets(self, calculator):
+        """Calculator should load all available bucket VMFBs."""
+        # Check that buckets were loaded
+        assert calculator.num_buckets >= 1
 
-# Create calculator
-print("\n--- Creating Calculator ---")
-try:
-    calc = Calculator(
-        device='cpu',
-        models_dir=MODELS_DIR,
-        rcut=5.5,
-    )
-    print(f"Calculator created successfully!")
-    print(f"  Device: {calc.device}")
-    print(f"  Cutoff: {calc.rcut} Å")
-    print(f"  Buckets: {calc.num_buckets}")
-    print(f"  Max edges: {calc.max_edges}")
-except Exception as e:
-    print(f"ERROR: Failed to create calculator: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
 
-# Create test system
-print("\n--- Creating Test System ---")
-atoms = bulk('Si', 'diamond', a=5.43)
-atoms = atoms * (2, 2, 2)  # 2x2x2 supercell = 64 atoms
-print(f"Atoms: {len(atoms)} Si")
-print(f"Cell: {atoms.cell.lengths()}")
+class TestEnergyCalculation:
+    """Test energy computation."""
 
-# Attach calculator
-atoms.calc = calc
+    def test_energy_returns_float(self, calculator, silicon_supercell):
+        """Energy should be a finite float."""
+        silicon_supercell.calc = calculator
+        energy = silicon_supercell.get_potential_energy()
 
-# Compute energy
-print("\n--- Computing Energy ---")
-try:
-    energy = atoms.get_potential_energy()
-    print(f"Energy: {energy:.6f} eV")
-except Exception as e:
-    print(f"ERROR: Energy calculation failed: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+        assert isinstance(energy, float)
+        assert np.isfinite(energy)
 
-# Compute forces
-print("\n--- Computing Forces ---")
-try:
-    forces = atoms.get_forces()
-    print(f"Forces shape: {forces.shape}")
-    print(f"Max force: {np.max(np.abs(forces)):.6e} eV/Å")
-    print(f"Force sum: {np.sum(forces, axis=0)}")  # Should be ~0 (Newton 3rd)
+    def test_energy_deterministic(self, calculator, silicon_supercell):
+        """Energy should be deterministic for same structure."""
+        silicon_supercell.calc = calculator
 
-    # Check Newton's 3rd law
-    force_sum_norm = np.linalg.norm(np.sum(forces, axis=0))
-    if force_sum_norm < 1e-10:
-        print(f"Newton's 3rd law: PASS (|sum F| = {force_sum_norm:.2e})")
-    else:
-        print(f"Newton's 3rd law: WARNING (|sum F| = {force_sum_norm:.2e})")
-except Exception as e:
-    print(f"ERROR: Force calculation failed: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+        e1 = silicon_supercell.get_potential_energy()
+        e2 = silicon_supercell.get_potential_energy()
 
-# Test with displaced atoms
-print("\n--- Testing Displaced System ---")
-atoms_disp = atoms.copy()
-atoms_disp.calc = calc
-atoms_disp.positions[0] += [0.1, 0.0, 0.0]  # Displace first atom
+        assert e1 == e2
 
-energy_disp = atoms_disp.get_potential_energy()
-forces_disp = atoms_disp.get_forces()
+    def test_energy_changes_with_displacement(self, calculator, silicon_supercell):
+        """Energy should change when atoms are displaced."""
+        silicon_supercell.calc = calculator
+        e_original = silicon_supercell.get_potential_energy()
 
-print(f"Displaced energy: {energy_disp:.6f} eV")
-print(f"Energy change: {energy_disp - energy:.6f} eV")
-print(f"Force on displaced atom: {forces_disp[0]}")
+        # Displace first atom
+        atoms_disp = silicon_supercell.copy()
+        atoms_disp.calc = calculator
+        atoms_disp.positions[0] += [0.1, 0.0, 0.0]
+        e_displaced = atoms_disp.get_potential_energy()
 
-# Summary
-print("\n" + "=" * 70)
-print("SUMMARY")
-print("=" * 70)
-print(f"""
-Calculator successfully tested with bucket VMFBs!
+        assert e_original != e_displaced
 
-Configuration:
-  - Device: {calc.device}
-  - Cutoff: {calc.rcut} Å
-  - Buckets loaded: {calc.num_buckets}
-  - Max edges supported: {calc.max_edges}
 
-Test Results:
-  - Energy computation: OK
-  - Force computation: OK
-  - Newton's 3rd law: {'OK' if force_sum_norm < 1e-10 else 'WARNING'}
+class TestForceCalculation:
+    """Test force computation."""
 
-The ASE Calculator is compatible with the bucket VMFB export format.
-""")
-print("=" * 70)
+    def test_forces_shape(self, calculator, silicon_supercell):
+        """Forces should have shape (n_atoms, 3)."""
+        silicon_supercell.calc = calculator
+        forces = silicon_supercell.get_forces()
+
+        assert forces.shape == (len(silicon_supercell), 3)
+
+    def test_forces_finite(self, calculator, silicon_supercell):
+        """All forces should be finite."""
+        silicon_supercell.calc = calculator
+        forces = silicon_supercell.get_forces()
+
+        assert np.all(np.isfinite(forces))
+
+    def test_newtons_third_law(self, calculator, silicon_supercell):
+        """Sum of all forces should be approximately zero."""
+        # Add some perturbation to get non-trivial forces
+        np.random.seed(42)
+        silicon_supercell.positions += np.random.randn(*silicon_supercell.positions.shape) * 0.05
+        silicon_supercell.calc = calculator
+
+        forces = silicon_supercell.get_forces()
+        force_sum = np.sum(forces, axis=0)
+        force_sum_norm = np.linalg.norm(force_sum)
+
+        assert force_sum_norm < 1e-10, f"Newton's 3rd law violated: |sum F| = {force_sum_norm}"
+
+    def test_displaced_atom_has_nonzero_force(self, calculator, silicon_supercell):
+        """A displaced atom should experience a force."""
+        silicon_supercell.calc = calculator
+
+        # Displace first atom significantly
+        silicon_supercell.positions[0] += [0.2, 0.0, 0.0]
+        forces = silicon_supercell.get_forces()
+
+        # Force on displaced atom should be non-zero
+        force_magnitude = np.linalg.norm(forces[0])
+        assert force_magnitude > 1e-6, "Displaced atom should have non-zero force"
+
+
+class TestConsistency:
+    """Test energy-force consistency."""
+
+    def test_force_finite_difference(self, calculator):
+        """Forces should match finite difference of energy."""
+        from ase.build import bulk
+
+        # Small system for speed
+        atoms = bulk('Si', 'diamond', a=5.43)
+        np.random.seed(123)
+        atoms.positions += np.random.randn(*atoms.positions.shape) * 0.1
+        atoms.calc = calculator
+
+        # Analytical forces
+        F_analytical = atoms.get_forces()
+
+        # Finite difference
+        delta = 1e-5
+        F_numerical = np.zeros_like(F_analytical)
+
+        for i in range(len(atoms)):
+            for d in range(3):
+                atoms_plus = atoms.copy()
+                atoms_plus.positions[i, d] += delta
+                atoms_plus.calc = calculator
+                E_plus = atoms_plus.get_potential_energy()
+
+                atoms_minus = atoms.copy()
+                atoms_minus.positions[i, d] -= delta
+                atoms_minus.calc = calculator
+                E_minus = atoms_minus.get_potential_energy()
+
+                F_numerical[i, d] = -(E_plus - E_minus) / (2 * delta)
+
+        # Compare with relative tolerance
+        max_force = np.max(np.abs(F_numerical))
+        max_diff = np.max(np.abs(F_analytical - F_numerical))
+        rel_diff = max_diff / max_force if max_force > 1e-10 else max_diff
+
+        assert rel_diff < 1e-4, f"Force FD mismatch: rel_diff={rel_diff:.2e}"
