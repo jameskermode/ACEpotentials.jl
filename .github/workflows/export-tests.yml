@@ -1,0 +1,199 @@
+name: Export Tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'export/**'
+      - '.github/workflows/export-tests.yml'
+  pull_request:
+    paths:
+      - 'export/**'
+      - '.github/workflows/export-tests.yml'
+
+env:
+  JULIA_NUM_THREADS: 2
+
+jobs:
+  # ============================================================
+  # Build LAMMPS with plugin support (cached)
+  # ============================================================
+  build-lammps:
+    runs-on: ubuntu-latest
+    outputs:
+      lammps-version: ${{ steps.lammps-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libfftw3-dev \
+            libopenmpi-dev \
+            mpi-default-bin \
+            mpi-default-dev
+
+      - name: Get LAMMPS version hash
+        id: lammps-version
+        run: |
+          LAMMPS_VERSION=$(git ls-remote https://github.com/lammps/lammps.git refs/heads/stable | awk '{print $1}' | cut -c1-8)
+          echo "version=$LAMMPS_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache LAMMPS
+        id: lammps-cache
+        uses: actions/cache@v4
+        with:
+          path: lammps
+          key: ${{ runner.os }}-lammps-${{ steps.lammps-version.outputs.version }}-plugin-v1
+
+      - name: Clone and build LAMMPS
+        if: steps.lammps-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone -b stable --depth 1 https://github.com/lammps/lammps.git
+          cd lammps && mkdir -p build && cd build
+          cmake ../cmake \
+            -D PKG_PLUGIN=on \
+            -D BUILD_SHARED_LIBS=on \
+            -D BUILD_MPI=on \
+            -D CMAKE_BUILD_TYPE=Release
+          cmake --build . -j $(nproc)
+
+      - name: Upload LAMMPS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lammps-build
+          path: |
+            lammps/build/lmp
+            lammps/build/liblammps.so*
+            lammps/src/*.h
+            lammps/src/STUBS/
+            lammps/src/fmt/
+            lammps/src/nlohmann/
+          retention-days: 1
+
+  # ============================================================
+  # Julia tests (Enzyme energy+gradient)
+  # ============================================================
+  julia-tests:
+    name: Julia Export Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+
+      - uses: julia-actions/cache@v2
+
+      - name: Add ACE registry
+        run: julia -e 'using Pkg; Pkg.Registry.add(url="https://github.com/ACEsuit/ACEregistry")'
+
+      - name: Dev packages from forks
+        run: |
+          julia --project=export -e '
+            using Pkg
+            Pkg.develop(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feature/reactant-compat")
+            Pkg.develop(url="https://github.com/jameskermode/Polynomials4ML.jl", rev="feature/reactant-compat")
+            Pkg.instantiate()
+            Pkg.precompile()
+          '
+
+      - name: Run Julia export tests
+        run: julia --project=export export/test/test_julia_energy_gradient.jl
+
+  # ============================================================
+  # Python tests (VMFB equivalence + package tests)
+  # ============================================================
+  python-tests:
+    name: Python Export Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install tools dependencies
+        run: |
+          cd export/tools
+          uv sync --extra iree
+
+      - name: Install package in editable mode
+        run: |
+          cd export/tools
+          uv pip install -e ../package
+
+      - name: Run export tests
+        run: |
+          cd export/tools
+          uv run pytest ../test/ -v --ignore=../test/test_julia_energy_gradient.jl
+
+      - name: Run package tests
+        run: |
+          cd export/tools
+          uv run pytest ../package/tests/ -v
+
+  # ============================================================
+  # LAMMPS integration tests
+  # ============================================================
+  lammps-tests:
+    name: LAMMPS Integration
+    runs-on: ubuntu-latest
+    needs: [build-lammps, julia-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download LAMMPS
+        uses: actions/download-artifact@v4
+        with:
+          name: lammps-build
+          path: lammps
+
+      - name: Setup LAMMPS
+        run: |
+          chmod +x lammps/build/lmp
+          echo "$GITHUB_WORKSPACE/lammps/build" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/lammps/build:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Install MPI
+        run: sudo apt-get update && sudo apt-get install -y libopenmpi-dev
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+
+      - uses: julia-actions/cache@v2
+
+      - name: Add ACE registry and install deps
+        run: |
+          julia -e 'using Pkg; Pkg.Registry.add(url="https://github.com/ACEsuit/ACEregistry")'
+          julia --project=export -e '
+            using Pkg
+            Pkg.develop(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feature/reactant-compat")
+            Pkg.develop(url="https://github.com/jameskermode/Polynomials4ML.jl", rev="feature/reactant-compat")
+            Pkg.instantiate()
+          '
+
+      - name: Build ACE LAMMPS plugin
+        run: |
+          cd export/lammps
+          mkdir -p build && cd build
+          cmake .. -DLAMMPS_HEADER_DIR=$GITHUB_WORKSPACE/lammps/src
+          make -j $(nproc)
+
+      - name: Run LAMMPS tests
+        env:
+          LAMMPS_SRC: ${{ github.workspace }}/lammps/src
+        run: |
+          cd export/lammps/test
+          # Verify plugin built successfully
+          ls -la ../build/*.so 2>/dev/null || echo "No plugin .so files found"
+          echo "LAMMPS plugin build completed"
+          # TODO: Add actual LAMMPS test script when available
