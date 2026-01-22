@@ -186,19 +186,19 @@ endif()
 # Provides zero-copy GPU integration between Kokkos and IREE
 option(BUILD_KOKKOS_PAIR "Build Kokkos-enabled pair_iree_kokkos" OFF)
 
-# Try to find Kokkos
-find_package(Kokkos QUIET)
-if(Kokkos_FOUND)
-    message(STATUS "Found Kokkos: ${Kokkos_DIR}")
-    if(Kokkos_ENABLE_CUDA)
-        message(STATUS "  Kokkos CUDA backend enabled")
+# For LAMMPS plugins, we don't link against Kokkos - we use LAMMPS's Kokkos at runtime
+# We just need the Kokkos headers from the LAMMPS source tree
+if(EXISTS "${LAMMPS_SRC_DIR}/KOKKOS/kokkos_type.h")
+    message(STATUS "Found Kokkos headers in LAMMPS source")
+    set(Kokkos_FOUND TRUE)
+    # Check if LAMMPS was built with CUDA by looking for CUDA types
+    if(EXISTS "${LAMMPS_SRC_DIR}/KOKKOS/atom_kokkos.h")
         set(HAS_KOKKOS_CUDA TRUE)
-    endif()
-    if(Kokkos_ENABLE_OPENMP)
-        message(STATUS "  Kokkos OpenMP backend enabled")
+        message(STATUS "  Assuming Kokkos CUDA backend (plugin will use LAMMPS's Kokkos)")
     endif()
 else()
-    message(STATUS "Kokkos not found - pair_iree_kokkos will not be built")
+    message(STATUS "Kokkos headers not found in LAMMPS - pair_iree_kokkos will not be built")
+    set(Kokkos_FOUND FALSE)
     set(BUILD_KOKKOS_PAIR OFF)
 endif()
 
@@ -206,8 +206,11 @@ endif()
 if(HAS_KOKKOS_CUDA AND EXISTS "${IREE_LIBRARY_DIRS}/libiree_hal_drivers_cuda_cuda.a")
     set(IREE_CUDA_LIBS
         ${IREE_LIBRARY_DIRS}/libiree_hal_drivers_cuda_cuda.a
+        ${IREE_LIBRARY_DIRS}/libiree_hal_drivers_cuda_dynamic_symbols.a
         ${IREE_LIBRARY_DIRS}/libiree_hal_drivers_cuda_registration_registration.a
     )
+    # Additional utility libraries that CUDA driver depends on
+    file(GLOB IREE_CUDA_UTILS_LIBS "${IREE_LIBRARY_DIRS}/libiree_hal_utils_*.a")
     set(HAS_IREE_CUDA TRUE)
     message(STATUS "Found IREE CUDA libraries")
 else()
@@ -231,22 +234,59 @@ if(BUILD_KOKKOS_PAIR AND Kokkos_FOUND AND LAMMPS_FOUND AND IREE_LIBS_FOUND AND I
         target_compile_definitions(pair_iree_kokkos PRIVATE IREE_HAL_HAVE_CUDA_DRIVER)
     endif()
 
+    # NOTE: We DON'T use find_package(Kokkos) or link Kokkos::kokkos
+    # Plugins use LAMMPS's Kokkos at runtime - linking a separate Kokkos causes
+    # finalization conflicts ("Execution space instance couldn't be found")
+    # We just need headers from LAMMPS source tree and lib/kokkos
+    set(LAMMPS_KOKKOS_DIR "${LAMMPS_SRC_DIR}/../lib/kokkos")
+    set(LAMMPS_BUILD_DIR "${LAMMPS_SRC_DIR}/../build")
     target_include_directories(pair_iree_kokkos PRIVATE
         ${IREE_INCLUDE_DIRS}
         ${CMAKE_SOURCE_DIR}/src
         ${LAMMPS_SRC_DIR}
         ${LAMMPS_SRC_DIR}/KOKKOS
+        ${LAMMPS_SRC_DIR}/PLUGIN
+        ${LAMMPS_KOKKOS_DIR}/core/src
+        ${LAMMPS_KOKKOS_DIR}/containers/src
+        ${LAMMPS_KOKKOS_DIR}/algorithms/src
+        ${LAMMPS_KOKKOS_DIR}/simd/src
+        ${LAMMPS_KOKKOS_DIR}/tpls/desul/include  # desul atomics headers
+        ${LAMMPS_KOKKOS_DIR}/tpls/mdspan/include  # mdspan headers
+        ${LAMMPS_BUILD_DIR}/lib/kokkos  # Generated KokkosCore_config.h
+        ${LAMMPS_BUILD_DIR}/lib/kokkos/core/src  # Generated desul Config.hpp
         ${MPI_CXX_INCLUDE_DIRS}
     )
 
-    target_link_libraries(pair_iree_kokkos PRIVATE
-        Kokkos::kokkos
-        ${IREE_STATIC_LIBS}
-        $<$<BOOL:${HAS_IREE_CUDA}>:${IREE_CUDA_LIBS}>
-        pthread
-        dl
-        m
+    # Kokkos CUDA requires extended-lambda for device lambdas
+    target_compile_options(pair_iree_kokkos PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:--extended-lambda>
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-deprecated-gpu-targets>
     )
+
+    # Link IREE libraries
+    # Note: CUDA libraries need --whole-archive to ensure static initializers are included
+    # Order matters: cuda.a must come before registration.a to resolve dependencies
+    if(HAS_IREE_CUDA)
+        target_link_libraries(pair_iree_kokkos PRIVATE
+            ${IREE_STATIC_LIBS}
+            ${IREE_CUDA_UTILS_LIBS}
+            -Wl,--whole-archive
+            ${IREE_CUDA_LIBS}
+            -Wl,--no-whole-archive
+            cuda
+            cudart
+            pthread
+            dl
+            m
+        )
+    else()
+        target_link_libraries(pair_iree_kokkos PRIVATE
+            ${IREE_STATIC_LIBS}
+            pthread
+            dl
+            m
+        )
+    endif()
 
     set_target_properties(pair_iree_kokkos PROPERTIES
         OUTPUT_NAME "pair_iree_kokkos"
@@ -295,8 +335,42 @@ if(LAMMPS_FOUND AND IREE_LIBS_FOUND AND IREE_HEADERS_FOUND)
     )
 
     set(BUILD_PAIR_IREE TRUE)
+
+    # Build simpler pair_iree_gradient for Reactant-exported VMFBs
+    message(STATUS "Building pair_iree_gradient (Reactant VMFB support)")
+
+    add_library(pair_iree_gradient SHARED
+        src/pair_iree_gradient.cpp
+    )
+
+    target_compile_definitions(pair_iree_gradient PRIVATE
+        IREE_AVAILABLE
+        IREE_ALLOCATOR_SYSTEM_CTL=iree_allocator_libc_ctl
+    )
+
+    target_include_directories(pair_iree_gradient PRIVATE
+        ${IREE_INCLUDE_DIRS}
+        ${CMAKE_SOURCE_DIR}/src
+        ${LAMMPS_SRC_DIR}
+        ${MPI_CXX_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(pair_iree_gradient PRIVATE
+        ${IREE_STATIC_LIBS}
+        pthread
+        dl
+        m
+    )
+
+    set_target_properties(pair_iree_gradient PROPERTIES
+        OUTPUT_NAME "pair_iree_gradient"
+        PREFIX "lib"
+    )
+
+    set(BUILD_PAIR_IREE_GRADIENT TRUE)
 else()
     set(BUILD_PAIR_IREE FALSE)
+    set(BUILD_PAIR_IREE_GRADIENT FALSE)
 endif()
 
 # ==============================================================================
@@ -361,6 +435,7 @@ message(STATUS "=== ACE IREE Configuration ===")
 message(STATUS "  ace_forces library: ENABLED (always built)")
 message(STATUS "  LAMMPS ML-IAP plugin: ${BUILD_LAMMPS_PLUGIN}")
 message(STATUS "  pair_iree (CPU): ${BUILD_PAIR_IREE}")
+message(STATUS "  pair_iree_gradient (Reactant VMFBs): ${BUILD_PAIR_IREE_GRADIENT}")
 message(STATUS "  pair_iree_kokkos (GPU): ${BUILD_KOKKOS_PAIR_STYLE}")
 if(BUILD_LAMMPS_PLUGIN OR BUILD_PAIR_IREE OR BUILD_KOKKOS_PAIR_STYLE)
     message(STATUS "")

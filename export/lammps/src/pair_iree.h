@@ -54,7 +54,7 @@ protected:
     std::vector<int> type_map_;  // LAMMPS type -> model species index
 
     // IREE model wrapper
-    std::unique_ptr<IREEModel> iree_;
+    std::unique_ptr<ace_iree::IREEModel> iree_;
 
     // Working buffers (host memory)
     std::vector<int> pair_i_;

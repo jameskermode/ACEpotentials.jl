@@ -2,34 +2,39 @@
 ASE Calculator Interface
 ========================
 
-ASE Calculator implementation for IREE-compiled ACE potentials.
+ASE Calculator implementation for IREE-compiled ACE potentials using
+bucket-based energy+gradient VMFBs.
 
 Architecture:
-- Loads all available VMFB contributions (ace, pair, etc.)
-- Each contribution returns (energy, pair_forces)
-- Calculator sums all contributions
-- E0 (one-body) added separately in Python
-- Forces accumulated from pair_forces to atomic forces
+- Loads bucket VMFBs from models directory (bucket_2000/, bucket_10000/, etc.)
+- Auto-selects smallest bucket that fits the system at runtime
+- Each VMFB computes energy and dE/drij gradient in one call
+- Forces = -gradient, scattered to atoms via np.add.at
 
 Example:
     from mypotential import Calculator
 
-    calc = Calculator()  # Auto-selects best device
+    calc = Calculator(models_dir="/path/to/bucket_energy_gradient")
     atoms.calc = calc
     energy = atoms.get_potential_energy()
     forces = atoms.get_forces()
 """
 
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union
 import numpy as np
 import logging
 
 from ase.calculators.calculator import Calculator as ASECalculator, all_changes
-from matscipy.neighbours import neighbour_list
+
+try:
+    from matscipy.neighbours import neighbour_list
+    HAS_MATSCIPY = True
+except ImportError:
+    HAS_MATSCIPY = False
 
 from ._device import select_device, get_models_dir
-from ._iree_wrapper import load_contribution, ModelParams, IREEContribution
+from ._iree_wrapper import BucketManager, ModelParams
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +43,8 @@ class Calculator(ASECalculator):
     """
     ASE Calculator for IREE-compiled ACE potentials.
 
-    Automatically selects the best available compute device (CUDA > Vulkan > CPU)
-    and loads all available contribution modules.
-
-    Architecture:
-        - Each contribution VMFB computes (energy, pair_forces)
-        - Forces computed via Enzyme autodiff inside IREE
-        - Python sums contributions and accumulates pair_forces to atomic forces
+    Uses bucket-based VMFBs that compute energy and gradients directly.
+    Automatically selects the smallest bucket that fits the system.
 
     Attributes:
         implemented_properties: List of computable properties
@@ -59,95 +59,69 @@ class Calculator(ASECalculator):
         device: str = 'auto',
         models_dir: Optional[Union[str, Path]] = None,
         params_path: Optional[Union[str, Path]] = None,
+        rcut: float = 5.5,
+        E0: Optional[np.ndarray] = None,
         **kwargs,
     ):
         """
         Initialize the calculator.
 
         Args:
-            device: Compute device to use ('auto', 'cuda', 'vulkan', 'cpu')
-            models_dir: Custom directory containing model files
-            params_path: Path to .npz file with model parameters
+            device: Compute device ('auto', 'cuda', 'cpu')
+            models_dir: Directory containing bucket_*/ subdirectories with VMFBs
+            params_path: Path to .npz file with E0 and rcut (optional)
+            rcut: Cutoff radius in Angstroms (default 5.5, overridden by params)
+            E0: One-body energies per species (optional, default zeros)
             **kwargs: Additional arguments passed to ASE Calculator
         """
         super().__init__(**kwargs)
 
-        # Select device and find models directory
+        if not HAS_MATSCIPY:
+            raise ImportError(
+                "matscipy is required for neighbor list computation. "
+                "Install with: pip install matscipy"
+            )
+
+        # Find models directory
         if models_dir is not None:
             models_dir = Path(models_dir)
         else:
             models_dir = get_models_dir()
 
+        # Select device
         self.device, _ = select_device(device, models_dir)
 
-        # Load model parameters
+        # Map device selection to IREE driver
+        iree_device = {
+            'cuda': 'cuda',
+            'cpu': 'local-task',
+            'auto': 'local-task',  # Will be overridden by select_device
+        }.get(self.device, 'local-task')
+
+        # Load model parameters if provided
         if params_path is not None:
-            self._params = ModelParams(str(params_path))
+            params = ModelParams(str(params_path))
+            self.rcut = params.rcut
+            self.E0 = params.E0
         else:
+            # Check for params.npz in models_dir
             params_file = models_dir / 'params.npz'
             if params_file.exists():
-                self._params = ModelParams(str(params_file))
+                params = ModelParams(str(params_file))
+                self.rcut = params.rcut
+                self.E0 = params.E0
             else:
-                raise FileNotFoundError(
-                    f"Model parameters not found: {params_file}. "
-                    "Provide params_path argument."
-                )
+                # Use provided values or defaults
+                self.rcut = rcut
+                self.E0 = E0 if E0 is not None else np.array([0.0])
 
-        # Get cutoff and shapes from parameters
-        self.rcut = self._params.rcut
-
-        # Load metadata for shapes
-        metadata_file = models_dir / 'metadata.json'
-        if metadata_file.exists():
-            import json
-            with open(metadata_file) as f:
-                metadata = json.load(f)
-            model_meta = metadata.get('model', {})
-            self.max_atoms = model_meta.get('max_atoms', 256)
-            self.max_pairs = model_meta.get('max_pairs', 10000)
-        else:
-            self.max_atoms = 256
-            self.max_pairs = 10000
-
-        # Load all available contributions for this device
-        self._contributions = self._load_contributions(models_dir)
-
-        if not self._contributions:
-            raise RuntimeError(
-                f"No VMFB files found for device '{self.device}' in {models_dir}"
-            )
+        # Load bucket VMFBs
+        self._bucket_manager = BucketManager(models_dir, iree_device)
 
         logger.info(
             f"Calculator initialized: device={self.device}, rcut={self.rcut}, "
-            f"contributions={len(self._contributions)}"
+            f"buckets={[b.max_edges for b in self._bucket_manager.buckets]}"
         )
-
-    def _load_contributions(self, models_dir: Path) -> List[IREEContribution]:
-        """Load all available contribution VMFB files for the selected device."""
-        contributions = []
-
-        # Map device to backend suffix
-        backend_suffix = {
-            'cuda': '_cuda.vmfb',
-            'vulkan': '_vulkan.vmfb',
-            'local-task': '_cpu.vmfb',
-        }.get(self.device, '_cpu.vmfb')
-
-        # Find all VMFB files for this backend
-        for vmfb_file in models_dir.glob(f'*{backend_suffix}'):
-            try:
-                contrib = load_contribution(
-                    str(vmfb_file),
-                    self.device,
-                    self.max_pairs,
-                    self.max_atoms,
-                )
-                contributions.append(contrib)
-                logger.info(f"Loaded contribution: {contrib.name}")
-            except Exception as e:
-                logger.warning(f"Failed to load {vmfb_file}: {e}")
-
-        return contributions
 
     def calculate(
         self,
@@ -166,53 +140,53 @@ class Calculator(ASECalculator):
         super().calculate(atoms, properties, system_changes)
 
         # Build neighbor list
+        # Returns: i (source), j (neighbor), D (displacement j - i)
         pair_i, pair_j, rij = neighbour_list('ijD', atoms, self.rcut)
         n_atoms = len(atoms)
         n_pairs = len(pair_i)
 
         if n_pairs == 0:
             # No neighbors - only E0 contributes
-            self.results['energy'] = float(np.sum(self._params.E0))
+            self.results['energy'] = float(np.sum(self.E0[0] * n_atoms))
             if 'forces' in properties:
                 self.results['forces'] = np.zeros((n_atoms, 3), dtype=np.float64)
             if 'stress' in properties:
                 self.results['stress'] = np.zeros(6, dtype=np.float64)
             return
 
-        # Convert to float32 for IREE
-        rij_f32 = rij.astype(np.float32)
+        # Convert to float64 for VMFB
+        rij_f64 = rij.astype(np.float64)
 
-        # Initialize totals
-        total_energy = 0.0
-        total_pair_forces = np.zeros((n_pairs, 3), dtype=np.float32)
-
-        # Sum contributions from all IREE modules
-        for contrib in self._contributions:
-            energy, pair_forces = contrib(rij_f32, pair_i, n_atoms, self._params)
-            total_energy += energy
-            total_pair_forces += pair_forces
+        # Call VMFB to get energy and gradient
+        energy, gradient = self._bucket_manager(rij_f64, self.rcut)
 
         # Add E0 (one-body) contribution
         # For single-species: E0[0] * n_atoms
-        # For multi-species: sum E0[species_index] for each atom
-        E0_total = self._params.E0[0] * n_atoms  # TODO: multi-species
-        total_energy += E0_total
+        E0_total = float(self.E0[0]) * n_atoms
+        total_energy = energy + E0_total
 
         self.results['energy'] = float(total_energy)
 
         if 'forces' in properties or 'stress' in properties:
-            # Accumulate pair forces to atomic forces
-            # For edge (i -> j) with displacement rij = pos[j] - pos[i]:
-            #   F_i += -pair_forces
-            #   F_j += +pair_forces
+            # Forces = -gradient (negative of dE/drij)
+            # Then scatter to atoms:
+            #   F_i += -(-gradient) = +gradient  (force on source atom i)
+            #   F_j += -gradient                  (force on neighbor atom j)
+            #
+            # Convention: rij = pos[j] - pos[i], so gradient is dE/d(pos[j]-pos[i])
+            # Force on i: -dE/dpos[i] = +dE/drij = +gradient
+            # Force on j: -dE/dpos[j] = -dE/drij = -gradient
             forces = np.zeros((n_atoms, 3), dtype=np.float64)
-            np.add.at(forces, pair_i, -total_pair_forces)
-            np.add.at(forces, pair_j, total_pair_forces)
+            np.add.at(forces, pair_i, gradient)    # F_i += gradient
+            np.add.at(forces, pair_j, -gradient)   # F_j -= gradient
             self.results['forces'] = forces
 
         if 'stress' in properties:
             # Compute virial from pair forces and displacements
-            virial = -np.einsum('ea,eb->ab', total_pair_forces, rij)
+            # virial_ab = -sum_ij (F_ij)_a * (r_ij)_b
+            # where F_ij = -gradient (force contribution from edge ij)
+            pair_forces = -gradient  # F_ij = -dE/drij
+            virial = -np.einsum('ea,eb->ab', pair_forces, rij)
 
             # Convert to Voigt notation and normalize by volume
             volume = atoms.get_volume()
@@ -233,21 +207,16 @@ class Calculator(ASECalculator):
         return self.rcut
 
     @property
-    def num_contributions(self) -> int:
-        """Number of loaded IREE contributions."""
-        return len(self._contributions)
+    def num_buckets(self) -> int:
+        """Number of loaded bucket VMFBs."""
+        return len(self._bucket_manager.buckets)
 
-    def get_potential_energy(self, atoms=None, force_consistent=False):
-        """Get potential energy."""
-        return super().get_potential_energy(atoms, force_consistent)
-
-    def get_forces(self, atoms=None):
-        """Get forces on atoms."""
-        return super().get_forces(atoms)
-
-    def get_stress(self, atoms=None):
-        """Get stress tensor."""
-        return super().get_stress(atoms)
+    @property
+    def max_edges(self) -> int:
+        """Maximum edges supported by largest bucket."""
+        if self._bucket_manager.buckets:
+            return self._bucket_manager.buckets[-1].max_edges
+        return 0
 
 
 # Convenience function for quick setup
@@ -259,8 +228,8 @@ def load_calculator(
     Load calculator with automatic device selection.
 
     Args:
-        device: 'auto', 'cuda', 'vulkan', or 'cpu'
-        models_dir: Optional custom models directory
+        device: 'auto', 'cuda', or 'cpu'
+        models_dir: Directory containing bucket_*/ subdirectories
 
     Returns:
         Configured Calculator instance

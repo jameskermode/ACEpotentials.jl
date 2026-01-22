@@ -1,0 +1,11 @@
+{
+    "rcut": 5.5,
+    "n_atoms": 8,
+    "n_edges": 590,
+    "elements": [
+        "Si"
+    ],
+    "max_force": 22.218596603456902,
+    "energy": -41.27171534031573,
+    "size": "tiny"
+}

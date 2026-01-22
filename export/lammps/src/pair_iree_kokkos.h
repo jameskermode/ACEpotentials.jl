@@ -1,4 +1,4 @@
-/**
+/* -*- c++ -*- ----------------------------------------------------------
  * pair_iree_kokkos.h - Kokkos-Enabled IREE Pair Style with Zero-Copy
  * ====================================================================
  *
@@ -24,30 +24,45 @@
  *
  * Usage:
  *   package kokkos cuda/aware on neigh half
- *   pair_style iree model_cuda.vmfb
+ *   pair_style iree/kk model_cuda.vmfb
  *   pair_coeff * * Si
  *   fix 1 all nve/kk
- */
+ *
+ ------------------------------------------------------------------------- */
 
+#ifdef PAIR_CLASS
+// clang-format off
+PairStyle(iree/kk,PairIREEKokkos<LMPDeviceType>);
+PairStyle(iree/kk/device,PairIREEKokkos<LMPDeviceType>);
+PairStyle(iree/kk/host,PairIREEKokkos<LMPHostType>);
+// clang-format on
+#else
+
+// clang-format off
 #ifndef LMP_PAIR_IREE_KOKKOS_H
 #define LMP_PAIR_IREE_KOKKOS_H
 
-#include "pair_kokkos.h"
+#include "pair.h"
 #include "kokkos_type.h"
 #include "neigh_list_kokkos.h"
+#include "atom_kokkos.h"
+#include "atom_masks.h"
 
 // IREE runtime headers
 #include "iree/runtime/api.h"
 #include "iree/hal/api.h"
+
+// CUDA headers for context sharing
+#ifdef KOKKOS_ENABLE_CUDA
+#include <cuda_runtime.h>
+#include <cuda.h>
+#endif
 
 #include <string>
 #include <vector>
 #include <memory>
 
 namespace LAMMPS_NS {
-
-// Forward declarations
-template<class DeviceType> class PairIREEKokkos;
 
 /**
  * IREE Model Handle for Kokkos integration.
@@ -85,7 +100,7 @@ public:
     iree_hal_buffer_view_t* import_gpu_buffer(
         void* ptr,
         size_t size_bytes,
-        const std::vector<int64_t>& shape,
+        const std::vector<iree_hal_dim_t>& shape,
         iree_hal_element_type_t element_type
     );
 
@@ -93,7 +108,7 @@ public:
      * Create device-local buffer (for outputs).
      */
     iree_hal_buffer_view_t* create_device_buffer(
-        const std::vector<int64_t>& shape,
+        const std::vector<iree_hal_dim_t>& shape,
         iree_hal_element_type_t element_type
     );
 
@@ -121,12 +136,94 @@ public:
     );
 
     /**
+     * Invoke energy+gradient function (combined output).
+     * The VMFB returns (energy_scalar, gradient_tensor, input_passthrough).
+     * Returns the device pointer to IREE's gradient buffer for zero-copy access.
+     *
+     * @param input Input buffer view (rij tensor)
+     * @param energy_out Output for energy scalar
+     * @param gradient_ptr_out Output for device pointer to gradient buffer
+     * @param gradient_size_out Output for size in bytes of gradient buffer
+     * @return true on success
+     */
+    bool invoke_energy_gradient_zerocopy(
+        iree_hal_buffer_view_t* input,
+        float* energy_out,
+        void** gradient_ptr_out,
+        size_t* gradient_size_out
+    );
+
+    /**
+     * Invoke energy+gradient function (combined output).
+     * The VMFB returns (energy_scalar, gradient_tensor, input_passthrough).
+     * Copies gradient to raw device pointer via GPU->CPU->GPU transfer.
+     *
+     * @param input Input buffer view (rij tensor)
+     * @param energy_out Output for energy scalar
+     * @param gradient_dest_ptr Raw device pointer to copy gradient to
+     * @param gradient_size Size in bytes of gradient buffer
+     * @return true on success
+     */
+    bool invoke_energy_gradient(
+        iree_hal_buffer_view_t* input,
+        float* energy_out,
+        void* gradient_dest_ptr,
+        size_t gradient_size
+    );
+
+    /**
+     * Invoke energy+gradient with IREE-owned input buffer.
+     * Use this when input is created via create_device_buffer() and
+     * data is transferred using iree_hal_device_transfer_h2d().
+     */
+    bool invoke_energy_gradient_direct(
+        iree_hal_buffer_view_t* input_iree,
+        float* energy_out,
+        void* gradient_dest_ptr,
+        size_t gradient_size
+    );
+
+    /**
+     * Invoke energy+gradient with Float64 support and zero-copy.
+     * For use with Float64 VMFBs that match Kokkos F_FLOAT (double).
+     *
+     * @param input_iree IREE-owned input buffer (Float64)
+     * @param energy_out Output for energy scalar (double)
+     * @param gradient_ptr_out Output for device pointer to gradient (zero-copy)
+     * @param gradient_size_out Size of gradient in bytes
+     * @return true on success
+     */
+    bool invoke_energy_gradient_f64_zerocopy(
+        iree_hal_buffer_view_t* input_iree,
+        double* energy_out,
+        void** gradient_ptr_out,
+        size_t* gradient_size_out
+    );
+
+    /**
+     * Perform D2D copy of gradient from IREE buffer to Kokkos buffer.
+     * Used when shared context allows direct GPU-to-GPU copy.
+     *
+     * @param iree_gradient_ptr Device pointer to IREE gradient buffer
+     * @param kokkos_gradient_ptr Device pointer to Kokkos gradient buffer
+     * @param size_bytes Number of bytes to copy
+     * @return true on success
+     */
+    bool copy_gradient_d2d(
+        void* iree_gradient_ptr,
+        void* kokkos_gradient_ptr,
+        size_t size_bytes
+    );
+
+    /**
      * Synchronize (wait for all GPU operations to complete).
      */
     void sync();
 
     bool is_valid() const { return session_ != nullptr; }
     iree_hal_device_t* device() const { return hal_device_; }
+    bool is_cuda() const { return is_cuda_device_; }
+    bool uses_shared_context() const { return shared_cuda_context_; }
 
 private:
     iree_runtime_instance_t* instance_ = nullptr;
@@ -137,44 +234,33 @@ private:
     iree_vm_function_t compute_energy_fn_;
 
     bool functions_loaded_ = false;
+    bool is_cuda_device_ = false;
+    bool shared_cuda_context_ = false;
+
+#ifdef KOKKOS_ENABLE_CUDA
+    CUcontext kokkos_cuda_context_ = nullptr;
+    CUstream kokkos_cuda_stream_ = nullptr;
+#endif
+
+    // Cached gradient buffer view from last invocation (for zero-copy)
+    iree_hal_buffer_view_t* cached_gradient_view_ = nullptr;
 };
 
 /**
  * PairIREEKokkos - Kokkos-enabled IREE pair_style.
  *
- * Template parameter DeviceType determines execution space:
- * - Kokkos::Device<Kokkos::Cuda, Kokkos::CudaSpace> for GPU
- * - Kokkos::Device<Kokkos::OpenMP, Kokkos::HostSpace> for CPU
+ * Template parameter DeviceType is LMPDeviceType or LMPHostType.
+ *
+ * Inherits from Pair directly (like other LAMMPS Kokkos pair styles).
  */
 template<class DeviceType>
-class PairIREEKokkos : public PairKokkos<DeviceType> {
+class PairIREEKokkos : public Pair {
 public:
     // Kokkos type aliases
-    using device_type = DeviceType;
-    using execution_space = typename DeviceType::execution_space;
-    using memory_space = typename DeviceType::memory_space;
+    typedef DeviceType device_type;
+    typedef ArrayTypes<DeviceType> AT;
 
-    template<typename T>
-    using View = Kokkos::View<T, Kokkos::LayoutRight, DeviceType>;
-
-    template<typename T>
-    using ViewHost = Kokkos::View<T, Kokkos::LayoutRight, Kokkos::HostSpace>;
-
-    // Inherited from Pair
-    using Pair::lmp;
-    using Pair::atom;
-    using Pair::force;
-    using Pair::neighbor;
-    using Pair::comm;
-    using Pair::list;
-    using Pair::cutsq;
-    using Pair::cutforce;
-    using Pair::eflag;
-    using Pair::vflag;
-    using Pair::evflag;
-    using Pair::eflag_global;
-    using Pair::vflag_global;
-    using Pair::eng_vdwl;
+    enum {EnabledNeighFlags = FULL|HALFTHREAD|HALF};
 
     PairIREEKokkos(class LAMMPS*);
     ~PairIREEKokkos() override;
@@ -183,10 +269,8 @@ public:
     void settings(int, char**) override;
     void coeff(int, char**) override;
     void init_style() override;
+    void init_list(int, class NeighList*) override;  // needed for ptr to neighbor list
     double init_one(int, int) override;
-
-    // Kokkos-specific
-    void cleanup_copy();
 
 protected:
     // Model configuration
@@ -194,6 +278,7 @@ protected:
     double cutoff_;
     int max_atoms_;
     int max_pairs_;
+    int vmfb_size_;  // Max edges the loaded VMFB can handle (from bucket size)
 
     // Element mapping
     std::vector<std::string> elements_;
@@ -202,19 +287,43 @@ protected:
     // IREE handle
     std::unique_ptr<IREEKokkosHandle> iree_;
 
+    // Kokkos atom interface
+    class AtomKokkos* atomKK;
+    ExecutionSpace execution_space;
+    int neighflag;
+    int eflag, vflag;
+    int newton_pair;
+
+    // Kokkos views for positions/forces (mirrors of LAMMPS data)
+    typename AT::t_x_array_randomread x;
+    typename AT::t_f_array f;
+    typename AT::t_int_1d_randomread type;
+
     // Kokkos views for pair data (persistent, resized as needed)
-    View<int*> d_pair_i_;
-    View<int*> d_pair_j_;
-    View<F_FLOAT*[3]> d_rij_;
-    View<F_FLOAT*[3]> d_pair_forces_;
+    typename AT::t_int_1d d_pair_i_;
+    typename AT::t_int_1d d_pair_j_;
+    typename AT::t_x_array d_rij_;
+    typename AT::t_f_array d_pair_forces_;
+
+    // Per-atom energy/virial for Kokkos
+    DAT::tdual_efloat_1d k_eatom;
+    DAT::tdual_virial_array k_vatom;
+    typename AT::t_efloat_1d d_eatom;
+    typename AT::t_virial_array d_vatom;
 
     // Pair count
     int npairs_;
+    int nlocal, nall;
 
     // Methods
     void allocate();
+
+public:
+    // These methods must be public for CUDA extended lambda support
     void build_pair_lists();
     void scatter_forces();
+
+protected:
 
     /**
      * Import Kokkos view into IREE (templated helper).
@@ -223,15 +332,7 @@ protected:
     iree_hal_buffer_view_t* import_view(const ViewType& view);
 };
 
-// Explicit instantiation declarations
-#ifdef KOKKOS_ENABLE_CUDA
-extern template class PairIREEKokkos<Kokkos::Device<Kokkos::Cuda, Kokkos::CudaSpace>>;
-#endif
-
-#ifdef KOKKOS_ENABLE_OPENMP
-extern template class PairIREEKokkos<Kokkos::Device<Kokkos::OpenMP, Kokkos::HostSpace>>;
-#endif
-
 }  // namespace LAMMPS_NS
 
 #endif  // LMP_PAIR_IREE_KOKKOS_H
+#endif

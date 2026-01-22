@@ -3,11 +3,15 @@ Device Selection for IREE Runtime
 =================================
 
 Automatically selects the best available compute device (CUDA > Vulkan > CPU)
-and finds the corresponding pre-compiled model file.
+and finds the corresponding pre-compiled model files.
+
+Supports two directory layouts:
+1. Bucket-based: bucket_2000/energy_gradient_f64_cpu.vmfb, etc.
+2. Flat: model_cpu.vmfb, model_cuda.vmfb (legacy)
 """
 
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,12 +52,49 @@ def get_models_dir() -> Path:
     return Path(__file__).parent / "models"
 
 
-def list_available_backends(models_dir: Optional[Path] = None) -> dict:
+def _find_bucket_vmfbs(models_dir: Path, backend: str) -> List[Path]:
+    """
+    Find bucket VMFBs for a given backend.
+
+    Searches for bucket_*/ directories containing energy_gradient_f64_*.vmfb files.
+    """
+    suffix_map = {
+        'cpu': 'f64_cpu.vmfb',
+        'cuda': 'f64_cuda.vmfb',
+        'vulkan': 'f64_vulkan.vmfb',
+    }
+    suffix = suffix_map.get(backend, 'f64_cpu.vmfb')
+
+    vmfb_files = []
+    for bucket_dir in models_dir.glob('bucket_*'):
+        if bucket_dir.is_dir():
+            vmfb = bucket_dir / f'energy_gradient_{suffix}'
+            if vmfb.exists():
+                vmfb_files.append(vmfb)
+
+    return sorted(vmfb_files)
+
+
+def _find_flat_vmfbs(models_dir: Path, backend: str) -> List[Path]:
+    """
+    Find flat-layout VMFBs for a given backend (legacy support).
+
+    Searches for *_<backend>.vmfb files directly in models_dir.
+    """
+    suffix_map = {
+        'cpu': '_cpu.vmfb',
+        'cuda': '_cuda.vmfb',
+        'vulkan': '_vulkan.vmfb',
+    }
+    suffix = suffix_map.get(backend, '_cpu.vmfb')
+    return list(models_dir.glob(f'*{suffix}'))
+
+
+def list_available_backends(models_dir: Optional[Path] = None) -> Dict[str, List[Path]]:
     """
     List available pre-compiled model backends.
 
-    With contribution-based architecture, each backend has multiple VMFB files
-    named <contribution>_<backend>.vmfb (e.g., ace_cpu.vmfb, pair_cpu.vmfb).
+    Checks both bucket-based and flat layouts.
 
     Returns:
         Dictionary mapping backend names to list of available VMFB paths
@@ -63,16 +104,15 @@ def list_available_backends(models_dir: Optional[Path] = None) -> dict:
     else:
         models_dir = Path(models_dir)
 
-    backend_suffixes = {
-        'cpu': '_cpu.vmfb',
-        'cuda': '_cuda.vmfb',
-        'vulkan': '_vulkan.vmfb',
-    }
-
     available = {}
-    for backend, suffix in backend_suffixes.items():
-        vmfb_files = list(models_dir.glob(f'*{suffix}'))
-        available[backend] = vmfb_files
+    for backend in ['cpu', 'cuda', 'vulkan']:
+        # Try bucket layout first
+        bucket_files = _find_bucket_vmfbs(models_dir, backend)
+        if bucket_files:
+            available[backend] = bucket_files
+        else:
+            # Fall back to flat layout
+            available[backend] = _find_flat_vmfbs(models_dir, backend)
 
     return available
 
@@ -84,9 +124,8 @@ def select_device(
     """
     Select the best available device and models directory.
 
-    With contribution-based architecture, each backend has multiple VMFB files
-    named <contribution>_<backend>.vmfb. This function selects the device
-    and returns the models directory (not a specific model file).
+    Supports bucket-based VMFB layout (bucket_*/energy_gradient_*.vmfb)
+    and flat layout (*_cpu.vmfb, *_cuda.vmfb).
 
     Args:
         requested: Device to use. Options:
@@ -110,13 +149,6 @@ def select_device(
     else:
         models_dir = Path(models_dir)
 
-    # Backend suffixes for contribution-based naming
-    backend_suffixes = {
-        'cuda': '_cuda.vmfb',
-        'vulkan': '_vulkan.vmfb',
-        'cpu': '_cpu.vmfb',
-    }
-
     # Device configurations: (backend_name, iree_device_string)
     device_configs = [
         ('cuda', 'cuda'),
@@ -127,11 +159,13 @@ def select_device(
     if requested == 'auto':
         # Try devices in priority order
         for backend, iree_device in device_configs:
-            suffix = backend_suffixes[backend]
-            vmfb_files = list(models_dir.glob(f'*{suffix}'))
+            # Check for VMFBs (bucket or flat layout)
+            bucket_files = _find_bucket_vmfbs(models_dir, backend)
+            flat_files = _find_flat_vmfbs(models_dir, backend)
+            vmfb_files = bucket_files or flat_files
 
             if not vmfb_files:
-                logger.debug(f"No VMFB files found for {backend}: *{suffix}")
+                logger.debug(f"No VMFB files found for {backend}")
                 continue
 
             # Check device availability
@@ -147,12 +181,13 @@ def select_device(
                 logger.debug(f"IREE cannot use device: {iree_device}")
                 continue
 
-            logger.info(f"Selected device: {backend} ({iree_device}), {len(vmfb_files)} contributions")
+            layout = 'bucket' if bucket_files else 'flat'
+            logger.info(f"Selected device: {backend} ({iree_device}), {len(vmfb_files)} VMFBs ({layout})")
             return iree_device, models_dir
 
         raise RuntimeError(
-            "No suitable device found. Available models: "
-            f"{list(models_dir.glob('*.vmfb'))}"
+            f"No suitable device found. Models directory: {models_dir}, "
+            f"Available: {list(models_dir.glob('*.vmfb'))} and {list(models_dir.glob('bucket_*'))}"
         )
 
     else:
@@ -160,11 +195,11 @@ def select_device(
         requested_lower = requested.lower()
 
         device_map = {
-            'cuda': 'cuda',
-            'gpu': 'cuda',  # Alias
-            'vulkan': 'vulkan',
-            'cpu': 'local-task',
-            'local-task': 'local-task',  # Alias
+            'cuda': ('cuda', 'cuda'),
+            'gpu': ('cuda', 'cuda'),  # Alias
+            'vulkan': ('vulkan', 'vulkan'),
+            'cpu': ('cpu', 'local-task'),
+            'local-task': ('cpu', 'local-task'),  # Alias
         }
 
         if requested_lower not in device_map:
@@ -173,16 +208,17 @@ def select_device(
                 f"Options: {list(device_map.keys())}"
             )
 
-        iree_device = device_map[requested_lower]
+        backend, iree_device = device_map[requested_lower]
 
-        # Get backend name for suffix lookup
-        backend_name = 'cpu' if iree_device == 'local-task' else iree_device
-        suffix = backend_suffixes.get(backend_name, '_cpu.vmfb')
-        vmfb_files = list(models_dir.glob(f'*{suffix}'))
+        # Check for VMFBs
+        bucket_files = _find_bucket_vmfbs(models_dir, backend)
+        flat_files = _find_flat_vmfbs(models_dir, backend)
+        vmfb_files = bucket_files or flat_files
 
         if not vmfb_files:
             raise FileNotFoundError(
-                f"No VMFB files found for {requested}: {models_dir}/*{suffix}"
+                f"No VMFB files found for {requested} in {models_dir}. "
+                f"Expected bucket_*/energy_gradient_f64_{backend}.vmfb or *_{backend}.vmfb"
             )
 
         return iree_device, models_dir
@@ -195,28 +231,30 @@ def get_device_info(models_dir: Optional[Path] = None) -> dict:
     Returns:
         Dictionary with device availability information
     """
+    if models_dir is None:
+        models_dir = get_models_dir()
+    else:
+        models_dir = Path(models_dir)
+
     backends = list_available_backends(models_dir)
 
-    info = {
-        'cuda': {
-            'driver_available': _cuda_available(),
-            'iree_available': _check_iree_device('cuda') if _cuda_available() else False,
-            'contributions': len(backends['cuda']),
-            'vmfb_files': [str(p) for p in backends['cuda']],
-        },
-        'vulkan': {
-            'driver_available': _vulkan_available(),
-            'iree_available': _check_iree_device('vulkan') if _vulkan_available() else False,
-            'contributions': len(backends['vulkan']),
-            'vmfb_files': [str(p) for p in backends['vulkan']],
-        },
-        'cpu': {
-            'driver_available': True,  # Always available
-            'iree_available': _check_iree_device('local-task'),
-            'contributions': len(backends['cpu']),
-            'vmfb_files': [str(p) for p in backends['cpu']],
-        },
-    }
+    info = {}
+    for backend in ['cuda', 'vulkan', 'cpu']:
+        vmfb_files = backends.get(backend, [])
+        iree_device = 'local-task' if backend == 'cpu' else backend
+
+        driver_available = True
+        if backend == 'cuda':
+            driver_available = _cuda_available()
+        elif backend == 'vulkan':
+            driver_available = _vulkan_available()
+
+        info[backend] = {
+            'driver_available': driver_available,
+            'iree_available': _check_iree_device(iree_device) if driver_available else False,
+            'vmfb_count': len(vmfb_files),
+            'vmfb_files': [str(p) for p in vmfb_files],
+        }
 
     return info
 
@@ -230,15 +268,15 @@ def print_device_info(models_dir: Optional[Path] = None):
 
     for device, details in info.items():
         status = []
-        n_contrib = details['contributions']
-        if details['driver_available'] and details['iree_available'] and n_contrib > 0:
-            status.append(f"READY ({n_contrib} contributions)")
+        n_vmfbs = details['vmfb_count']
+        if details['driver_available'] and details['iree_available'] and n_vmfbs > 0:
+            status.append(f"READY ({n_vmfbs} VMFBs)")
         else:
             if not details['driver_available']:
                 status.append("no driver")
             if not details['iree_available']:
                 status.append("IREE error")
-            if n_contrib == 0:
+            if n_vmfbs == 0:
                 status.append("no models")
 
         status_str = ", ".join(status) if status else "unknown"

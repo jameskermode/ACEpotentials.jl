@@ -1,200 +1,200 @@
 """
 Tests for IREE Wrapper Module
 =============================
+
+Tests for BucketVMFB and BucketManager classes.
 """
 
 import pytest
 import numpy as np
 from pathlib import Path
 import tempfile
-import json
 
 
-class TestPadArray:
-    """Test array padding utility."""
+# Find models directory for integration tests
+BENCHMARK_MODELS_DIR = Path(__file__).parent.parent.parent / 'benchmark/bucket_energy_gradient'
 
-    def test_pad_array_2d_expand(self):
-        """Padding should expand array to target shape."""
-        from mypotential._iree_wrapper import IREEModel
+def get_models_dir():
+    """Get available models directory."""
+    if BENCHMARK_MODELS_DIR.exists():
+        bucket_dirs = list(BENCHMARK_MODELS_DIR.glob('bucket_*'))
+        if bucket_dirs:
+            return BENCHMARK_MODELS_DIR
+    return None
 
-        # Create instance without loading (just to access method)
-        model = object.__new__(IREEModel)
+MODELS_DIR = get_models_dir()
+HAS_MODEL = MODELS_DIR is not None
 
-        arr = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32)
-        result = model._pad_array(arr, (4, 5), fill_value=0.0)
-
-        assert result.shape == (4, 5)
-        assert result[0, 0] == 1.0
-        assert result[1, 2] == 6.0
-        assert result[2, 0] == 0.0  # Padded region
-        assert result[0, 3] == 0.0  # Padded region
-
-    def test_pad_array_1d(self):
-        """1D array padding."""
-        from mypotential._iree_wrapper import IREEModel
-
-        model = object.__new__(IREEModel)
-
-        arr = np.array([1, 2, 3], dtype=np.float32)
-        result = model._pad_array(arr, (10,), fill_value=-1.0)
-
-        assert result.shape == (10,)
-        assert result[0] == 1.0
-        assert result[2] == 3.0
-        assert result[3] == -1.0  # Fill value
-
-    def test_pad_array_preserves_dtype(self):
-        """Padding should preserve data type."""
-        from mypotential._iree_wrapper import IREEModel
-
-        model = object.__new__(IREEModel)
-
-        arr = np.array([[1, 2]], dtype=np.float64)
-        result = model._pad_array(arr, (2, 4), fill_value=0.0)
-
-        assert result.dtype == np.float64
-
-    def test_pad_array_truncates_if_smaller(self):
-        """If target is smaller, should truncate."""
-        from mypotential._iree_wrapper import IREEModel
-
-        model = object.__new__(IREEModel)
-
-        arr = np.array([[1, 2, 3, 4, 5]], dtype=np.float32)
-        result = model._pad_array(arr, (1, 3), fill_value=0.0)
-
-        assert result.shape == (1, 3)
-        assert result[0, 0] == 1.0
-        assert result[0, 2] == 3.0
+skip_no_model = pytest.mark.skipif(not HAS_MODEL, reason="No compiled model (bucket VMFBs)")
 
 
-class TestModelParams:
-    """Test ModelParams class."""
+class TestBucketVMFBClass:
+    """Test BucketVMFB class structure."""
 
-    def test_load_npz(self):
-        """Should load parameters from NPZ file."""
-        from mypotential._iree_wrapper import ModelParams
+    def test_import(self):
+        """Should be able to import BucketVMFB."""
+        from mypotential._iree_wrapper import BucketVMFB
+        assert BucketVMFB is not None
 
-        with tempfile.NamedTemporaryFile(suffix='.npz', delete=False) as f:
-            np.savez(f.name,
-                     rcut=np.array([5.0]),
-                     selector_R=np.eye(4, dtype=np.float32),
-                     params=np.random.randn(10).astype(np.float32))
-            f.flush()
-
-            params = ModelParams(f.name)
-
-            assert params.rcut == 5.0
-            assert 'selector_R' in params.params
-            assert 'params' in params.params
-
-    def test_to_dict(self):
-        """to_dict should return parameter dictionary."""
-        from mypotential._iree_wrapper import ModelParams
-
-        with tempfile.NamedTemporaryFile(suffix='.npz', delete=False) as f:
-            np.savez(f.name,
-                     rcut=np.array([6.0]),
-                     test_param=np.array([1, 2, 3]))
-            f.flush()
-
-            params = ModelParams(f.name)
-            d = params.to_dict()
-
-            assert isinstance(d, dict)
-            assert 'rcut' in d
-            assert 'test_param' in d
+    def test_bucket_manager_import(self):
+        """Should be able to import BucketManager."""
+        from mypotential._iree_wrapper import BucketManager
+        assert BucketManager is not None
 
 
-class TestIREEModelMetadata:
-    """Test metadata loading in IREEModel."""
+@skip_no_model
+class TestBucketVMFBIntegration:
+    """Integration tests for BucketVMFB."""
 
-    def test_default_metadata(self):
-        """Should have sensible defaults without metadata file."""
-        from mypotential._iree_wrapper import IREEModel
+    def test_bucket_vmfb_load(self):
+        """Should load bucket VMFB successfully."""
+        from mypotential._iree_wrapper import BucketVMFB
 
-        model = object.__new__(IREEModel)
-        metadata = model._default_metadata()
+        # Find a bucket VMFB - sort by numeric value
+        bucket_dirs = sorted(
+            MODELS_DIR.glob('bucket_*'),
+            key=lambda d: int(d.name.split('_')[1])
+        )
+        assert len(bucket_dirs) > 0
 
-        assert 'max_atoms' in metadata
-        assert 'max_pairs' in metadata
-        assert 'cutoff' in metadata
-        assert metadata['max_atoms'] > 0
-        assert metadata['cutoff'] > 0
+        # Use smallest bucket
+        bucket_dir = bucket_dirs[0]
+        max_edges = int(bucket_dir.name.split('_')[1])
+        vmfb_path = bucket_dir / 'energy_gradient_f64_cpu.vmfb'
+        assert vmfb_path.exists()
 
-    def test_load_metadata_from_json(self):
-        """Should load metadata from JSON file."""
-        from mypotential._iree_wrapper import IREEModel
+        # Load it
+        bucket_vmfb = BucketVMFB(str(vmfb_path), 'local-task', max_edges)
+        assert bucket_vmfb.max_edges > 0
 
-        model = object.__new__(IREEModel)
+    def test_bucket_vmfb_compute(self):
+        """BucketVMFB should compute energy and gradient."""
+        from mypotential._iree_wrapper import BucketVMFB
 
-        with tempfile.NamedTemporaryFile(suffix='.json', mode='w', delete=False) as f:
-            json.dump({
-                'max_atoms': 1000,
-                'max_pairs': 50000,
-                'cutoff': 4.5,
-                'elements': ['Si', 'O'],
-            }, f)
-            f.flush()
+        # Find smallest bucket - sort by numeric value
+        bucket_dirs = sorted(
+            MODELS_DIR.glob('bucket_*'),
+            key=lambda d: int(d.name.split('_')[1])
+        )
+        bucket_dir = bucket_dirs[0]
+        max_edges = int(bucket_dir.name.split('_')[1])
+        vmfb_path = bucket_dir / 'energy_gradient_f64_cpu.vmfb'
 
-            metadata = model._load_metadata(f.name)
+        bucket_vmfb = BucketVMFB(str(vmfb_path), 'local-task', max_edges)
 
-            assert metadata['max_atoms'] == 1000
-            assert metadata['cutoff'] == 4.5
+        # Create test input (smaller than bucket size)
+        n_edges = min(100, bucket_vmfb.max_edges // 2)
+        np.random.seed(42)
+        rij = np.random.randn(n_edges, 3).astype(np.float64) * 0.5
 
+        # Compute
+        energy, gradient = bucket_vmfb(rij, rcut=5.5)
 
-class TestIREEModelShapes:
-    """Test shape handling in compute functions."""
-
-    def test_compute_energy_returns_scalar(self):
-        """Energy should be a scalar float."""
-        # This test requires a real VMFB - mark as integration
-        pytest.skip("Requires compiled VMFB model")
-
-    def test_compute_pair_forces_shape(self):
-        """Pair forces should be [n_pairs, 3]."""
-        pytest.skip("Requires compiled VMFB model")
+        # Check outputs
+        assert isinstance(energy, float)
+        assert np.isfinite(energy)
+        assert gradient.shape == (n_edges, 3)
+        assert np.all(np.isfinite(gradient))
 
 
-@pytest.mark.integration
-class TestIREEModelIntegration:
-    """Integration tests requiring actual IREE runtime."""
+@skip_no_model
+class TestBucketManagerIntegration:
+    """Integration tests for BucketManager."""
 
-    @pytest.fixture
-    def vmfb_path(self):
-        """Get path to test VMFB if available."""
-        # Look for test model in various locations
-        paths = [
-            Path(__file__).parent.parent / 'src/mypotential/models/model_cpu.vmfb',
-            Path(__file__).parent / 'fixtures/test_model.vmfb',
-        ]
-        for p in paths:
-            if p.exists():
-                return str(p)
-        pytest.skip("No test VMFB available")
+    def test_bucket_manager_creation(self):
+        """Should create BucketManager successfully."""
+        from mypotential._iree_wrapper import BucketManager
 
-    def test_model_load(self, vmfb_path):
-        """Should load VMFB without error."""
-        from mypotential._iree_wrapper import IREEModel
+        mgr = BucketManager(MODELS_DIR, 'local-task')
+        assert mgr.num_buckets > 0
+        assert mgr.max_edges > 0
 
-        model = IREEModel(vmfb_path, device='local-task')
-        assert model.max_atoms > 0
-        assert model.rcut > 0
+    def test_bucket_manager_compute(self):
+        """BucketManager should compute energy and gradient."""
+        from mypotential._iree_wrapper import BucketManager
 
-    def test_compute_energy_and_forces(self, vmfb_path):
-        """Should compute energy and forces."""
-        from mypotential._iree_wrapper import IREEModel
+        mgr = BucketManager(MODELS_DIR, 'local-task')
 
-        model = IREEModel(vmfb_path, device='local-task')
+        # Create test input
+        n_edges = 100
+        np.random.seed(42)
+        rij = np.random.randn(n_edges, 3).astype(np.float64) * 0.5
 
-        # Dummy inputs
-        n_pairs = 100
-        n_atoms = 10
-        rij = np.random.randn(n_pairs, 3).astype(np.float32)
-        pool_matrix = np.zeros((n_atoms, n_pairs), dtype=np.float32)
+        # Compute
+        energy, gradient = mgr(rij, rcut=5.5)
 
-        # This would need actual model params
-        # energy, forces = model.compute_energy_and_forces(rij, pool_matrix, {})
+        # Check outputs
+        assert isinstance(energy, float)
+        assert np.isfinite(energy)
+        assert gradient.shape == (n_edges, 3)
+        assert np.all(np.isfinite(gradient))
+
+    def test_bucket_manager_selects_appropriate_bucket(self):
+        """BucketManager should auto-select bucket based on input size."""
+        from mypotential._iree_wrapper import BucketManager
+
+        mgr = BucketManager(MODELS_DIR, 'local-task')
+
+        # Test with different sizes
+        for n_edges in [50, 500, 1500]:
+            if n_edges > mgr.max_edges:
+                continue
+
+            np.random.seed(42)
+            rij = np.random.randn(n_edges, 3).astype(np.float64) * 0.5
+
+            energy, gradient = mgr(rij, rcut=5.5)
+
+            assert np.isfinite(energy)
+            assert gradient.shape == (n_edges, 3)
+
+    def test_bucket_manager_deterministic(self):
+        """Same input should give same output."""
+        from mypotential._iree_wrapper import BucketManager
+
+        mgr = BucketManager(MODELS_DIR, 'local-task')
+
+        np.random.seed(42)
+        rij = np.random.randn(100, 3).astype(np.float64) * 0.5
+
+        energy1, grad1 = mgr(rij, rcut=5.5)
+        energy2, grad2 = mgr(rij, rcut=5.5)
+
+        assert energy1 == energy2
+        np.testing.assert_array_equal(grad1, grad2)
+
+
+@skip_no_model
+class TestBucketManagerWithTestData:
+    """Test BucketManager against reference test data."""
+
+    def test_matches_test_data(self):
+        """BucketManager should match test_data.npz reference."""
+        from mypotential._iree_wrapper import BucketManager
+
+        mgr = BucketManager(MODELS_DIR, 'local-task')
+
+        # Load test data from first bucket
+        bucket_dirs = sorted(MODELS_DIR.glob('bucket_*'))
+        test_data_path = bucket_dirs[0] / 'test_data.npz'
+
+        if not test_data_path.exists():
+            pytest.skip("No test_data.npz available")
+
+        data = np.load(test_data_path)
+        rij = data['rij'].astype(np.float64)
+        energy_ref = float(data['energy'][0])
+        gradient_ref = data['gradient'].astype(np.float64)
+
+        # Compute via BucketManager
+        energy, gradient = mgr(rij, rcut=5.5)
+
+        # Check (should match to numerical precision)
+        energy_diff = abs(energy - energy_ref)
+        assert energy_diff < 1e-10, f"Energy diff: {energy_diff}"
+
+        grad_diff = np.max(np.abs(gradient - gradient_ref))
+        assert grad_diff < 1e-10, f"Gradient diff: {grad_diff}"
 
 
 if __name__ == '__main__':

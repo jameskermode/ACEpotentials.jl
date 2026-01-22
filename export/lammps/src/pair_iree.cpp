@@ -318,3 +318,32 @@ void PairIREE::scatter_forces(int n_pairs) {
 }
 
 }  // namespace LAMMPS_NS
+
+// =============================================================================
+// Plugin Registration
+// =============================================================================
+#include "version.h"
+#include "lammpsplugin.h"
+
+using namespace LAMMPS_NS;
+
+static Pair *iree_creator(LAMMPS *lmp)
+{
+    return new PairIREE(lmp);
+}
+
+extern "C" void lammpsplugin_init(void *lmp, void *handle, void *regfunc)
+{
+    lammpsplugin_t plugin;
+    lammpsplugin_regfunc register_plugin = (lammpsplugin_regfunc) regfunc;
+
+    // Register iree pair style (CPU non-Kokkos)
+    plugin.version = LAMMPS_VERSION;
+    plugin.style = "pair";
+    plugin.name = "iree";
+    plugin.info = "IREE-compiled ACE pair style (CPU, non-Kokkos) v1.0";
+    plugin.author = "ACEpotentials.jl";
+    plugin.creator.v1 = (lammpsplugin_factory1 *) &iree_creator;
+    plugin.handle = handle;
+    (*register_plugin)(&plugin, lmp);
+}

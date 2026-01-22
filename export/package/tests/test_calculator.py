@@ -1,11 +1,33 @@
 """
 Tests for MyPotential Calculator
 ================================
+
+Tests that the Calculator class works correctly with bucket-based VMFBs.
 """
 
 import pytest
 import numpy as np
 from pathlib import Path
+
+
+# Find models directory - try package models first, then benchmark
+PACKAGE_MODELS_DIR = Path(__file__).parent.parent / 'src/mypotential/models'
+BENCHMARK_MODELS_DIR = Path(__file__).parent.parent.parent / 'benchmark/bucket_energy_gradient'
+
+def get_models_dir():
+    """Get available models directory."""
+    # Check for bucket VMFBs
+    for models_dir in [PACKAGE_MODELS_DIR, BENCHMARK_MODELS_DIR]:
+        if models_dir.exists():
+            bucket_dirs = list(models_dir.glob('bucket_*'))
+            if bucket_dirs:
+                return models_dir
+    return None
+
+MODELS_DIR = get_models_dir()
+HAS_MODEL = MODELS_DIR is not None
+
+skip_no_model = pytest.mark.skipif(not HAS_MODEL, reason="No compiled model (bucket VMFBs)")
 
 
 def test_import():
@@ -28,39 +50,33 @@ def test_device_info():
     assert info['cpu']['driver_available'] is True
 
 
-def test_list_models():
-    """Test listing available models."""
-    from mypotential import list_available_models
+@skip_no_model
+def test_list_available_backends():
+    """Test listing available backends."""
+    from mypotential._device import list_available_backends
 
-    models = list_available_models()
+    backends = list_available_backends(MODELS_DIR)
 
-    assert 'cpu' in models
-    assert 'cuda' in models
-    assert 'vulkan' in models
+    assert 'cpu' in backends
+    assert 'cuda' in backends
+    assert 'vulkan' in backends
 
-    # Each entry is (path, exists)
-    for backend, (path, exists) in models.items():
-        assert isinstance(path, Path)
-        assert isinstance(exists, bool)
+    # Should have at least CPU VMFBs
+    assert len(backends['cpu']) > 0, f"No CPU VMFBs found in {MODELS_DIR}"
 
 
-@pytest.mark.skipif(
-    not Path(__file__).parent.parent.joinpath('src/mypotential/models/model_cpu.vmfb').exists(),
-    reason="No compiled model available"
-)
+@skip_no_model
 def test_calculator_creation():
-    """Test calculator creation."""
+    """Test calculator creation with bucket VMFBs."""
     from mypotential import Calculator
 
-    calc = Calculator(device='cpu')
+    calc = Calculator(device='cpu', models_dir=MODELS_DIR, rcut=5.5)
     assert calc.device == 'local-task'
-    assert calc.rcut > 0
+    assert calc.rcut == 5.5
+    assert calc.num_buckets > 0
 
 
-@pytest.mark.skipif(
-    not Path(__file__).parent.parent.joinpath('src/mypotential/models/model_cpu.vmfb').exists(),
-    reason="No compiled model available"
-)
+@skip_no_model
 def test_calculator_silicon():
     """Test calculator with silicon structure."""
     from mypotential import Calculator
@@ -68,7 +84,7 @@ def test_calculator_silicon():
 
     # Create silicon structure
     atoms = bulk('Si', 'diamond', a=5.43)
-    calc = Calculator(device='cpu')
+    calc = Calculator(device='cpu', models_dir=MODELS_DIR, rcut=5.5)
     atoms.calc = calc
 
     # Calculate energy
@@ -82,25 +98,79 @@ def test_calculator_silicon():
     assert np.all(np.isfinite(forces))
 
     # For a perfect crystal, forces should be near zero
-    assert np.max(np.abs(forces)) < 1e-3
+    # (Using simplified model, so very small forces expected)
+    assert np.max(np.abs(forces)) < 1e-6
 
 
-@pytest.mark.skipif(
-    not Path(__file__).parent.parent.joinpath('src/mypotential/models/model_cpu.vmfb').exists(),
-    reason="No compiled model available"
-)
+@skip_no_model
 def test_calculator_stress():
     """Test stress calculation."""
     from mypotential import Calculator
     from ase.build import bulk
 
     atoms = bulk('Si', 'diamond', a=5.43)
-    calc = Calculator(device='cpu')
+    calc = Calculator(device='cpu', models_dir=MODELS_DIR, rcut=5.5)
     atoms.calc = calc
 
     stress = atoms.get_stress()
     assert stress.shape == (6,)
     assert np.all(np.isfinite(stress))
+
+
+@skip_no_model
+def test_calculator_supercell():
+    """Test calculator with larger supercell."""
+    from mypotential import Calculator
+    from ase.build import bulk
+
+    atoms = bulk('Si', 'diamond', a=5.43) * (2, 2, 2)  # 16 atoms (2 per primitive × 8)
+    calc = Calculator(device='cpu', models_dir=MODELS_DIR, rcut=5.5)
+    atoms.calc = calc
+
+    energy = atoms.get_potential_energy()
+    forces = atoms.get_forces()
+
+    assert np.isfinite(energy)
+    assert forces.shape == (len(atoms), 3)
+    assert np.all(np.isfinite(forces))
+
+
+@skip_no_model
+def test_calculator_displaced_atoms():
+    """Test that displaced atoms have non-zero forces."""
+    from mypotential import Calculator
+    from ase.build import bulk
+
+    atoms = bulk('Si', 'diamond', a=5.43)
+    np.random.seed(42)
+    atoms.positions += np.random.randn(*atoms.positions.shape) * 0.1
+
+    calc = Calculator(device='cpu', models_dir=MODELS_DIR, rcut=5.5)
+    atoms.calc = calc
+
+    forces = atoms.get_forces()
+
+    # Displaced atoms should have non-zero forces
+    assert np.max(np.abs(forces)) > 1e-10
+
+
+@skip_no_model
+def test_bucket_selection():
+    """Test that appropriate bucket is selected based on system size."""
+    from mypotential import Calculator
+    from ase.build import bulk
+
+    calc = Calculator(device='cpu', models_dir=MODELS_DIR, rcut=5.5)
+
+    # Small system should use smallest bucket
+    atoms_small = bulk('Si', 'diamond', a=5.43)
+    atoms_small.calc = calc
+    _ = atoms_small.get_potential_energy()
+
+    # Larger system should still work
+    atoms_large = bulk('Si', 'diamond', a=5.43) * (3, 3, 3)  # 216 atoms
+    atoms_large.calc = calc
+    _ = atoms_large.get_potential_energy()
 
 
 if __name__ == '__main__':

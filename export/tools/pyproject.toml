@@ -17,7 +17,9 @@ name = "ace-export-tools"
 version = "0.1.0"
 description = "IREE compiler tools for ACE model export"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "pytest>=8.4.2",
+]
 
 [project.optional-dependencies]
 iree = [

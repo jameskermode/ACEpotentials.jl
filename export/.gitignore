@@ -1,0 +1,57 @@
+# Compiled VMFB models (generated, large binaries)
+*.vmfb
+
+# Test data and reference files (generated)
+test_data.npz
+julia_reference.npz
+*_inputs.npz
+metadata.npz
+
+# Intermediate compilation artifacts
+*.mlir
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Virtual environments
+.venv/
+
+# Lock files (environment-specific)
+uv.lock
+
+# Build artifacts
+lammps/build/
+lammps/build_test/CMakeCache.txt
+lammps/build_test/CMakeFiles/
+lammps/build_test/Makefile
+lammps/build_test/cmake_install.cmake
+lammps/build_test/*.so
+lammps/build_test/*.a
+
+# LAMMPS output files
+lammps/build_test/dump*.txt
+lammps/build_test/*.dump
+log.lammps
+
+# Benchmark results (regenerate as needed)
+*_results.json
+*_results.npz
+
+# Package build artifacts
+package/dist/
+package/build/
+package/*.egg-info/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

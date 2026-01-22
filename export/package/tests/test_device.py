@@ -1,13 +1,14 @@
 """
 Tests for Device Selection Module
 =================================
+
+Tests for bucket-based VMFB detection and device selection.
 """
 
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import tempfile
-import os
 
 
 class TestDeviceDetection:
@@ -57,31 +58,43 @@ class TestModelsDir:
         assert result.name == 'models'
 
 
-class TestListAvailableModels:
-    """Test model listing function."""
+class TestListAvailableBackends:
+    """Test backend listing function."""
 
-    def test_list_models_structure(self):
-        """list_available_models returns correct structure."""
-        from mypotential._device import list_available_models
-        result = list_available_models()
+    def test_list_backends_structure(self):
+        """list_available_backends returns correct structure."""
+        from mypotential._device import list_available_backends
 
-        assert 'cpu' in result
-        assert 'cuda' in result
-        assert 'vulkan' in result
+        # Use a temp dir to get predictable results
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = list_available_backends(Path(tmpdir))
 
-        for backend, (path, exists) in result.items():
-            assert isinstance(path, Path)
-            assert isinstance(exists, bool)
+            assert 'cpu' in result
+            assert 'cuda' in result
+            assert 'vulkan' in result
 
-    def test_list_models_filenames(self):
-        """Model filenames follow expected pattern."""
-        from mypotential._device import list_available_models
-        result = list_available_models()
+            for backend, files in result.items():
+                assert isinstance(files, list)
 
-        # result is a dict: {backend: (path, exists)}
-        assert result['cpu'][0].name == 'model_cpu.vmfb'
-        assert result['cuda'][0].name == 'model_cuda.vmfb'
-        assert result['vulkan'][0].name == 'model_vulkan.vmfb'
+    def test_list_backends_finds_bucket_vmfbs(self):
+        """list_available_backends finds bucket-based VMFBs."""
+        from mypotential._device import list_available_backends
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+
+            # Create bucket directory structure
+            bucket_dir = tmpdir / 'bucket_2000'
+            bucket_dir.mkdir()
+            (bucket_dir / 'energy_gradient_f64_cpu.vmfb').write_bytes(b'dummy')
+            (bucket_dir / 'energy_gradient_f64_cuda.vmfb').write_bytes(b'dummy')
+
+            result = list_available_backends(tmpdir)
+
+            assert len(result['cpu']) == 1
+            assert len(result['cuda']) == 1
+            assert len(result['vulkan']) == 0
+            assert 'bucket_2000' in str(result['cpu'][0])
 
 
 class TestSelectDevice:
@@ -91,26 +104,32 @@ class TestSelectDevice:
         """Explicitly requesting CPU should work."""
         from mypotential._device import select_device
 
-        # Create temp dir with CPU model
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create dummy model file
-            model_path = Path(tmpdir) / 'model_cpu.vmfb'
-            model_path.write_bytes(b'dummy')
+            tmpdir = Path(tmpdir)
 
-            device, path = select_device('cpu', models_dir=Path(tmpdir))
+            # Create bucket VMFB
+            bucket_dir = tmpdir / 'bucket_2000'
+            bucket_dir.mkdir()
+            (bucket_dir / 'energy_gradient_f64_cpu.vmfb').write_bytes(b'dummy')
+
+            device, path = select_device('cpu', models_dir=tmpdir)
             assert device == 'local-task'
-            assert 'cpu' in str(path)
+            assert path == tmpdir
 
     def test_select_device_aliases(self):
         """Test device name aliases."""
         from mypotential._device import select_device
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_path = Path(tmpdir) / 'model_cpu.vmfb'
-            model_path.write_bytes(b'dummy')
+            tmpdir = Path(tmpdir)
+
+            # Create bucket VMFB
+            bucket_dir = tmpdir / 'bucket_2000'
+            bucket_dir.mkdir()
+            (bucket_dir / 'energy_gradient_f64_cpu.vmfb').write_bytes(b'dummy')
 
             # 'local-task' should map to CPU
-            device, _ = select_device('local-task', models_dir=Path(tmpdir))
+            device, _ = select_device('local-task', models_dir=tmpdir)
             assert device == 'local-task'
 
     def test_select_device_missing_model(self):
@@ -134,13 +153,17 @@ class TestSelectDevice:
         from mypotential._device import select_device
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Only create CPU model
-            (Path(tmpdir) / 'model_cpu.vmfb').write_bytes(b'dummy')
+            tmpdir = Path(tmpdir)
+
+            # Create bucket VMFB for CPU
+            bucket_dir = tmpdir / 'bucket_2000'
+            bucket_dir.mkdir()
+            (bucket_dir / 'energy_gradient_f64_cpu.vmfb').write_bytes(b'dummy')
 
             with patch('mypotential._device._cuda_available', return_value=False):
                 with patch('mypotential._device._vulkan_available', return_value=False):
                     with patch('mypotential._device._check_iree_device', return_value=True):
-                        device, path = select_device('auto', models_dir=Path(tmpdir))
+                        device, path = select_device('auto', models_dir=tmpdir)
                         assert device == 'local-task'
 
 
@@ -150,23 +173,27 @@ class TestGetDeviceInfo:
     def test_device_info_structure(self):
         """get_device_info returns correct structure."""
         from mypotential._device import get_device_info
-        info = get_device_info()
 
-        assert 'cpu' in info
-        assert 'cuda' in info
-        assert 'vulkan' in info
+        with tempfile.TemporaryDirectory() as tmpdir:
+            info = get_device_info(Path(tmpdir))
 
-        for device_info in info.values():
-            assert 'driver_available' in device_info
-            assert 'iree_available' in device_info
-            assert 'model_available' in device_info
-            assert 'model_path' in device_info
+            assert 'cpu' in info
+            assert 'cuda' in info
+            assert 'vulkan' in info
+
+            for device_info in info.values():
+                assert 'driver_available' in device_info
+                assert 'iree_available' in device_info
+                assert 'vmfb_count' in device_info
+                assert 'vmfb_files' in device_info
 
     def test_cpu_always_has_driver(self):
         """CPU driver should always be available."""
         from mypotential._device import get_device_info
-        info = get_device_info()
-        assert info['cpu']['driver_available'] is True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            info = get_device_info(Path(tmpdir))
+            assert info['cpu']['driver_available'] is True
 
 
 if __name__ == '__main__':
