@@ -89,6 +89,15 @@ jobs:
 
       - uses: julia-actions/cache@v2
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install IREE compiler
+        run: cd export/tools && uv sync --extra iree
+
       - name: Add packages from forks
         run: |
           julia --project=export -e '
@@ -103,7 +112,9 @@ jobs:
         run: julia --project=export export/test/test_julia_energy_gradient.jl
 
       - name: Generate bucket VMFBs
-        run: julia --project=export export/benchmark/export_bucket_energy_gradient.jl
+        run: |
+          export PATH="$GITHUB_WORKSPACE/export/tools/.venv/bin:$PATH"
+          julia --project=export export/benchmark/export_bucket_energy_gradient.jl
 
       - name: Upload VMFBs artifact
         uses: actions/upload-artifact@v4
