@@ -35,7 +35,12 @@ lammps/build_test/*.a
 # LAMMPS output files
 lammps/build_test/dump*.txt
 lammps/build_test/*.dump
+lammps/build_test/*.csv
 log.lammps
+
+# LAMMPS input files (test-specific, regenerate as needed)
+lammps/build_test/*.in
+lammps/build_test/*.data
 
 # Benchmark results (regenerate as needed)
 *_results.json
