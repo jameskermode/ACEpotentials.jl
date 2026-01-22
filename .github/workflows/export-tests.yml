@@ -75,7 +75,7 @@ jobs:
           retention-days: 1
 
   # ============================================================
-  # Julia tests (Enzyme energy+gradient)
+  # Julia tests (Enzyme energy+gradient) + VMFB generation
   # ============================================================
   julia-tests:
     name: Julia Export Tests
@@ -92,12 +92,12 @@ jobs:
       - name: Add ACE registry
         run: julia -e 'using Pkg; Pkg.Registry.add(url="https://github.com/ACEsuit/ACEregistry")'
 
-      - name: Dev packages from forks
+      - name: Add packages from forks
         run: |
           julia --project=export -e '
             using Pkg
-            Pkg.develop(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feature/reactant-compat")
-            Pkg.develop(url="https://github.com/jameskermode/Polynomials4ML.jl", rev="feature/reactant-compat")
+            Pkg.add(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feature/reactant-compat")
+            Pkg.add(url="https://github.com/jameskermode/Polynomials4ML.jl", rev="feature/reactant-compat")
             Pkg.instantiate()
             Pkg.precompile()
           '
@@ -105,14 +105,31 @@ jobs:
       - name: Run Julia export tests
         run: julia --project=export export/test/test_julia_energy_gradient.jl
 
+      - name: Generate bucket VMFBs
+        run: julia --project=export export/benchmark/export_bucket_energy_gradient.jl
+
+      - name: Upload VMFBs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bucket-vmfbs
+          path: export/benchmark/bucket_energy_gradient/
+          retention-days: 1
+
   # ============================================================
   # Python tests (VMFB equivalence + package tests)
   # ============================================================
   python-tests:
     name: Python Export Tests
     runs-on: ubuntu-latest
+    needs: julia-tests
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download VMFBs
+        uses: actions/download-artifact@v4
+        with:
+          name: bucket-vmfbs
+          path: export/benchmark/bucket_energy_gradient/
 
       - uses: actions/setup-python@v5
         with:
@@ -176,8 +193,8 @@ jobs:
           julia -e 'using Pkg; Pkg.Registry.add(url="https://github.com/ACEsuit/ACEregistry")'
           julia --project=export -e '
             using Pkg
-            Pkg.develop(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feature/reactant-compat")
-            Pkg.develop(url="https://github.com/jameskermode/Polynomials4ML.jl", rev="feature/reactant-compat")
+            Pkg.add(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feature/reactant-compat")
+            Pkg.add(url="https://github.com/jameskermode/Polynomials4ML.jl", rev="feature/reactant-compat")
             Pkg.instantiate()
           '
 
