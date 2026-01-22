@@ -89,9 +89,6 @@ jobs:
 
       - uses: julia-actions/cache@v2
 
-      - name: Add ACE registry
-        run: julia -e 'using Pkg; Pkg.Registry.add(url="https://github.com/ACEsuit/ACEregistry")'
-
       - name: Add packages from forks
         run: |
           julia --project=export -e '
@@ -188,9 +185,8 @@ jobs:
 
       - uses: julia-actions/cache@v2
 
-      - name: Add ACE registry and install deps
+      - name: Install Julia deps
         run: |
-          julia -e 'using Pkg; Pkg.Registry.add(url="https://github.com/ACEsuit/ACEregistry")'
           julia --project=export -e '
             using Pkg
             Pkg.add(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feature/reactant-compat")
