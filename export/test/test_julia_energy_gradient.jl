@@ -114,7 +114,7 @@ end
             enzyme_grad = grad[i, j]
             diff = abs(enzyme_grad - fd_grad)
 
-            @test diff < 1e-5 "Gradient mismatch at ($i,$j): enzyme=$enzyme_grad, fd=$fd_grad, diff=$diff"
+            @test diff < 1e-5  # enzyme=$enzyme_grad, fd=$fd_grad
         end
         println("  Finite difference verification PASSED")
     end

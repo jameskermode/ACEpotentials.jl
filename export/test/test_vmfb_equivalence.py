@@ -34,7 +34,7 @@ ENERGY_TOL = 1e-10
 GRADIENT_TOL = 1e-10
 
 
-def test_bucket(bucket_name: str) -> dict:
+def check_bucket(bucket_name: str) -> dict:
     """
     Test a single bucket VMFB against its reference data.
 
@@ -115,7 +115,7 @@ def main():
 
     for bucket in buckets:
         print(f"\n--- {bucket} ---")
-        result = test_bucket(bucket)
+        result = check_bucket(bucket)
         results[bucket] = result
 
         if result["status"] == "skip":
@@ -153,6 +153,12 @@ def main():
     else:
         print("\n  TESTS FAILED")
         return 1
+
+
+def test_vmfb_equivalence():
+    """Pytest entry point for VMFB equivalence test."""
+    result = main()
+    assert result == 0, "VMFB equivalence test failed"
 
 
 if __name__ == "__main__":
