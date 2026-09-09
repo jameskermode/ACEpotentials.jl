@@ -615,8 +615,9 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 6. LAMMPS export + integration testing | 4–5 |
 | 7. `ace_model` support: analytic radials + solid harmonics | 2 |
 | 8. Throughput benchmark vs Kokkos (after the Phase 6 gate) | 1 |
+| 9. Usable ASE calculator + descriptor access | 1.5 |
 
-**≈ 18–21 working days ≈ 3.5–4 weeks** (Phases 0/1/3/4 done; ~9–11 remain).
+**≈ 20–23 working days ≈ 4–4.5 weeks** (Phases 0/1/3/4/6 done; ~5–7 remain).
 
 #### Phase 7 — `ace_model` and solid harmonics
 
@@ -647,6 +648,42 @@ with a live `Wnlq` already exercised rather than only reserved in the schema.
 Gate: a fitted `ace_model` reproduces Julia's energy, forces and virial to the
 same tolerances Phase 3–4 achieved for `ace1_model`, with both `ybasis_kind`
 values and both `radial_kind` values covered by tests.
+
+#### Phase 9 — a usable ASE calculator, and descriptor access
+
+Phase 4 built an `ACECalculator` sufficient to *validate* against Julia. Phase 9
+makes it something someone would actually reach for, and exposes the site
+descriptors alongside the observables.
+
+**Usability.** Today the calculator takes an already-loaded `(model, meta)` pair.
+It should take a path — `ACECalculator("si_fitted.npz")` — infer cutoff, species
+and dtype from the file, and pick the neighbour-list backend and precision
+sensibly by default while allowing both to be overridden. The `export_bundle.py`
+hardcoded absolute path (`/home/eng/essswb/si-ace/...`) is the same class of
+problem and should go at the same time.
+
+**Descriptors are the substantive half.** The site basis `𝔹` is already computed
+internally — it is exactly the quantity the readout contracts against — so
+exposing it is nearly free, and it unlocks the things descriptors are actually
+for: dimensionality reduction and dataset visualisation, distance-in-descriptor-
+space uncertainty and active learning, clustering, and transfer to other models.
+
+Match the existing Julia API for parity, `ACEpotentials.site_descriptors`
+(`src/descriptor.jl`), which takes a system and returns one descriptor vector per
+atom with an optional `domain` to restrict the atom set. Note the Julia
+implementation is documented as *"RETIRING THIS FOR NOW BECAUSE IT IS HIGHLY
+INEFFICIENT"* — it recomputes per site. The JAX version gets the whole batch from
+one forward pass, so this is a case where the port is straightforwardly better
+than the original rather than merely equivalent.
+
+Expose it as a property on the calculator (`descriptors`, alongside `energy`,
+`forces`, `stress`) *and* as a standalone function that does not require an ASE
+`Atoms` round-trip, since the batch case — descriptors for a whole dataset — is
+the common one and should not pay calculator overhead per structure.
+
+Gate: descriptors from the calculator match `ACEpotentials.site_descriptors` on
+the same fitted model and structure to the tolerances Phase 3–4 achieved, and
+`ACECalculator(path)` works from a bare npz with no other arguments.
 
 ### Stage 2 — fit in JAX (incremental)
 
