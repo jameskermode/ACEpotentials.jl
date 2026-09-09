@@ -1,0 +1,14 @@
+[project]
+name = "ace-jax-phase0"
+version = "0.0.1"
+description = "Phase 0 spike: JAX implementation of the ETACE descriptor"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "jax>=0.4.35",
+    "numpy",
+    "sphericart>=2.0.3",
+    "sphericart-jax>=2.0.3",
+]
+
+[tool.uv]
+package = false
