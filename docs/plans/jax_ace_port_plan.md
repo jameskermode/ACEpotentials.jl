@@ -1,7 +1,8 @@
 # Plan: Minimal Python + JAX Port of the ETACE Descriptor and Linear Fit
 
-**Status**: ✅ Phase 0 complete — descriptor validated at 1.4e-15 on GPU, **all three gates
-resolved**. Stage 1 approved to proceed.
+**Status**: 🚧 Stage 1 in progress. Phase 0 complete (all three gates resolved). Phase 1
+complete (`89901596`): a fitted `ace1_model` exports and reproduces in JAX to 1.6e-15 on
+site energies, 4.2e-14 on forces. Next: neighbour-list adapters and the ASE calculator.
 Stage 1 (fit in Julia, evaluate in JAX + LAMMPS) is a supported stopping point.
 
 **Date**: 2026-09-09
@@ -283,6 +284,13 @@ the same schema serves both stages — Stage 2 simply ignores the fitted `W`:
     vectors) plus `Wnlq`
   - *splined* (**the Stage 1 default**) — cubic spline knots and coefficients
 - `Rnl_spec`, `Ylm_spec`, `Aspec` (index pairs), `𝔸spec` (index tuples by order)
+- **`ybasis_kind`** — `:spherical` or `:solid`. **Not a constant; must be exported,
+  never assumed.** `ace1_model` passes `Ytype = :spherical`
+  (`src/ace1_compat.jl:407`) while `ace_model` defaults to `:solid`
+  (`src/models/ace_heuristics.jl:149`). Phase 0's spike used `ace_model` and so
+  validated the *solid* path; the production path is spherical. Phase 1 hit this
+  immediately — the Ylm probe showed an exact `r^l` ratio — and the exporter now
+  detects and records it.
 - `A2Bmap` as sparse rows/cols/vals
 - readout `W`, `nnll` spec (for priors)
 - pair-basis parameters, `rcut`
@@ -428,6 +436,15 @@ enveloped polynomials. Folding that in is a trap: it hard-codes linearity into t
 descriptor. Keep `Wnlq` as a `SelectLinL`-shaped leaf `(out_dim, in_dim, NZ²)`,
 initialise one-hot, let it be trainable later. Cost: one `einsum`.
 
+**Amended in Phase 1: this is in tension with the splined branch.** `splinify`
+folds `Wnlq` *into* the spline coefficients, so in the splined path there is no
+`Wnlq` at evaluation time to keep live. Resolution: the spline coefficients are
+themselves a live array leaf, occupying `Wnlq`'s place in the parameter tree, and
+a true `Wnlq` is reserved for the analytic branch — which is where Stage 2 needs
+trainability anyway, since splines are not differentiable w.r.t. the parameters
+that generated them. This satisfies the decision's intent (Stage 2 stays
+reachable) but not its literal wording.
+
 ### 2. Bucketed fixed-capacity batching, designed in
 
 A linear fit assembles the design matrix once; training streams minibatches, and
@@ -480,9 +497,10 @@ port from drifting.
 
 **Stage 1**
 
-1. **Descriptor** — site basis `𝔹` for one Si structure matches Julia to 1e-10
-2. **Observables** — energy, forces and virial from a fitted model match
-   `AtomsCalculators.energy_forces_virial` on the same configuration
+1. ~~**Descriptor** — site basis `𝔹` matches Julia to 1e-10~~ ✅ Phase 0: 1.4e-15
+2. ~~**Observables** — energy and forces from a *fitted* model match Julia~~
+   ✅ Phase 1 (`89901596`): site energies 1.6e-15, total energy exactly 0,
+   forces 4.2e-14. Virial still to do, with the neighbour-list adapters.
 3. **Export** — `pair_style jax/kk` energies match the Python calculator on the
    same configuration
 4. **End-to-end** — a Julia-fitted Si potential runs in LAMMPS and reproduces the
@@ -546,11 +564,12 @@ than they are today. Stopping there is a good outcome, not a failure.
 | Risk | Stage | Severity | Mitigation |
 |---|---|---|---|
 | ~~Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort)~~ | 1 | Resolved | Phase 0: all intermediates clean to 1.4e-15 (GPU) / 5.1e-15 (CPU) |
-| Splined radial export branch | 1 | Medium | Decided: export splines (~0.5 day); see schema |
+| ~~Splined radial export branch~~ | 1 | Resolved | Phase 1: 102 B-spline coeffs, 76 LOC, bit-for-bit with Julia |
+| Silent basis-convention drift (spherical vs solid) | 1 | Medium | Export `ybasis_kind`; keep per-stage probe values |
 | TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
 | XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
 | LAMMPS build environment | 1 | Medium | Start the build in week 1, in parallel |
-| NaN gradients from padded edges | 1 | Medium | Explicit masking pass; test under `grad` |
+| ~~NaN gradients from padded edges~~ | 1 | Resolved | Phase 1: pad at the cutoff, not zero (zero pad → 1500 non-finite grads); regression test |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
 | Padding tax (capacity ≫ typical) | 1 | Low | Bucket tightly |
 | matscipy-neighbours not on PyPI | 1 | Low | `pip install git+...`; in-house to fix |
