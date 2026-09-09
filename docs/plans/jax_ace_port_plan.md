@@ -287,6 +287,15 @@ the same schema serves both stages — Stage 2 simply ignores the fitted `W`:
     vectors) plus `Wnlq`
   - *splined* (**the Stage 1 default**) — cubic spline knots and coefficients
 - `Rnl_spec`, `Ylm_spec`, `Aspec` (index pairs), `𝔸spec` (index tuples by order)
+- **`radial_kind`, `pair_radial_kind`, `pair_envelope_kind`** — **the branch is
+  per-basis, not per-model.** Phase 7 found `ace_model` is a *mixed* case: its
+  many-body `rbasis` is a `LearnableRnlrzzBasis` with a live `Wnlq`, but its
+  **pair basis is still splined** (`src/models/ace_heuristics.jl:213`, when
+  `!pair_learnable`), and its pair envelope is `PolyEnvelope1sR` — a genuinely
+  *different formula* from `ace1_model`'s `ACE1_PolyEnvelope1sR`, not a
+  reparameterisation. The two are separate structs with separate `evaluate`
+  methods (`src/models/radial_envelopes.jl:4` and `:28`); the ACE1 form carries
+  an extra linear term and normalises by `r0`. Export all three independently.
 - **`ybasis_kind`** — `:spherical` or `:solid`. **Not a constant; must be exported,
   never assumed.** `ace1_model` passes `Ytype = :spherical`
   (`src/ace1_compat.jl:407`) while `ace_model` defaults to `:solid`
@@ -613,18 +622,36 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 4. Energy / forces / virial via `jax.grad` + ASE calculator | 1 |
 | 5. Validation harness (milestones 1–4) | 2 |
 | 6. LAMMPS export + integration testing | 4–5 |
-| 7. `ace_model` support: analytic radials + solid harmonics | 2 |
+| ~~7. `ace_model` support: analytic radials + solid harmonics~~ ✅ `47aa6837` | 2 |
 | 8. Throughput benchmark vs Kokkos (after the Phase 6 gate) | 1 |
 | 9. Usable ASE calculator + descriptor access | 1.5 |
 
-**≈ 20–23 working days ≈ 4–4.5 weeks** (Phases 0/1/3/4/6 done; ~5–7 remain).
+**≈ 20–23 working days ≈ 4–4.5 weeks** (Phases 0/1/3/4/6/7 done; ~3–5 remain).
 
 #### Phase 7 — `ace_model` and solid harmonics
 
-Stage 1 as built covers `ace1_model`: **splined** radials and **spherical**
-harmonics. Phase 7 adds the other half of ACEpotentials' model space —
-`ace_model`, which uses **learnable (analytic)** radials and defaults to
-**solid** harmonics. Independent of Phase 6; can run before, after or alongside.
+**Complete (`47aa6837`).** Stage 1 now covers both families. `ace1_model` is
+splined radials with spherical harmonics; `ace_model` is a **mixed** case —
+analytic many-body radials with a live `Wnlq`, a *splined* pair basis, a
+different pair envelope formula, and solid harmonics by default. The original
+framing here ("`ace_model`, the analytic one") was too coarse: the branch is
+per-basis, and the schema now carries `radial_kind`, `pair_radial_kind` and
+`pair_envelope_kind` independently.
+
+Results, both families, against Julia:
+
+| quantity | `ace1_model` | `ace_model` |
+|---|---|---|
+| site energies | 3.70e-13 | 2.56e-13 |
+| E / F / V from ASE | 1.82e-12 / 1.25e-13 / 9.81e-13 | 1.82e-12 / 5.47e-13 / 2.26e-12 |
+| dense vs sparse pooling | 8.53e-14 | 5.68e-14 |
+
+46 tests, every one parametrised over both families.
+
+Solid harmonics fold `r^(l-|m|)` into the recursion rather than multiplying the
+spherical result by `r^l`. Since `l ≥ |m|` that branch does **no division at
+all**, so it is better conditioned than the spherical one; `solid == r^l ·
+spherical` confirmed to 7e-15.
 
 **Most of this is already validated.** Phase 0's spike targeted exactly this
 configuration — `ace_model` with `Ytype = :solid` and analytic Agnesi + 3-term
@@ -639,7 +666,9 @@ already exist, rather than writing it fresh:
 - solid harmonics are `r^l · Y_lm`, a thin variant of the spherical
   implementation once that exists in pure JAX (Phase 6, Part A)
 
-**This is also a Stage 2 prerequisite, pulled forward.** Design decision 1 notes
+**Stage 2's prerequisite is discharged.** `Wnlq` is now a live array leaf
+exercised against Julia rather than only reserved in the schema, which resolves
+the design decision Phase 1 had to amend. Design decision 1 notes
 that splines are not differentiable with respect to the parameters that
 generated them, so any trainable-`Wnlq` work — non-linear fits, and the analytic
 branch generally — needs exactly this path. Doing it here means Stage 2 starts
