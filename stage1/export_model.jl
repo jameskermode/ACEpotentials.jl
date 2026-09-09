@@ -24,15 +24,21 @@ const KIND = length(ARGS) >= 2 ? ARGS[2] : "ace1"
 @assert KIND in ("ace1", "ace") "model kind must be ace1 or ace"
 
 # ---------------------------------------------------------------- fit
-elements = [:Si]; order = 3; totaldegree = 10
+# overridable so the Phase 8 benchmark can match a reference potential
+elements = Symbol.(split(get(ENV, "ACE_ELEMENTS", "Si"), ","))
+order       = parse(Int, get(ENV, "ACE_ORDER", "3"))
+totaldegree = parse(Int, get(ENV, "ACE_TOTALDEGREE", "10"))
+rcut_kw     = haskey(ENV, "ACE_RCUT") ? parse(Float64, ENV["ACE_RCUT"]) : nothing
 if KIND == "ace1"
     @info "building ace1_model(elements=$elements, order=$order, totaldegree=$totaldegree)"
-    model = ace1_model(elements = elements, order = order, totaldegree = totaldegree)
+    model = rcut_kw === nothing ?
+        ace1_model(elements = elements, order = order, totaldegree = totaldegree) :
+        ace1_model(elements = elements, order = order, totaldegree = totaldegree, rcut = rcut_kw)
 else
     # ace_model: LEARNABLE (analytic) rbasis, solid harmonics.  Its pair basis is
     # still splined (ace_heuristics.jl:213), so the branches are per-basis.
     @info "building ace_model(elements=$elements, order=$order, max_level=$totaldegree, Ytype=:solid)"
-    rcut0 = 5.5
+    rcut0 = rcut_kw === nothing ? 5.5 : rcut_kw
     ri = M._default_rin0cuts(tuple(elements...))
     ri = (x -> (rin = x.rin, r0 = x.r0, rcut = rcut0)).(ri)
     raw = M.ace_model(; elements = tuple(elements...), order = order, Ytype = :solid,

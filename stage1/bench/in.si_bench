@@ -1,0 +1,40 @@
+# Si diamond supercell benchmark deck.
+#   -var reps N   cells per side (N=2 -> 64 atoms, N=10 -> 8000)
+#   -var style    jax | pace | eam
+#   -var steps    MD steps to time
+variable reps  index 3
+variable steps index 20
+variable style index jax
+
+units metal
+atom_style atomic
+boundary p p p
+newton on
+
+lattice diamond 5.43
+region box block 0 ${reps} 0 ${reps} 0 ${reps}
+create_box 1 box
+create_atoms 1 box
+mass 1 28.0855
+displace_atoms all random 0.05 0.05 0.05 12345 units box
+
+neighbor 1.0 bin
+neigh_modify every 1 delay 0 check yes one 2000 page 2000000
+
+if "${style} == jax" then &
+  "pair_style jax/kk ${pjrt}" &
+  "pair_coeff * * ${bundle}"
+if "${style} == pace" then &
+  "pair_style pace/kk product" &
+  "pair_coeff * * ${yace} Si"
+if "${style} == eam" then &
+  "pair_style eam/alloy/kk" &
+  "pair_coeff * * ${eamfile} Si"
+
+velocity all create 300.0 87287 loop geom
+fix 1 all nve
+thermo 1000
+thermo_style custom step atoms pe
+thermo_modify norm no format float %.10g
+run_style verlet/kk
+run ${steps}

@@ -1,0 +1,6 @@
+[deps]
+ACE1 = "e3f9bc04-086e-409a-ba78-e9769fe067bb"
+ACEpotentials = "3b96b61c-0fcc-4693-95ed-1ef9f35fcc53"
+ExtXYZ = "352459e4-ddd7-4360-8937-99dcb397b478"
+JuLIP = "945c410c-986d-556a-acb1-167a618e0462"
+LazyArtifacts = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
