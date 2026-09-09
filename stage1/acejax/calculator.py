@@ -14,10 +14,16 @@ from .nlist import sparse_graph
 
 
 class ACECalculator(Calculator):
-    implemented_properties = ["energy", "free_energy", "forces", "stress"]
+    implemented_properties = ["energy", "free_energy", "forces", "stress",
+                              "site_descriptors"]
 
-    def __init__(self, model, meta, cutoff=None, dtype=None, **kw):
+    def __init__(self, model, meta=None, cutoff=None, dtype=None, **kw):
+        """`ACECalculator("si_fitted.npz")` is the intended form: cutoff,
+        species and dtype all come from the file.  A pre-loaded (model, meta)
+        pair is still accepted, which is what the validation tests use."""
         super().__init__(**kw)
+        from .api import _resolve
+        model, meta = _resolve(model, meta, dtype)
         self.model = model
         self.meta = meta
         self.cutoff = float(cutoff if cutoff is not None else meta["rcut"])
@@ -54,3 +60,15 @@ class ACECalculator(Calculator):
             s = -np.asarray(V) / vol
             self.results["stress"] = np.array(
                 [s[0, 0], s[1, 1], s[2, 2], s[1, 2], s[0, 2], s[0, 1]])
+
+    def get_site_descriptors(self, atoms=None, domain=None):
+        """Per-site descriptors for `atoms`, alongside energy/forces/stress.
+
+        Computed on demand rather than in `calculate`, since a plain energy call
+        should not pay for them."""
+        from .api import site_descriptors
+        at = atoms if atoms is not None else self.atoms
+        return site_descriptors(self.model, at.get_positions(),
+                                at.get_atomic_numbers(), at.get_cell().array,
+                                at.get_pbc(), meta=self.meta, cutoff=self.cutoff,
+                                dtype=self.dtype, domain=domain)

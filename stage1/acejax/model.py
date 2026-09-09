@@ -167,6 +167,30 @@ class ACEModel(eqx.Module):
         un = lambda a: a.reshape(n, K, -1)
         return self._from_pooled(pool_dense(un(edge_A), mask), pool_dense(un(Rpair), mask))
 
+    def site_descriptors(self, rij, zi, zj, segment_ids, n_nodes, node_z, mask=None):
+        """Per-site descriptors, (n_nodes, (n_B + n_pair) * NZ).
+
+        Parity target is `ACEpotentials.site_descriptors` (src/descriptor.jl).
+        Layout is species-blocked exactly as `get_basis_inds` /
+        `get_pairbasis_inds` define it (src/models/ace.jl:544-566): the centre
+        species selects which block is populated and the rest are zero, which is
+        what the readout contracts against.
+
+        The Julia version is marked "RETIRING THIS FOR NOW BECAUSE IT IS HIGHLY
+        INEFFICIENT" because it recomputes per site.  This one takes the whole
+        batch from a single forward pass -- the same pass the energy uses.
+        """
+        B, Apair = self.site_basis(rij, zi, zj, segment_ids, n_nodes, mask)
+        n_B, n_pair, nz_count = B.shape[1], Apair.shape[1], self.WB.shape[1]
+        out = jnp.zeros((n_nodes, (n_B + n_pair) * nz_count), B.dtype)
+        rows = jnp.arange(n_nodes)
+        # scatter each site's blocks into the slot its centre species owns
+        b_off = node_z * n_B
+        p_off = nz_count * n_B + node_z * n_pair
+        out = out.at[rows[:, None], b_off[:, None] + jnp.arange(n_B)].set(B)
+        out = out.at[rows[:, None], p_off[:, None] + jnp.arange(n_pair)].set(Apair)
+        return out
+
     def _readout(self, B, Apair, node_z):
         e = jnp.einsum("ib,bi->i", B, self.WB[:, node_z])
         e = e + jnp.einsum("ip,pi->i", Apair, self.Wpair[:, node_z])

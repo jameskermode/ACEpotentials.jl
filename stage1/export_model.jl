@@ -209,6 +209,13 @@ for i = 1:nat
     end
 end
 test_edge_rij = reduce(hcat, edge_rij)     # (3, n_edges)
+# Site descriptors: the parity target for acejax.site_descriptors.
+# Layout is species-blocked, (n_B + n_pair) * NZ per site, with the centre
+# species selecting which block is populated -- exactly what the readout
+# contracts against (src/models/ace.jl:544-566).
+test_desc = reduce(hcat, ACEpotentials.site_descriptors(sys, calc))   # (len_basis, nat)
+@printf("descriptors: %d per site, %d sites\n", size(test_desc,1), size(test_desc,2))
+
 efv = AtomsCalculators.energy_forces_virial(sys, calc)
 test_E = ustrip(u"eV", efv.energy)
 test_F = reduce(hcat, [ustrip.(u"eV/Å", f) for f in efv.forces])   # (3, nat)
@@ -258,6 +265,7 @@ meta = Dict(
   "n_rnl" => length(m.rbasis.spec), "n_pair" => length(m.pairbasis.spec),
   "n_ylm" => length(m.ybasis), "n_A" => length(aspec),
   "n_AA" => sum(length, aa_specs), "n_B" => size(A2B, 1),
+  "len_basis" => M.length_basis(m),
   "aa_orders" => [length(s[1]) for s in aa_specs],
   "aa_lens" => [length(s) for s in aa_specs],
   "rnl_spline" => rnl_spl_meta, "pair_spline" => pair_spl_meta,
@@ -282,7 +290,7 @@ D = Dict{String, Any}(
   "probe_Rpair" => probe_Rpair, "probe_Ylm" => probe_Ylm,
   # test system
   "test_pos" => test_pos, "test_cell" => test_cell, "test_Z" => test_Z,
-  "test_V" => test_V, "test_pbc" => test_pbc,
+  "test_V" => test_V, "test_pbc" => test_pbc, "test_desc" => test_desc,
   "test_edge_i" => edge_i, "test_edge_j" => edge_j, "test_edge_rij" => test_edge_rij,
   "test_site_E" => site_E, "test_E" => [test_E], "test_F" => test_F,
 )

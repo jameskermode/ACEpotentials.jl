@@ -6,7 +6,7 @@ and reproduces its site energies and forces in JAX.
 
 ## Status
 
-Phases 1, 3, 4, 6 and 7 complete.
+Phases 1, 3, 4, 6, 7 and 9 complete.
 
 **Phase 7 gate** — a fitted `ace_model` (analytic radials, solid harmonics)
 reaches the same tolerances as `ace1_model`:
@@ -22,6 +22,26 @@ reaches the same tolerances as `ace1_model`:
 Per-stage probes for the analytic branch: Rnl 3.18e-15, Rpair 2.96e-14 (splined),
 Ylm 6.25e-13 (solid). Every test is parametrised over both families, so neither
 branch can rot silently.
+
+**Phase 9 gate** — site descriptors against `ACEpotentials.site_descriptors`,
+and `ACECalculator(path)` from a bare npz:
+
+| | `ace1_model` | `ace_model` |
+|---|---|---|
+| descriptors (64x120) | 5.68e-13 (1.75e-15 rel) | 7.99e-14 (4.50e-15 rel) |
+| calculator from bare path, E / F | 0.00e+00 / 1.21e-13 | 0.00e+00 / 6.16e-13 |
+
+**The port is faster than the original here, not merely equivalent.**
+`ACEpotentials.site_descriptors` is marked in the Julia source as *"RETIRING
+THIS FOR NOW BECAUSE IT IS HIGHLY INEFFICIENT"* because it recomputes per site.
+`acejax` takes the whole batch from a single forward pass — the same pass the
+energy uses — so descriptors for a structure cost one evaluation, not N.
+
+Descriptors are exposed two ways: `calc.get_site_descriptors(atoms)` alongside
+energy/forces/stress, and a standalone `site_descriptors(path, positions,
+numbers, cell, pbc, domain=...)` that skips the ASE round-trip, since
+whole-dataset descriptors for active learning are the common case and should not
+pay per-structure calculator overhead.
 
 Phases 1, 3 and 4 detail. Model fitted with `acefit!` on `Si_tiny` (BLR),
 64-atom rattled Si, 2842 edges, f64.
@@ -73,6 +93,7 @@ Julia.
 | `acejax/harmonics.py` | real spherical harmonics, pure JAX (no FFI) |
 | `acejax/model.py` | `ACEModel` (Equinox): A → AA → B → site energy |
 | `acejax/io.py` | npz loader |
+| `acejax/api.py` | `site_descriptors`, path resolution, species mapping |
 | `tests/test_roundtrip.py` | array orientation + per-stage probe values |
 | `tests/test_gate.py` | the gate: site energies, total energy, forces |
 | `acejax/nlist.py` | matscipy-neighbours adapters, sparse and dense |
@@ -80,6 +101,7 @@ Julia.
 | `tests/test_padding.py` | padded edges do not perturb or NaN the gradient |
 | `tests/test_efv.py` | the Phase 3–4 gate: nlist, E/F/V, pooling layouts, ASE |
 | `tests/test_harmonics.py` | harmonics vs sphericart + no-custom-call guarantee |
+| `tests/test_descriptors.py` | Phase 9 gate: descriptors + bare-path calculator |
 | `tests/conftest.py` | parametrises every test over both model families |
 | `lammps/` | Phase 6 bundle export, deck and gate (see its FINDINGS) |
 
