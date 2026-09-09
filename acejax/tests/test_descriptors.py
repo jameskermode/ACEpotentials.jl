@@ -1,4 +1,4 @@
-"""Phase 9 gate: descriptors match ACEpotentials.site_descriptors, and
+"""Descriptors match ACEpotentials.site_descriptors, and
 ACECalculator works from a bare npz path.
 
 Parity target is `ACEpotentials.site_descriptors` (src/descriptor.jl).  Its

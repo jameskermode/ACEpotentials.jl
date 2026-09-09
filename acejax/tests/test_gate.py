@@ -1,4 +1,4 @@
-"""Stage 1 Phase 1 gate.
+"""Core gate: the descriptor against Julia.
 
 A FITTED ace1_model (acefit! on Si_tiny, BLR) exported and reproducing Julia's
 site energies and forces to 1e-10 in f64.

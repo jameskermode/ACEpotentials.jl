@@ -1,4 +1,4 @@
-"""ASE calculator: the Phase 4 closing of the loop from a real structure.
+"""ASE calculator: energies, forces, stress and site descriptors.
 
 Builds the neighbour list with matscipy-neighbours, evaluates the edge-vector
 core, and returns energy, forces and stress.  Nothing here knows about cells

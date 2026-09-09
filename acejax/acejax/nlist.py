@@ -1,6 +1,7 @@
 """Neighbour-list adapters.
 
-Primary backend is `libAtoms/matscipy-neighbours` (MIT, repo-only at v0.1.0):
+Preferred backend is `libAtoms/matscipy-neighbours` (MIT). It is not on PyPI, so
+it is an optional extra and a pure-numpy fallback covers the sparse layout;
 OpenMP CPU core, optional CUDA/HIP, zero-copy to JAX via DLPack.  Three of its
 properties are what make it the right fit here:
 
@@ -42,26 +43,69 @@ class DenseGraph(NamedTuple):
         return np.arange(self.rij.shape[1])[None, :] < self.count[:, None]
 
 
-def _require():
+def have_matscipy():
     try:
         import matscipy_neighbours  # noqa: F401
-    except ImportError as e:  # pragma: no cover
-        raise ImportError(
-            "matscipy-neighbours is required. It is repo-only at v0.1.0:\n"
-            "  uv add 'matscipy-neighbours @ git+https://github.com/libAtoms/matscipy-neighbours'\n"
-            "GPU is a separate documented build (-Dcmake.define.ENABLE_CUDA=ON)."
-        ) from e
+        return True
+    except ImportError:
+        return False
+
+
+def _fallback_neighbour_list(positions, cell, pbc, cutoff):
+    """Pure-numpy periodic neighbour list: O(N^2) per image shell.
+
+    matscipy-neighbours is not on PyPI, so it cannot be a hard dependency; this
+    keeps `pip install acejax` self-sufficient.  It is correct but quadratic --
+    fine to a few thousand atoms, and the tests check the two agree.  Install
+    the extra for anything larger:
+
+        pip install git+https://github.com/libAtoms/matscipy-neighbours
+    """
+    import itertools
+    n = len(positions)
+    cell = np.asarray(cell, float)
+    pbc = np.broadcast_to(pbc, 3)
+    widths = np.array([np.linalg.norm(cell[k]) if pbc[k] else np.inf for k in range(3)])
+    reps = [0 if not pbc[k] else int(np.ceil(cutoff / max(widths[k], 1e-12)))
+            for k in range(3)]
+    ii, jj, DD, SS = [], [], [], []
+    for sh in itertools.product(*[range(-r, r + 1) for r in reps]):
+        shift = np.asarray(sh, float) @ cell
+        d = (positions[None, :, :] + shift) - positions[:, None, :]
+        r = np.linalg.norm(d, axis=-1)
+        keep = (r < cutoff) & (r > 1e-10)
+        a, b = np.where(keep)
+        if not len(a):
+            continue
+        ii.append(a); jj.append(b); DD.append(d[a, b])
+        SS.append(np.tile(np.asarray(sh, float), (len(a), 1)))
+    if not ii:
+        z = np.zeros((0,), int)
+        return z, z, np.zeros((0, 3)), np.zeros((0, 3))
+    ii = np.concatenate(ii); jj = np.concatenate(jj)
+    DD = np.concatenate(DD); SS = np.concatenate(SS)
+    o = np.argsort(ii, kind="stable")      # sorted by i, as matscipy returns
+    return ii[o], jj[o], DD[o], SS[o]
+
+
+def _neighbour_list(positions, cell, pbc, cutoff):
+    """matscipy-neighbours when available, else the numpy fallback."""
+    if have_matscipy():
+        from matscipy_neighbours import neighbour_list
+        i, j, D, S = neighbour_list(
+            "ijDS", positions=np.ascontiguousarray(positions, float),
+            cell=np.ascontiguousarray(cell, float),
+            pbc=tuple(bool(b) for b in np.broadcast_to(pbc, 3)), cutoff=float(cutoff))
+        return i, j, D, S
+    return _fallback_neighbour_list(np.ascontiguousarray(positions, float),
+                                    cell, pbc, cutoff)
 
 
 def sparse_graph(positions, cell, pbc, cutoff, pad_to=None, pad_vector=None):
     """Build a SparseGraph.  `pad_to` pads the edge list to a fixed capacity,
     which is what jit and the LAMMPS export contract want; padded edges carry
     `pad_vector` (default: at the cutoff, where the envelope vanishes)."""
-    _require()
-    from matscipy_neighbours import neighbour_list
-    i, j, D, S = neighbour_list("ijDS", positions=np.ascontiguousarray(positions, float),
-                                cell=np.ascontiguousarray(cell, float),
-                                pbc=tuple(bool(b) for b in pbc), cutoff=float(cutoff))
+    i, j, D, S = _neighbour_list(positions, cell, pbc, cutoff)
     shifts = D - (positions[j] - positions[i])
     n = len(positions)
     if pad_to is None:
@@ -90,7 +134,11 @@ def dense_graph(positions, cell, pbc, cutoff, max_neighbours, pad_vector=None):
     envelope vanishes and the derivative stays defined -- the caller cannot get
     this wrong by forgetting.
     """
-    _require()
+    if not have_matscipy():
+        raise ImportError(
+            "dense_graph needs matscipy-neighbours (neighbour_matrix); the numpy "
+            "fallback provides the sparse layout only.  Install it with:\n"
+            "  pip install git+https://github.com/libAtoms/matscipy-neighbours")
     from matscipy_neighbours import neighbour_matrix
     idx, dist, count = neighbour_matrix(
         positions=np.ascontiguousarray(positions, float),

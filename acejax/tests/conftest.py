@@ -14,8 +14,8 @@ import pytest
 
 ROOT = pathlib.Path(__file__).parent.parent
 MODELS = {
-    "ace1_spline_spherical": ROOT / "si_fitted.npz",
-    "ace_analytic_solid": ROOT / "si_ace_model.npz",
+    "ace1_spline_spherical": ROOT / "fixtures" / "si_fitted.npz",
+    "ace_analytic_solid": ROOT / "fixtures" / "si_ace_model.npz",
 }
 
 
@@ -25,5 +25,5 @@ def pytest_generate_tests(metafunc):
         for name, p in MODELS.items():
             ids.append(name)
             paths.append(pytest.param(p, marks=pytest.mark.skipif(
-                not p.exists(), reason=f"run export_model.jl to make {p.name}")))
+                not p.exists(), reason=f"missing fixture {p.name}; see julia/export_model.jl")))
         metafunc.parametrize("npz", paths, ids=ids)

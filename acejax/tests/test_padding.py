@@ -17,6 +17,14 @@ import jax.numpy as jnp
 
 from acejax import highest_precision, load
 
+
+# `neighbour_matrix` (the dense layout) exists only in matscipy-neighbours, which
+# is not on PyPI; the numpy fallback covers the sparse layout only.
+needs_matscipy = pytest.mark.skipif(
+    not __import__("acejax.nlist", fromlist=["have_matscipy"]).have_matscipy(),
+    reason="dense layout needs matscipy-neighbours")
+
+
 @pytest.fixture
 def case(npz):
     return load(npz)
@@ -86,6 +94,7 @@ def test_zero_pad_would_nan(case):
         pytest.skip("zero pad happens not to NaN for this model; cutoff pad still used")
 
 
+@needs_matscipy
 def test_dense_padded_slots_are_parked_at_cutoff(case):
     """`neighbour_matrix` leaves unused slots as zero vectors, which would NaN
     the gradient exactly as the sparse zero pad does.  dense_graph must park them

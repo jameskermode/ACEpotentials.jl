@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "acejax"
+version = "0.1.0"
+description = "JAX evaluator for ACE interatomic potentials fitted with ACEpotentials.jl"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11,<3.14"
+authors = [{ name = "ACEsuit contributors" }]
+keywords = ["ace", "interatomic-potential", "jax", "molecular-dynamics", "chemistry"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Chemistry",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+  "jax>=0.10.1",
+  "equinox>=0.11",
+  "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+# ASE is needed only for the calculator, not the core evaluator or descriptors.
+ase = ["ase>=3.22"]
+# NOTE: matscipy-neighbours is deliberately NOT an extra.  It is not on PyPI,
+# and PyPI rejects direct URL dependencies, so declaring it here would make this
+# package unpublishable.  acejax falls back to a correct O(N^2) numpy neighbour
+# list without it; install it separately for large systems (see the README).
+cuda = ["jax[cuda12]>=0.10.1"]
+
+[project.urls]
+Homepage = "https://github.com/ACEsuit/ACEpotentials.jl"
+Issues = "https://github.com/ACEsuit/ACEpotentials.jl/issues"
+
+[dependency-groups]
+# sphericart validates the harmonic recursion; it must never enter the model path,
+# or exported programs carry an FFI custom call target.
+dev = ["pytest>=8", "ase>=3.22", "sphericart==2.0.3", "sphericart-jax==2.0.3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["acejax"]
+
+[tool.hatch.build.targets.sdist]
+# fixtures/, lammps/, bench/, julia/ are development and evidence, not product.
+include = ["acejax", "README.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

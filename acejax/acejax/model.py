@@ -15,7 +15,7 @@ Design notes that the plan fixes and this code must not quietly undo:
 * **Radial coefficients are a live array leaf, not static.**  For the splined
   branch Wnlq is already folded into the spline coefficients by Julia's
   `splinify`, so the coefficients occupy Wnlq's place in the parameter tree.
-  Keeping them a leaf is what keeps Stage 2 and non-linear fits reachable; the
+  Keeping them a leaf is what keeps trainable radials reachable; the
   analytic branch will carry a true Wnlq alongside.
 
 * **Precision is explicit.**  Nothing here calls `jax.config.update`.  Use
@@ -61,7 +61,7 @@ class ACEModel(eqx.Module):
     # Both are live array leaves (never static): for the splined branch Julia's
     # `splinify` has already folded Wnlq into the coefficients, so they occupy
     # Wnlq's place in the parameter tree; the analytic branch carries a true
-    # trainable Wnlq, which is what Stage 2 needs.
+    # trainable Wnlq, which is what training would need.
     rnl_coefs: jax.Array          # spline:   (NZ, NZ, ncoef, n_rnl)
     pair_coefs: jax.Array         # spline:   (NZ, NZ, ncoef, n_pair)
     rnl_Wnlq: jax.Array           # analytic: (NZ, NZ, n_rnl, n_q)
@@ -131,7 +131,7 @@ class ACEModel(eqx.Module):
 
     def angular(self, rij):
         # ace1_model uses SPHERICAL harmonics (ace1_compat.jl:407, Ytype=:spherical);
-        # ace_model defaults to :solid.  The Phase 0 spike used ace_model, so the
+        # ace_model defaults to :solid.  The earlier prototype used ace_model, so the
         # production path differs from it here -- hence the exported flag.
         #
         # Pure JAX, not sphericart-jax: the latter lowers to an FFI custom call,

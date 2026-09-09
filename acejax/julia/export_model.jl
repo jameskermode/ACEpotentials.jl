@@ -1,4 +1,4 @@
-# Stage 1 exporter: fit an ace1_model in Julia, export it to npz for the JAX
+# Exporter: fit a model in Julia, write it to npz for the JAX
 # evaluator.  See docs/plans/jax_ace_port_plan.md.
 #
 #   julia --project=stage1 stage1/export_model.jl [output.npz]
@@ -10,7 +10,7 @@
 #
 # npz, not JSON: Julia writes matrices column-major, so 2-D arrays round-trip
 # through JSON transposed.  Every array below is written in the orientation the
-# Python loader expects and checked by stage1/tests/test_roundtrip.py.
+# Python loader expects and checked by tests/test_roundtrip.py.
 
 using ACEpotentials, NPZ, JSON, StaticArrays, LinearAlgebra, Random, Printf
 using AtomsCalculators, ACEfit
@@ -24,7 +24,7 @@ const KIND = length(ARGS) >= 2 ? ARGS[2] : "ace1"
 @assert KIND in ("ace1", "ace") "model kind must be ace1 or ace"
 
 # ---------------------------------------------------------------- fit
-# overridable so the Phase 8 benchmark can match a reference potential
+# overridable, so a benchmark can match a reference potential
 elements = Symbol.(split(get(ENV, "ACE_ELEMENTS", "Si"), ","))
 order       = parse(Int, get(ENV, "ACE_ORDER", "3"))
 totaldegree = parse(Int, get(ENV, "ACE_TOTALDEGREE", "10"))
@@ -87,7 +87,7 @@ rkind  = _is_spline(m.rbasis)    ? "spline" : "analytic"
 pkind  = _is_spline(m.pairbasis) ? "spline" : "analytic"
 @info "radial branches: rbasis=$rkind pairbasis=$pkind"
 
-# `Wnlq` stays a live parameter for the analytic branch -- Stage 2 needs it
+# `Wnlq` stays a live parameter for the analytic branch -- training would need it
 # trainable, and splines are not differentiable w.r.t. what generated them.
 function analytic_arrays(basis, ps_b)
     NZ = length(basis._i2z)
@@ -171,7 +171,7 @@ E0 = (m.Vref === nothing) ? zeros(length(i2z)) :
 
 # ---------------------------------------------------------------- probe values
 # Per-stage reference values so a mismatch localises to a stage rather than
-# only showing up at the end (this idea earned its keep in the Phase 0 spike).
+# only showing up at the end (this idea earned its keep in an earlier prototype).
 Random.seed!(20260909)
 n_probe = 24
 probe_r = collect(range(0.9, maximum(rcuts) - 1e-6, length = n_probe))

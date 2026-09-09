@@ -12,7 +12,7 @@ Contract notes (cpp/lammps_jax_model.h ModelContract):
     positions array, so gather with where(mask, idx, 0) as the nequip template
     does, then overwrite the padded vectors.
   * Padded edges are parked AT THE CUTOFF, where the envelope vanishes and the
-    gradient stays defined; a zero pad NaNs it (stage1/tests/test_padding.py).
+    gradient stays defined; a zero pad NaNs it (tests/test_padding.py).
   * float64 requires jax_enable_x64 set BEFORE export_model, or the traced
     program silently truncates.
   * custom_call_targets is empty: acejax uses a pure-JAX harmonic recursion, so
@@ -62,8 +62,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--npz", type=pathlib.Path,
-                   default=HERE.parent / "si_fitted.npz",
-                   help="exported model npz (default: stage1/si_fitted.npz)")
+                   default=HERE.parent / "fixtures" / "si_fitted.npz",
+                   help="exported model npz (default: fixtures/si_fitted.npz)")
     p.add_argument("--out", type=pathlib.Path,
                    default=HERE / "si_ace.lammps-jax.json")
     p.add_argument("--max-atoms", type=int, default=2560)

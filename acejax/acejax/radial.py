@@ -92,7 +92,7 @@ def poly_recursion(y, A, B, C):
     """OrthPolyBasis1D3T: P0 = A0, P1 = A1 y + B1, Pk = (Ak y + Bk) P_{k-1} + Ck P_{k-2}.
 
     Three coefficient vectors are the whole basis, which is why the analytic
-    branch exports so little.  Validated against Julia in Phase 0 at 1.4e-15.
+    branch exports so little.  Validated against Julia in earlier at 1.4e-15.
     """
     n = A.shape[0]
     out = [jnp.broadcast_to(A[0], y.shape), A[1] * y + B[1]]

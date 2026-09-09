@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The Phase 6 gate: does the LAMMPS bundle reproduce our Python calculator?
+"""Does the LAMMPS bundle reproduce the acejax Python calculator?
 
 Reads the configuration LAMMPS actually used out of its own dump, rebuilds the
 periodic neighbour list, evaluates the same fitted model through acejax, and
@@ -8,7 +8,7 @@ the two sides cannot silently disagree about what was evaluated.
 
 The neighbour list is built here by explicit image enumeration rather than via
 matscipy-neighbours, to keep the remote dependency set to jax + equinox + numpy
-(matscipy-neighbours needs a build toolchain).  stage1/tests/test_efv.py
+(matscipy-neighbours needs a build toolchain).  tests/test_efv.py
 already pins matscipy's list against Julia's, so this is a cross-check by an
 independent route, not a weakening.
 

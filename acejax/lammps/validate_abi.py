@@ -8,7 +8,7 @@ ghost-energy conventions, and forces by autodiff.
 Reference is the same model core called directly on an unpadded edge list, so
 the comparison isolates the ABI plumbing (padding, out-of-range indices,
 masking, the wrapper's local/total energy selection) rather than the physics,
-which stage1/tests already pins against Julia.
+which tests already pins against Julia.
 
 A non-periodic cluster keeps nghost = 0; ghost bookkeeping is LAMMPS's job and
 is exactly what this cannot cover.

@@ -4,7 +4,7 @@ From an ASE Atoms object -- own neighbour list, periodic images and all --
 reproduce Julia's AtomsCalculators.energy_forces_virial on the same fitted
 model to 1e-10 in f64: energy, forces AND virial.
 
-Phase 1 validated the core against a Julia-supplied edge list.  This closes the
+The core is validated elsewhere against a Julia-supplied edge list; this closes the
 loop: matscipy-neighbours builds the edges here, so a wrong cutoff, a missing
 periodic image or a shift-convention error would show up.
 """
@@ -22,6 +22,13 @@ from acejax import (ACECalculator, dense_graph, dense_to_sparse,
                     highest_precision, load, sparse_graph)
 
 TOL = 1e-10
+
+# `neighbour_matrix` (the dense layout) exists only in matscipy-neighbours, which
+# is not on PyPI; the numpy fallback covers the sparse layout only.
+needs_matscipy = pytest.mark.skipif(
+    not __import__("acejax.nlist", fromlist=["have_matscipy"]).have_matscipy(),
+    reason="dense layout needs matscipy-neighbours")
+
 
 
 @pytest.fixture
@@ -83,6 +90,7 @@ def test_virial_sign_is_julia_convention(case):
     assert np.max(np.abs(np.asarray(V) + Vref)) > 1.0, "sign test is degenerate"
 
 
+@needs_matscipy
 def test_dense_and_sparse_pooling_agree(case):
     """The two neighbour-list layouts must give the same answer; neither is
     hard-wired, and lammps-jax needs sparse while dense avoids a scatter."""
@@ -118,3 +126,20 @@ def test_ase_calculator(case):
     eV = np.max(np.abs(-s * atoms.get_volume() - np.asarray(z["test_V"])))
     print(f"\n  ASE: |dE| = {eE:.3e}  |dF| = {eF:.3e}  |dV| = {eV:.3e}")
     assert eE < TOL and eF < TOL and eV < TOL
+
+
+def test_fallback_neighbour_list_matches_matscipy(case):
+    """acejax must work without matscipy-neighbours, which is not on PyPI.
+    The numpy fallback is what `pip install acejax` gets, so it has to agree."""
+    from acejax.nlist import _fallback_neighbour_list, _neighbour_list, have_matscipy
+    if not have_matscipy():
+        pytest.skip("matscipy-neighbours not installed; nothing to compare against")
+    model, meta, z, atoms = case
+    args = (atoms.get_positions(), atoms.get_cell().array, atoms.get_pbc(),
+            float(meta["rcut"]))
+    i1, j1, D1, _ = _neighbour_list(*args)
+    i2, j2, D2, _ = _fallback_neighbour_list(*args)
+    assert len(i1) == len(i2), f"edge counts differ: {len(i1)} vs {len(i2)}"
+    key = lambda i, D: sorted(zip(i.tolist(), [tuple(np.round(v, 9)) for v in D]))
+    assert key(i1, D1) == key(i2, D2)
+    print(f"\n  fallback vs matscipy: {len(i1)} edges, identical")

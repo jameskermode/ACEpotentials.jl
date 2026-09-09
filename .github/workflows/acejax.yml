@@ -1,0 +1,122 @@
+name: acejax
+
+# The Python evaluator in acejax/.  Independent of the Julia CI.
+on:
+  push:
+    paths: ['acejax/**', '.github/workflows/acejax.yml']
+  pull_request:
+    paths: ['acejax/**', '.github/workflows/acejax.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: acejax
+
+jobs:
+  # The real gate: 62 tests, CPU, both model families, on every push.
+  tests:
+    name: tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: acejax/uv.lock
+      - name: Sync
+        run: uv sync --group dev --python ${{ matrix.python }}
+      - name: Test
+        run: uv run pytest tests/ -q
+      # matscipy-neighbours is not on PyPI and needs a C++/CMake build, so the
+      # dense-layout and fallback-parity tests skip above.  Build it once on the
+      # newest Python so they actually run somewhere.
+      - name: Test with the fast neighbour list
+        if: matrix.python == '3.13'
+        run: |
+          uv pip install "matscipy-neighbours @ git+https://github.com/libAtoms/matscipy-neighbours"
+          uv run pytest tests/ -q
+
+  # Verifies the package builds and installs clean, and that the README example
+  # runs from the installed wheel rather than the source tree.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build wheel and sdist
+        run: uv build
+      - name: Install into a clean env and run the README example
+        run: |
+          uv venv /tmp/clean
+          uv pip install --python /tmp/clean/bin/python dist/*.whl ase
+          /tmp/clean/bin/python - <<'PY'
+          import jax; jax.config.update("jax_enable_x64", True)
+          from ase.build import bulk
+          from acejax import ACECalculator
+          atoms = bulk("Si", cubic=True) * 2
+          atoms.calc = ACECalculator("fixtures/si_fitted.npz")
+          print("E =", atoms.get_potential_energy())
+          print("descriptors", atoms.calc.get_site_descriptors(atoms).shape)
+          PY
+
+  # Catches LAMMPS build breakage.  Caches keyed on the upstream stable commit
+  # so it rebuilds only when LAMMPS moves, following kermodegroup/ML-MIX.
+  # This builds the plugin; it does NOT run it -- see the note below.
+  lammps-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve LAMMPS stable commit
+        run: |
+          echo "LAMMPS_VERSION=$(git ls-remote https://github.com/lammps/lammps.git refs/heads/stable | awk '{print $1}')" >> $GITHUB_ENV
+      - name: Restore LAMMPS source cache
+        id: lammps-src-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: lammps
+          key: ${{ runner.os }}-lammps-src-${{ env.LAMMPS_VERSION }}
+      - name: Restore LAMMPS install cache
+        id: lammps-install-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/lammps-install
+          key: ${{ runner.os }}-lammps-install-${{ env.LAMMPS_VERSION }}
+      - name: Clone LAMMPS
+        if: steps.lammps-src-cache.outputs.cache-hit != 'true'
+        run: git clone --depth 1 -b stable https://github.com/lammps/lammps.git lammps
+      - name: Build LAMMPS
+        if: steps.lammps-install-cache.outputs.cache-hit != 'true'
+        working-directory: .
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake build-essential libopenmpi-dev
+          cmake -S lammps/cmake -B build -D CMAKE_BUILD_TYPE=Release \
+                -D BUILD_MPI=on -D PKG_MANYBODY=on -D PKG_PLUGIN=on \
+                -D CMAKE_INSTALL_PREFIX=$PWD/.cache/lammps-install
+          cmake --build build -j $(nproc) --target install
+      - name: Save caches
+        if: steps.lammps-install-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/lammps-install
+          key: ${{ runner.os }}-lammps-install-${{ env.LAMMPS_VERSION }}
+
+  # NOT RUN IN CI, AND DELIBERATELY SO.
+  #
+  # `pair_style jax/kk` is CUDA-only: it executes through the CUDA PJRT plugin
+  # and has no CPU path.  GitHub-hosted runners have no GPU, so this gate cannot
+  # run here.  A CPU stand-in would be a green tick proving nothing, which is
+  # worse than an honest manual step.
+  #
+  # To run it, on a machine with an NVIDIA GPU and a matching LAMMPS build:
+  #
+  #     cd acejax/lammps
+  #     python export_bundle.py --npz ../fixtures/si_fitted.npz --out si.lammps-jax.json
+  #     ./test_si_bundle.sh
+  #
+  # Enable it here by adding a self-hosted runner labelled `gpu` and a job with
+  # `runs-on: [self-hosted, gpu]` calling that script.  Last verified results are
+  # committed under acejax/lammps/run_artifacts/.

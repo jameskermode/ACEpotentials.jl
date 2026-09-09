@@ -44,5 +44,5 @@ $PYTHON cmpdump.py $TAG.np1.dump $TAG.np2.dump 1e-9
 for R in np1 np2; do
   echo "### $TAG $R vs the acejax Python calculator ###"
   PE=$(grep -A1 "^ *Step" $TAG.$R.log | awk 'NR==2{print $3}')
-  $PYTHON check_vs_python.py $TAG.$R.dump ../si_fitted.npz "$PE"
+  $PYTHON check_vs_python.py $TAG.$R.dump ../fixtures/si_fitted.npz "$PE"
 done
