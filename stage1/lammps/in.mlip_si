@@ -1,24 +1,22 @@
 # Si ACE bundle under pair_style jax/kk.
-#   lmp -k on g 1 -sf kk -pk kokkos newton on neigh half \
+#   lmp -k on g 1 -sf kk -pk kokkos newton on neigh half gpu/aware off \
 #     -var pjrt /abs/xla_cuda_plugin.so -var bundle si_ace.lammps-jax.json -in in.mlip_si
+#
+# Geometry comes from si.data (built by in.si_setup) so that 1-rank and 2-rank
+# runs evaluate an identical system.
 # steps=0 dumps frame-0 forces; steps>0 runs NVE at 300 K.
 
 variable bundle index si_ace.lammps-jax.json
 variable steps index 0
 variable dump_path index si_static.dump
+variable datafile index si.data
 
 units metal
 atom_style atomic
 boundary p p p
 newton on
 
-lattice diamond 5.43
-region box block 0 3 0 3 0 3
-create_box 1 box
-create_atoms 1 box
-mass 1 28.0855
-
-displace_atoms all random 0.05 0.05 0.05 12345 units box
+read_data ${datafile}
 
 neighbor 1.0 bin
 neigh_modify every 1 delay 0 check yes one 512 page 500000

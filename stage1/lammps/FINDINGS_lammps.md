@@ -1,66 +1,28 @@
-# Phase 6 (LAMMPS export): blocked on the host, not on the bundle
+# Phase 6: the Si bundle runs under `pair_style jax/kk`
 
-## Status
+## Gate: passed
 
-The bundle exports cleanly and validates through lammps-jax's own ABI wrappers.
-**LAMMPS itself cannot start on lestrade**, so the pair-style gate is not met.
-This is a host/build mismatch and is independent of anything in the bundle.
+Fitted `ace1_model` (Si, order 3, totaldegree 10; `acefit!` on Si_tiny, BLR),
+exported to a lammps-jax bundle and run on **moriarty** under
+`pair_style jax/kk`. Periodic diamond Si, 216 atoms, 16.29 A cell, f64.
 
-## The blocker
+| comparison | energy | forces |
+|---|---|---|
+| 1 rank vs acejax Python | **0.000e+00** | 1.368e-13 eV/A |
+| 2 ranks vs acejax Python | **0.000e+00** | 1.483e-13 eV/A |
+| 1 rank vs 2 ranks (dumps) | positions 0.000e+00 | 9.193e-14 eV/A |
 
-`lmp -h`, with no input deck and no bundle, dies with SIGILL (exit 132) before
-printing anything:
+`|F|` scale 1.21 eV/A, so forces agree to ~1.2e-13 relative. LAMMPS PotEng is
+-35238.76853368402 eV on both rank counts, bit-identical.
 
-```
-Program received signal SIGILL, Illegal instruction.
-#0  __static_initialization_and_destruction_0() from .../lib/liblammps.so.0
-=> 0x...: vmovdqu8 %ymm0,0x10(%rsp)
-```
+**Ghost bookkeeping is covered.** The cell is periodic and the runs carry 1314
+ghosts on 1 rank and 1024/1025 on 2 -- decomposition-dependent, which is
+precisely what the earlier non-periodic ABI check (`nghost = 0`) could not
+reach.
 
-`vmovdqu8` is AVX-512 (AVX512BW/VL). `liblammps.so.0` contains 1796 `vmovdqu8`,
-169 `vpermt2`, 38 `vmovdqu16`, 25 `vpternlog`, 1 `kmovd`.
-
-lestrade is an **Intel i9-14900K** (Raptor Lake): `/proc/cpuinfo` reports **no
-`avx512*` flags at all** -- Intel fused AVX-512 off in that generation. The
-build directory is named `build-SKX-AMPERE86`; SKX is Skylake-X, which has
-AVX-512. So the binary targets a CPU this host does not have.
-
-Confirmations that it is not the bundle, the deck, or Kokkos:
-
-| test | result |
-|---|---|
-| our Si bundle | SIGILL |
-| the existing, known-good `examples/lj.lammps-jax.json` | SIGILL |
-| `lmp -h`, no deck at all | SIGILL |
-| with and without `-k on g 1 -sf kk` | SIGILL |
-| via `$V/bin/lmp` wrapper and via `lmp.real` directly | SIGILL |
-| pinned to cores 0, 2, 8, 16, 24 (`taskset`) | SIGILL on all |
-
-The per-core test rules out the hybrid P-core/E-core explanation: this CPU has
-no AVX-512 on any core.
-
-**No contract field was rejected.** The bundle was never read, because the
-binary never reached `pair_coeff`.
-
-## What was validated instead
-
-`validate_abi.py` drives the exported `energy_fn` through lammps-jax's real
-`wrap_energy_fn` wrappers with LAMMPS-shaped inputs -- fixed capacities, padded
-edge list, out-of-range padded indices, edge mask, forces by autodiff -- and
-compares against the model core called directly:
-
-```
-cluster: 64 atoms, non-periodic, 1382 edges (capacity 163840)
-  core E = -8233.6166404368 eV
-  ABI  E = -8233.6166404368 eV   |dE| = 1.819e-12  (2.21e-16 rel)
-  max|dF| on real atoms = 2.096e-13 eV/A  (|F| scale 49.6775)
-  max|F| on padded rows = 0.000e+00 eV/A
-  non-finite in F: 0
-```
-
-So the ABI plumbing, padding conventions and autodiff forces are correct. What
-remains uncovered is the VHLO round-trip through PJRT, the C++ pair style
-binding, and ghost bookkeeping (the cluster is non-periodic, so nghost = 0).
+No contract field was rejected. The bundle was exported with **jax 0.11.1**,
+matching the PJRT plugin the venv ships; Part A's removal of the
+`sphericart-jax` 0.10.1 pin is what made that possible.
 
 ## Exported contract
 
@@ -77,15 +39,49 @@ custom_call_targets  []             comm_widths  []
 ```
 
 `custom_call_targets` is empty because the harmonics are a pure-JAX recursion
-(see `acejax/harmonics.py`): no FFI handler needs registering via
-`LAMMPS_JAX_FFI_HANDLERS`, and `contrib/ffi-replay` is not needed.
+(`acejax/harmonics.py`), so nothing needs registering via
+`LAMMPS_JAX_FFI_HANDLERS` and `contrib/ffi-replay` is not involved. Actual
+usage: 216 local + 1314 ghost = 1530 atoms against a 2560 capacity, and 15466
+LAMMPS neighbours (rcut + 1.0 skin) filtered by the pair style to the model's
+9880 edges against a 163840 capacity.
 
-## To finish this
+## Two environment gotchas, both host-side
 
-Either run on a host whose CPU matches `build-SKX-AMPERE86`, or rebuild LAMMPS
-for the run host. Then `test_si_bundle.sh` should run as-is; it checks 1 rank
-against 2 ranks and against the Python calculator, in the shape of
-`test_eam_bundle.sh`.
+**1. Wrong host is fatal and silent.** On lestrade every LAMMPS invocation --
+including `lmp -h` with no deck -- dies with SIGILL in
+`__static_initialization_and_destruction_0` of `liblammps.so.0`, at
+`vmovdqu8 %ymm0`. That is AVX-512; the library holds 1796 `vmovdqu8`, 169
+`vpermt2`, 38 `vmovdqu16`, 25 `vpternlog`. lestrade is an i9-14900K with no
+`avx512*` flags. The build is `build-SKX-AMPERE86` -- Skylake-X -- and moriarty
+is a Xeon Silver 4216 (AVX-512) with an RTX A4500 (compute 8.6). Nothing to fix
+in the build; just use the right host.
 
-`cmpdump.py` is a rewrite -- the original lived in a `/tmp` scratchpad that has
-since been cleared.
+**2. `gpu/aware off` is required for multi-rank.** With GPU-aware MPI the
+2-rank run aborts inside `CommKokkos::borders_device<Kokkos::Cuda>` with
+`Assertion failure at prov/psm3/psm3/ptl_am/ptl.c:196`. The stock
+`examples/lj.lammps-jax.json` fails the same way, so this is the host's
+MPI/CUDA interaction rather than anything in our bundle.
+
+## One deck gotcha, ours
+
+`displace_atoms ... random` is domain-decomposition dependent: generating the
+geometry inside each run gave the 1-rank and 2-rank runs *different systems*
+(max position difference 8.14 A under minimum image -- not a wrapping
+artefact). Each run was internally consistent and matched the Python calculator
+on its own geometry, but the rank comparison was meaningless. `in.si_setup`
+now builds the configuration once into `si.data`, which both runs `read_data`.
+
+The reference `examples/in.mlip_al` displaces inside the run the same way, so
+any rank comparison built on it has the same flaw.
+
+## Files
+
+| file | purpose |
+|---|---|
+| `export_bundle.py` | fitted model -> lammps-jax bundle |
+| `in.si_setup` | build the rattled geometry once into `si.data` |
+| `in.mlip_si` | the deck; reads `si.data` |
+| `test_si_bundle.sh` | the gate: 1 rank, 2 ranks, dump comparison, vs Python |
+| `check_vs_python.py` | rebuilds the config from the dump, evaluates acejax |
+| `cmpdump.py` | dump comparison (rewrite; the original scratchpad was cleared) |
+| `validate_abi.py` | ABI wrappers without LAMMPS, kept as a fast pre-check |
