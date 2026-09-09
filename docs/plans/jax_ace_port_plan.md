@@ -413,6 +413,22 @@ def energy_fn(positions, species, graph) -> per_node_energy  # [max_atoms]
   the gradient goes NaN**.
 - Must be `jax.export`-traceable: no data-dependent Python control flow.
 
+**Blocker to resolve before Phase 6: `sphericart-jax` emits a custom call.**
+`sphericart/jax/sph.py` imports `custom_call` from `jax.interpreters.mlir`, so
+the harmonics appear in the exported StableHLO as a **custom call target**, not
+stock HLO. This contradicts the claim below that a pure-JAX ACE descriptor needs
+`custom_call_targets=()`. Such targets must be resolved at run time from
+`LAMMPS_JAX_FFI_HANDLERS`, and `contrib/ffi-replay` exists precisely for
+libraries whose compiled kernels live only inside the exporting process.
+
+**Recommended resolution: implement the harmonics in pure JAX.** They are a
+polynomial recursion, fully expressible in stock HLO, and Phase 1 established
+that `ace1_model` needs *spherical* (not solid) harmonics — one convention, not
+two. That removes the only custom-call dependency, keeps
+`custom_call_targets=()` true, and drops the `sphericart-jax` pin that currently
+forces `jax==0.10.1`. Validate against the existing `sphericart` values, which
+already match Julia to 4.8e-15.
+
 **Simplification found in Phase 4: the virial needs no cell handling.** mace-jax
 applies strain to positions *and* cell and then recomputes edge shifts. But under
 a strain ε, `r → r + εr` and `cell → cell + ε·cell`, so
@@ -437,9 +453,35 @@ export as custom-call targets resolved from `LAMMPS_JAX_FFI_HANDLERS`, which is 
 `contrib/ffi-replay` exists. A pure-JAX ACE descriptor is segment_sum, gather, prod
 and matmul — all stock HLO. Export with `custom_call_targets=()` and skip it.
 
-Build requirement: the pair style needs the KOKKOS precision layer from LAMMPS
-10 Sep 2025 or newer, built against the same source tree as the `lmp` binary, plus
-a GPU and a matching PJRT plugin. **Start this build early, in parallel.**
+### Build environment (already working on `lestrade`)
+
+No build needed — a working LAMMPS + plugin exists and has been used to validate
+EAM bundles against native `eam/alloy`:
+
+| item | path |
+|---|---|
+| repo (branch `dev/julia_export`) | `~/lammps-jax` |
+| build root (off home quota) | `/storage/eng/essswb/lammps-jax-build` |
+| plugin (**the `--cudart shared` build**) | `.../build-plugin-shared-cudart` |
+| `lmp` | `/storage/eng/essswb/venvs/lammps-jax/lib/lmp.real` |
+| PJRT plugin | `$V/lib/python3.12/site-packages/jax_plugins/xla_cuda12/xla_cuda_plugin.so` |
+| decks + harness | `/storage/eng/essswb/lammps-jax-build/run` |
+| build script | `~/lammps-jax/scripts/build_lammps_jax.sh` |
+
+Working invocation (from `run/test_eam_bundle.sh`):
+
+```bash
+module purge; module load foss/2023b CUDA/12.9.1
+export LD_LIBRARY_PATH=$V/lib:$LD_LIBRARY_PATH
+$LMP -k on g 1 -sf kk -pk kokkos newton on neigh half \
+     -var pjrt $PJRT -var bundle <bundle.json> -in examples/in.eam_cuzr
+```
+
+Two version notes. That venv runs **jax 0.11.1**, while Stage 1 pins **0.10.1**
+for `sphericart-jax`; removing the sphericart dependency (above) also removes
+this mismatch. And the Kokkos build is tagged `AMPERE86` while the card is Ada
+(compute 8.9) — evidently working via PTX JIT, but worth knowing if anything
+looks wrong at the kernel level.
 
 ## Design decisions
 
@@ -588,7 +630,8 @@ than they are today. Stopping there is a good outcome, not a failure.
 | Silent basis-convention drift (spherical vs solid) | 1 | Medium | Export `ybasis_kind`; keep per-stage probe values |
 | TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
 | XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
-| LAMMPS build environment | 1 | Medium | Start the build in week 1, in parallel |
+| ~~LAMMPS build environment~~ | 1 | Resolved | Working build on lestrade; see the build-environment table |
+| `sphericart-jax` emits a custom call | 1 | Medium | Implement spherical harmonics in pure JAX; also drops the jax 0.10.1 pin |
 | ~~NaN gradients from padded edges~~ | 1 | Resolved | Phase 1 (sparse) and Phase 4 (dense `neighbour_matrix` zero slots); pad at the cutoff, regression tests both layouts |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
 | Padding tax (capacity ≫ typical) | 1 | Low | Bucket tightly |
