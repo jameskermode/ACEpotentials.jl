@@ -14,15 +14,26 @@ pip install acejax[ase]     # + the ASE calculator
 pip install acejax[cuda]    # + CUDA jaxlib
 ```
 
-For systems beyond a few thousand atoms, install the fast neighbour list. It is
-not on PyPI, so it cannot be declared as a dependency:
+### Neighbour lists
+
+acejax picks the best available backend automatically:
+
+| | | |
+|---|---|---|
+| `matscipy-neighbours` | optional | GPU, DLPack, native dense layout |
+| `matscipy` | **installed as a dependency** | C-accelerated, on PyPI |
+| numpy fallback | built in | correct but O(N²); last resort |
+
+`matscipy-neighbours` is not on PyPI (and PyPI rejects direct URL dependencies),
+so it cannot be declared. Install it separately if you want it:
 
 ```bash
 pip install git+https://github.com/libAtoms/matscipy-neighbours
 ```
 
-Without it acejax uses a correct but O(N²) numpy neighbour list. The two produce
-identical edge sets (`tests/test_efv.py::test_fallback_neighbour_list_matches_matscipy`).
+All three produce **identical** edge sets, asserted in
+`tests/test_efv.py::test_all_neighbour_backends_agree` — your results do not
+depend on which is installed.
 
 ## Usage
 

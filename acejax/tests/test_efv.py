@@ -23,11 +23,6 @@ from acejax import (ACECalculator, dense_graph, dense_to_sparse,
 
 TOL = 1e-10
 
-# `neighbour_matrix` (the dense layout) exists only in matscipy-neighbours, which
-# is not on PyPI; the numpy fallback covers the sparse layout only.
-needs_matscipy = pytest.mark.skipif(
-    not __import__("acejax.nlist", fromlist=["have_matscipy"]).have_matscipy(),
-    reason="dense layout needs matscipy-neighbours")
 
 
 
@@ -90,7 +85,6 @@ def test_virial_sign_is_julia_convention(case):
     assert np.max(np.abs(np.asarray(V) + Vref)) > 1.0, "sign test is degenerate"
 
 
-@needs_matscipy
 def test_dense_and_sparse_pooling_agree(case):
     """The two neighbour-list layouts must give the same answer; neither is
     hard-wired, and lammps-jax needs sparse while dense avoids a scatter."""
@@ -128,18 +122,58 @@ def test_ase_calculator(case):
     assert eE < TOL and eF < TOL and eV < TOL
 
 
-def test_fallback_neighbour_list_matches_matscipy(case):
-    """acejax must work without matscipy-neighbours, which is not on PyPI.
-    The numpy fallback is what `pip install acejax` gets, so it has to agree."""
-    from acejax.nlist import _fallback_neighbour_list, _neighbour_list, have_matscipy
-    if not have_matscipy():
-        pytest.skip("matscipy-neighbours not installed; nothing to compare against")
+def test_all_neighbour_backends_agree(case):
+    """The three backends must produce *identical* edge sets, not similar ones.
+
+    matscipy is the hard dependency; matscipy-neighbours is an optional faster
+    one; the numpy fallback exists so the package still works without either.
+    A user's results must not depend on which is installed.
+    """
+    from acejax.nlist import (_neighbour_list, backend, have_matscipy,
+                              have_matscipy_neighbours)
     model, meta, z, atoms = case
     args = (atoms.get_positions(), atoms.get_cell().array, atoms.get_pbc(),
             float(meta["rcut"]))
-    i1, j1, D1, _ = _neighbour_list(*args)
-    i2, j2, D2, _ = _fallback_neighbour_list(*args)
-    assert len(i1) == len(i2), f"edge counts differ: {len(i1)} vs {len(i2)}"
+    avail = ["numpy"]
+    if have_matscipy():
+        avail.append("matscipy")
+    if have_matscipy_neighbours():
+        avail.append("matscipy-neighbours")
+
     key = lambda i, D: sorted(zip(i.tolist(), [tuple(np.round(v, 9)) for v in D]))
-    assert key(i1, D1) == key(i2, D2)
-    print(f"\n  fallback vs matscipy: {len(i1)} edges, identical")
+    ref_name = avail[0]
+    i0, j0, D0, _ = _neighbour_list(*args, force_backend=ref_name)
+    ref = key(i0, D0)
+    for name in avail[1:]:
+        i1, j1, D1, _ = _neighbour_list(*args, force_backend=name)
+        assert len(i1) == len(i0), f"{name}: {len(i1)} edges vs {ref_name}'s {len(i0)}"
+        assert key(i1, D1) == ref, f"{name} disagrees with {ref_name}"
+    print(f"\n  backends agree ({len(i0)} edges): {', '.join(avail)}"
+          f"   [active: {backend()}]")
+
+
+def test_dense_from_sparse_matches_neighbour_matrix(case):
+    """The dense layout built by grouping the sparse list must match the native
+    `neighbour_matrix` where that exists -- otherwise the two code paths could
+    diverge silently on machines that have it."""
+    from acejax.nlist import _dense_from_sparse, _neighbour_list, have_matscipy_neighbours
+    if not have_matscipy_neighbours():
+        pytest.skip("no neighbour_matrix to compare against")
+    from matscipy_neighbours import neighbour_matrix
+    model, meta, z, atoms = case
+    pos, cell, pbc, rcut = (atoms.get_positions(), atoms.get_cell().array,
+                            atoms.get_pbc(), float(meta["rcut"]))
+    K = 64
+    idx_n, dist_n, cnt_n = neighbour_matrix(positions=pos, cell=cell, pbc=tuple(pbc),
+                                            cutoff=rcut, max_neighbours=K)
+    i, j, D, _ = _neighbour_list(pos, cell, pbc, rcut)
+    idx_s, dist_s, cnt_s = _dense_from_sparse(i, j, D, len(pos), K)
+    assert np.array_equal(cnt_n, cnt_s)
+    # rows may be ordered differently within a centre; compare as sets
+    for a in range(len(pos)):
+        n = cnt_n[a]
+        set_n = sorted(zip(idx_n[a, :n].tolist(),
+                           [tuple(np.round(v, 9)) for v in dist_n[a, :n]]))
+        set_s = sorted(zip(idx_s[a, :n].tolist(),
+                           [tuple(np.round(v, 9)) for v in dist_s[a, :n]]))
+        assert set_n == set_s, f"atom {a} differs"

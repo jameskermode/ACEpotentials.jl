@@ -1,7 +1,18 @@
 """Neighbour-list adapters.
 
-Preferred backend is `libAtoms/matscipy-neighbours` (MIT). It is not on PyPI, so
-it is an optional extra and a pure-numpy fallback covers the sparse layout;
+Three backends, tried in order:
+
+1. `matscipy_neighbours` -- preferred when present: GPU, DLPack, and a native
+   `neighbour_matrix` for the dense layout.  Not on PyPI, so it is optional.
+2. `matscipy` -- the hard dependency.  C-accelerated, on PyPI, and advertised
+   as the same `"ijdDS"` API, so the two are interchangeable for the sparse path.
+3. a pure-numpy fallback -- a genuine last resort, kept so the package still
+   works if neither import succeeds.
+
+All three are checked against each other in `tests/test_efv.py`, which asserts
+the edge sets are *identical* rather than merely similar.
+
+Whichever backend is used,
 OpenMP CPU core, optional CUDA/HIP, zero-copy to JAX via DLPack.  Three of its
 properties are what make it the right fit here:
 
@@ -43,12 +54,27 @@ class DenseGraph(NamedTuple):
         return np.arange(self.rij.shape[1])[None, :] < self.count[:, None]
 
 
-def have_matscipy():
+def have_matscipy_neighbours():
     try:
         import matscipy_neighbours  # noqa: F401
         return True
     except ImportError:
         return False
+
+
+def have_matscipy():
+    try:
+        import matscipy.neighbours  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def backend():
+    """Which neighbour-list backend is in use: for tests and for reporting."""
+    if have_matscipy_neighbours():
+        return "matscipy-neighbours"
+    return "matscipy" if have_matscipy() else "numpy"
 
 
 def _fallback_neighbour_list(positions, cell, pbc, cutoff):
@@ -88,17 +114,46 @@ def _fallback_neighbour_list(positions, cell, pbc, cutoff):
     return ii[o], jj[o], DD[o], SS[o]
 
 
-def _neighbour_list(positions, cell, pbc, cutoff):
-    """matscipy-neighbours when available, else the numpy fallback."""
-    if have_matscipy():
-        from matscipy_neighbours import neighbour_list
-        i, j, D, S = neighbour_list(
+def _neighbour_list(positions, cell, pbc, cutoff, force_backend=None):
+    """Sparse edge list from the best available backend.
+
+    `force_backend` is for the cross-backend equivalence test; leave it None.
+    """
+    which = force_backend or backend()
+    if which in ("matscipy-neighbours", "matscipy"):
+        mod = ("matscipy_neighbours" if which == "matscipy-neighbours"
+               else "matscipy.neighbours")
+        neighbour_list = __import__(mod, fromlist=["neighbour_list"]).neighbour_list
+        return neighbour_list(
             "ijDS", positions=np.ascontiguousarray(positions, float),
             cell=np.ascontiguousarray(cell, float),
             pbc=tuple(bool(b) for b in np.broadcast_to(pbc, 3)), cutoff=float(cutoff))
-        return i, j, D, S
     return _fallback_neighbour_list(np.ascontiguousarray(positions, float),
                                     cell, pbc, cutoff)
+
+
+def _dense_from_sparse(i, j, D, n_nodes, max_neighbours):
+    """Group a sparse edge list into the dense (n, K) layout.
+
+    The dense form does not fundamentally need `neighbour_matrix`: every backend
+    returns edges sorted by `i`, so the slot of each edge within its centre's row
+    is its offset from that group's start.  Building it here means the dense path
+    -- and the dense-vs-sparse pooling equivalence check -- works on every
+    backend rather than only where `neighbour_matrix` exists.
+    """
+    counts = np.bincount(i, minlength=n_nodes)
+    if counts.max(initial=0) > max_neighbours:
+        raise ValueError(
+            f"max_neighbours={max_neighbours} too small: an atom has "
+            f"{counts.max()} neighbours")
+    starts = np.cumsum(counts) - counts          # first edge index of each centre
+    slot = np.arange(len(i)) - np.repeat(starts, counts)
+    idx = np.zeros((n_nodes, max_neighbours), dtype=np.int64)
+    dist = np.zeros((n_nodes, max_neighbours, 3), dtype=float)
+    if len(i):
+        idx[i, slot] = j
+        dist[i, slot] = D
+    return idx, dist, counts
 
 
 def sparse_graph(positions, cell, pbc, cutoff, pad_to=None, pad_vector=None):
@@ -134,17 +189,17 @@ def dense_graph(positions, cell, pbc, cutoff, max_neighbours, pad_vector=None):
     envelope vanishes and the derivative stays defined -- the caller cannot get
     this wrong by forgetting.
     """
-    if not have_matscipy():
-        raise ImportError(
-            "dense_graph needs matscipy-neighbours (neighbour_matrix); the numpy "
-            "fallback provides the sparse layout only.  Install it with:\n"
-            "  pip install git+https://github.com/libAtoms/matscipy-neighbours")
-    from matscipy_neighbours import neighbour_matrix
-    idx, dist, count = neighbour_matrix(
-        positions=np.ascontiguousarray(positions, float),
-        cell=np.ascontiguousarray(cell, float),
-        pbc=tuple(bool(b) for b in pbc), cutoff=float(cutoff),
-        max_neighbours=int(max_neighbours))
+    if have_matscipy_neighbours():
+        from matscipy_neighbours import neighbour_matrix
+        idx, dist, count = neighbour_matrix(
+            positions=np.ascontiguousarray(positions, float),
+            cell=np.ascontiguousarray(cell, float),
+            pbc=tuple(bool(b) for b in np.broadcast_to(pbc, 3)), cutoff=float(cutoff),
+            max_neighbours=int(max_neighbours))
+    else:
+        i, j, D, _ = _neighbour_list(positions, cell, pbc, cutoff)
+        idx, dist, count = _dense_from_sparse(i, j, D, len(positions),
+                                              int(max_neighbours))
     if pad_vector is None:
         pad_vector = np.array([float(cutoff), 0.0, 0.0])
     live = np.arange(dist.shape[1])[None, :] < count[:, None]

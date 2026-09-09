@@ -30,11 +30,12 @@ jobs:
       - name: Sync
         run: uv sync --group dev --python ${{ matrix.python }}
       - name: Test
-        run: uv run pytest tests/ -q
-      # matscipy-neighbours is not on PyPI and needs a C++/CMake build, so the
-      # dense-layout and fallback-parity tests skip above.  Build it once on the
-      # newest Python so they actually run somewhere.
-      - name: Test with the fast neighbour list
+        run: uv run pytest tests/ -q -rs
+      # matscipy (the dependency) covers the sparse and dense paths, so the run
+      # above skips only the sphericart harmonic checks.  matscipy-neighbours is
+      # not on PyPI and needs a C++/CMake build; install it once on the newest
+      # Python so the three-backend equivalence check exercises all three.
+      - name: Test with matscipy-neighbours as well
         if: matrix.python == '3.13'
         run: |
           uv pip install "matscipy-neighbours @ git+https://github.com/libAtoms/matscipy-neighbours"
