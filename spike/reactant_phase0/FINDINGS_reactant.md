@@ -4,9 +4,13 @@ Investigating `lammps-jax` `dev/julia_export` `examples/julia/ace_export.jl`.
 Julia 1.12.6, CPU (Apple Silicon). SPIKE CODE.
 
 **Version note:** the miscompilation reproduces on **both Reactant 0.2.222 and
-0.2.285** (the latest as of 2026-09-09), so it is not fixed by upgrading. The
-traceability results below were measured on 0.2.222 and should be re-checked on
-0.2.285 before acting on them.
+0.2.285** (the latest as of 2026-09-09), so it is not fixed by upgrading.
+
+**EquivariantTensors cannot be installed alongside Reactant > 0.2.222.**
+ET depends on WignerD, which pins StructArrays <= 0.6.21, while Reactant 0.2.285
+requires StructArrays >= 0.7.2. So 0.2.222 is not an arbitrary choice -- it is
+the newest Reactant that can coexist with ET at all. Relaxing that is a
+prerequisite for any serious Reactant work on ETACE.
 
 ## Headline
 
@@ -105,11 +109,30 @@ implementation ... that way we don't have to write a custom rrule."*
 Precomputing the category as an integer array per edge and doing a gather plus
 batched matmul is array-expressible, traceable, and removes the custom rrule.
 
-**Blocker 2 — the sparse product kernels.** `PooledSparseProduct` and
-`SparseSymmProd` go through `ka_evaluate`. Reactant *does* ship
-`ReactantKernelAbstractionsExt`, so KA is not rejected outright, but dispatch
-fails for these kernels. Both are gather/prod/segment-sum — exactly what the JAX
-port writes directly as array ops.
+**Blocker 2 — KernelAbstractions, and it is broader than first thought.**
+Re-tested on Reactant 0.2.285 with the kernels replicated standalone
+(`ka_blockers.jl`, `ka_triggers.jl`, since ET itself cannot be installed at that
+version):
+
+| kernel | traces? |
+|---|---|
+| `A[i] = 2*X[i]`, 1-D ndrange, all traced | **no** — `ka_with_reactant` MethodError |
+| same, 2-D ndrange | **no** |
+| 2-D + inner loop + host index array (as ET has it) | **no** |
+| 2-D + inner loop + traced index array | **no** |
+| **the same SelectLinL operation as pure array ops, no KA** | **yes, 4.44e-16** |
+
+So it is not about kernel complexity, ndrange rank, scalar indexing, or
+host-vs-traced index arrays. **No KernelAbstractions kernel traces at all in this
+environment**, including a trivial one. Everything in ET's evaluation path routes
+through `ka_evaluate` or `_ka_apply_selectlinl!`, so nothing traces.
+
+**Caveat, untested:** this machine has no CUDA. Reactant's KA extension may
+require CUDA to be loaded even for the CPU backend -- issue #3038's environment
+lists "CUDA 6.2.0 ... CPU backend (CUDA loaded for ReactantCUDAExt)". If that is
+the explanation, blocker 2 may largely evaporate on a CUDA host and only
+`SelectLinL` would need changing. This is worth testing on a GPU box before
+investing in a rewrite.
 
 **Notable side finding:** SpheriCart traces fine. `ace_export.jl` replaces Ylm
 with fitted monomials on the premise that SpheriCart is untraceable; on this
@@ -148,9 +171,13 @@ Two things worth doing regardless of the port:
    -- those are KA-kernel raising or complex-array gather, whereas this is plain
    broadcast plus `hcat` on Float64. #2846 ("Correctness and performance issue
    with Reactant + KA kernel code", open) is relevant to blocker 2, not to this.
-2. Try the `SelectLinL` rewrite. It is small, it is already wanted for other
-   reasons (it would drop a hand-written rrule), and it is the single change
-   that would tell us whether the rest of the path traces.
+2. Try the `SelectLinL` rewrite. It is small, already wanted for other reasons
+   (it would drop a hand-written rrule), and the array-op formulation is
+   *measured* to trace exactly (4.44e-16). But first check whether KA kernels
+   trace on a CUDA host -- if they do not, the whole ET evaluation path needs
+   de-KA-ing, not just this one layer, which is a much larger commitment.
+3. Raise the ET -> WignerD -> StructArrays pin, which currently caps Reactant at
+   0.2.222 and blocks testing against current releases.
 
 Performance was not measured. Benchmarking a miscompiling path is not
 meaningful, and the two blockers mean the standard path cannot yet be timed at
