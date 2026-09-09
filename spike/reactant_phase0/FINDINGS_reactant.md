@@ -9,8 +9,18 @@ Julia 1.12.6, CPU (Apple Silicon). SPIKE CODE.
 **EquivariantTensors cannot be installed alongside Reactant > 0.2.222.**
 ET depends on WignerD, which pins StructArrays <= 0.6.21, while Reactant 0.2.285
 requires StructArrays >= 0.7.2. So 0.2.222 is not an arbitrary choice -- it is
-the newest Reactant that can coexist with ET at all. Relaxing that is a
-prerequisite for any serious Reactant work on ETACE.
+the newest Reactant that can coexist with ET at all.
+
+**This looks cheap to fix.** WignerD is used in ET's `src/` at exactly two
+places, `O3_utils.jl:173` and `:185`, inside `D_from_angles` /
+`QD_from_angles` -- utilities that build a rotation Q and matching Wigner-D
+matrix so equivariance can be checked as `y о Q = D * y`. They have **no callers
+anywhere in `src/`**, are not exported, and are used only by
+`test/O3/test_O3_transforms.jl`. WignerD is also already listed in ET's test
+target. Moving those two functions into the test suite, or behind a weakdep
+extension, would drop the dependency and lift the Reactant ceiling from 0.2.222
+to current -- a one-PR change that unblocks testing ETACE against current
+Reactant.
 
 ## Headline
 
