@@ -1,5 +1,8 @@
-# Minimal reproducer: Reactant 0.2.222 (CPU) deduplicates two distinct
-# elementwise products into one.
+# Minimal reproducer: Reactant deduplicates two distinct elementwise products
+# into one. CPU backend.
+#
+# CONFIRMED on Reactant 0.2.285 (latest at 2026-09-09) and 0.2.222.
+# Julia 1.12.6, aarch64-apple-darwin. Not fixed by upgrading.
 #
 #   julia --project=. reactant_bug_repro.jl
 #

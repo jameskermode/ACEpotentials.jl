@@ -1,7 +1,12 @@
 # Reactant spike: why the Julia ACE export is wrong, and what it means
 
 Investigating `lammps-jax` `dev/julia_export` `examples/julia/ace_export.jl`.
-Reactant 0.2.222, Julia 1.12.6, CPU (Apple Silicon). SPIKE CODE.
+Julia 1.12.6, CPU (Apple Silicon). SPIKE CODE.
+
+**Version note:** the miscompilation reproduces on **both Reactant 0.2.222 and
+0.2.285** (the latest as of 2026-09-09), so it is not fixed by upgrading. The
+traceability results below were measured on 0.2.222 and should be re-checked on
+0.2.285 before acting on them.
 
 ## Headline
 
@@ -137,7 +142,12 @@ because lammps-jax consumes StableHLO, which Reactant also emits, potentially
 the same LAMMPS pair style too.
 
 Two things worth doing regardless of the port:
-1. File the miscompilation bug upstream (`reactant_bug_repro.jl`).
+1. File the miscompilation bug upstream (`reactant_bug_repro.jl`). Searched
+   EnzymeAD/Reactant.jl first: there is a cluster of "silent wrong result"
+   reports (#3038, #3039, #2981, #3046, all closed; #2969 open) but none matches
+   -- those are KA-kernel raising or complex-array gather, whereas this is plain
+   broadcast plus `hcat` on Float64. #2846 ("Correctness and performance issue
+   with Reactant + KA kernel code", open) is relevant to blocker 2, not to this.
 2. Try the `SelectLinL` rewrite. It is small, it is already wanted for other
    reasons (it would drop a hand-written rrule), and it is the single change
    that would tell us whether the rest of the path traces.
