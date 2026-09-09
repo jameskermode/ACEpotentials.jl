@@ -28,8 +28,8 @@ from contextlib import contextmanager
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import sphericart.jax as scj
 
+from .harmonics import real_spherical_harmonics
 from .radial import (agnesi_normalized, env_ace1_poly1sr, env_poly2sx,
                      spline_eval)
 
@@ -99,12 +99,18 @@ class ACEModel(eqx.Module):
         return Rnl, Rpair
 
     def angular(self, rij):
-        # ace1_model uses SPHERICAL harmonics (ace1_compat.jl:408, Ytype=:spherical);
+        # ace1_model uses SPHERICAL harmonics (ace1_compat.jl:407, Ytype=:spherical);
         # ace_model defaults to :solid.  The Phase 0 spike used ace_model, so the
         # production path differs from it here -- hence the exported flag.
+        #
+        # Pure JAX, not sphericart-jax: the latter lowers to an FFI custom call,
+        # which the LAMMPS bundle would then have to resolve at run time.
         if self.ysolid:
-            return scj.solid_harmonics(rij, self.lmax)
-        return scj.spherical_harmonics(rij, self.lmax)
+            raise NotImplementedError(
+                "solid harmonics are not implemented: ace1_model uses "
+                "Ytype=:spherical.  ace_model's :solid default would need the "
+                "r^l scaling and its own normalisation.")
+        return real_spherical_harmonics(rij, self.lmax)
 
     # -------------------------------------------------- many-body
     def edge_features(self, rij, zi, zj):

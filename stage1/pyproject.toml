@@ -4,11 +4,9 @@ version = "0.1.0"
 description = "Stage 1: JAX evaluator for ACEpotentials models fitted in Julia"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    "jax==0.10.1",
+    "jax>=0.10.1",
     "equinox>=0.11",
     "numpy",
-    "sphericart==2.0.3",
-    "sphericart-jax==2.0.3",
     "matscipy-neighbours",
     "ase>=3.29.0",
 ]
@@ -20,6 +18,7 @@ package = false
 matscipy-neighbours = { git = "https://github.com/libAtoms/matscipy-neighbours" }
 
 [dependency-groups]
-dev = ["pytest>=8"]
+# sphericart is kept for VALIDATION only -- the model path must not import it
+dev = ["pytest>=8", "sphericart==2.0.3", "sphericart-jax==2.0.3"]
 [tool.pytest.ini_options]
 pythonpath = ["."]

@@ -51,6 +51,7 @@ cd stage1 && uv run pytest tests/ -q -s
 |---|---|
 | `export_model.jl` | fit an `ace1_model`, export to npz |
 | `acejax/radial.py` | transform, envelopes, cubic B-spline |
+| `acejax/harmonics.py` | real spherical harmonics, pure JAX (no FFI) |
 | `acejax/model.py` | `ACEModel` (Equinox): A → AA → B → site energy |
 | `acejax/io.py` | npz loader |
 | `tests/test_roundtrip.py` | array orientation + per-stage probe values |
@@ -59,6 +60,7 @@ cd stage1 && uv run pytest tests/ -q -s
 | `acejax/calculator.py` | ASE calculator |
 | `tests/test_padding.py` | padded edges do not perturb or NaN the gradient |
 | `tests/test_efv.py` | the Phase 3–4 gate: nlist, E/F/V, pooling layouts, ASE |
+| `tests/test_harmonics.py` | harmonics vs sphericart + no-custom-call guarantee |
 
 ## Schema (npz, `schema_version` 1)
 
@@ -114,6 +116,14 @@ reserved for Stage 2, where a trainable `Wnlq` is required; the loader raises
   halves transform under ε, the symmetric-displacement trick collapses to
   `rij -> rij + rij @ ε`. No cell bookkeeping, so the same code path serves
   LAMMPS, where there is no cell.
+* **Spherical harmonics are pure JAX, not sphericart-jax.** sphericart lowers to
+  an FFI op, so the harmonics would land in exported StableHLO as a custom call
+  target (`cpu_spherical_f64` / `cuda_spherical_f64`) that lammps-jax must
+  resolve at run time from `LAMMPS_JAX_FFI_HANDLERS`. The recursion in
+  `harmonics.py` is stock HLO: the full model lowers with **zero** custom call
+  targets. sphericart is kept as a dev dependency to validate it (agreement
+  ~1e-14 relative for L = 0..6), and is not imported by the model path. This
+  also lifts the `jax==0.10.1` pin sphericart-jax forced.
 * **`dense_graph` parks padded slots at the cutoff.** `neighbour_matrix` leaves
   them as zero vectors, which NaNs the gradient the same way the sparse zero pad
   does. Done in the adapter so a caller cannot forget.
