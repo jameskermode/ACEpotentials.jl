@@ -625,8 +625,9 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | ~~7. `ace_model` support: analytic radials + solid harmonics~~ ✅ `47aa6837` | 2 |
 | 8. Throughput benchmark vs Kokkos (after the Phase 6 gate) | 1 |
 | 9. Usable ASE calculator + descriptor access | 1.5 |
+| 10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI | 2.5–3 |
 
-**≈ 20–23 working days ≈ 4–4.5 weeks** (Phases 0/1/3/4/6/7 done; ~3–5 remain).
+**≈ 23–26 working days ≈ 4.5–5 weeks** (Phases 0/1/3/4/6/7 done; ~6–8 remain).
 
 #### Phase 7 — `ace_model` and solid harmonics
 
@@ -713,6 +714,62 @@ the common one and should not pay calculator overhead per structure.
 Gate: descriptors from the calculator match `ACEpotentials.site_descriptors` on
 the same fitted model and structure to the tolerances Phase 3–4 achieved, and
 `ACECalculator(path)` works from a bare npz with no other arguments.
+
+#### Phase 10 — release readiness
+
+The last phase of Stage 1. Goal: `pip install acejax` gives a working ACE
+evaluator. The name is free on PyPI (`acejax`, `ace-jax`, `ace_jax` all 404 as of
+2026-09-09).
+
+**Whole-branch review.** Fifteen-plus commits of incremental work, several
+reversals, and two agents' output. Read it as one piece rather than as a
+sequence — the things that decay under that kind of development are naming
+consistency, dead branches left behind by a correction, and tests that pin
+yesterday's understanding.
+
+**Strip internal plan references from shipped code.** 20 occurrences of "Phase
+N", "Stage N" and "spike" across `acejax/radial.py`, `model.py`,
+`calculator.py`, the tests, `lammps/`, the README and `pyproject.toml`. These
+were load-bearing while the work was in flight and are noise to anyone
+installing the package — they refer to a document the reader does not have.
+Keep the *content* where it explains a non-obvious decision (why padding sits at
+the cutoff, why matmul precision is pinned); drop the plan coordinates.
+
+**Reorganise to a top-level `acejax/`.** `stage1/` names a phase of our work, not
+the thing. The package, its tests and its packaging move up; `spike/jax_phase0`
+and `spike/reactant_phase0` stay out of the distribution — they are evidence, not
+product. Decide deliberately whether they remain in-tree under `docs/` or leave
+the branch entirely; the `FINDINGS_*.md` files have value that the code does not.
+
+**Rewritten README.** Installation, a minimal usage example that runs, the
+descriptor API from Phase 9, and the LAMMPS export path. State plainly what is
+and is not covered: both model families, energies/forces/virial/descriptors, and
+that fitting still happens in Julia.
+
+**CI, with the LAMMPS build cached.** Follow `kermodegroup/ML-MIX`'s
+`.github/workflows/ci.yml`: resolve the upstream LAMMPS stable commit hash, use
+it as the cache key, keep separate caches for source and install, and rebuild
+only on a miss.
+
+**Constraint to design around, not discover:** `pair_style jax/kk` is CUDA-only —
+`scripts/build_lammps_jax.sh` states the pair style has no CPU path — and
+GitHub-hosted runners have no GPU. So CI splits:
+
+- the `acejax` suite (46 tests, CPU) runs on every push — this is the bulk of the
+  value and needs no LAMMPS at all
+- a cached LAMMPS + plugin *build* job catches build breakage without running it
+- the LAMMPS *integration* gate needs a GPU runner. Either self-hosted
+  (moriarty), or it stays a manual step with `test_si_bundle.sh` as the
+  documented procedure. Do not fake it on CPU.
+
+**PyPI.** Real dependency pins, a version, license and metadata. `sphericart` is
+dev-only now, so the hard dependencies are jax, equinox, numpy, ASE, and
+`matscipy-neighbours` — which is **repo-only, not on PyPI**, so it cannot be a
+hard install dependency. Make it an optional extra with a documented fallback,
+or vendor the neighbour-list adapter.
+
+Gate: `pip install` from a clean environment, then run the README's usage example
+and the test suite, both green.
 
 ### Stage 2 — fit in JAX (incremental)
 
