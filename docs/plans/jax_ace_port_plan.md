@@ -624,10 +624,11 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 6. LAMMPS export + integration testing | 4–5 |
 | ~~7. `ace_model` support: analytic radials + solid harmonics~~ ✅ `47aa6837` | 2 |
 | 8. Throughput benchmark vs Kokkos ⚠️ partly blocked (`59f56d90`) | 1 |
-| 9. Usable ASE calculator + descriptor access | 1.5 |
+| ~~9. Usable ASE calculator + descriptor access~~ ✅ `18ff57bd` | 1.5 |
 | 10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI | 2.5–3 |
 
-**≈ 23–26 working days ≈ 4.5–5 weeks** (Phases 0/1/3/4/6/7 done; ~6–8 remain).
+**≈ 23–26 working days ≈ 4.5–5 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
+blocked on two open bugs; Phase 10 remains, ~3 days).
 
 #### Phase 7 — `ace_model` and solid harmonics
 
@@ -711,9 +712,17 @@ Expose it as a property on the calculator (`descriptors`, alongside `energy`,
 `Atoms` round-trip, since the batch case — descriptors for a whole dataset — is
 the common one and should not pay calculator overhead per structure.
 
-Gate: descriptors from the calculator match `ACEpotentials.site_descriptors` on
-the same fitted model and structure to the tolerances Phase 3–4 achieved, and
-`ACECalculator(path)` works from a bare npz with no other arguments.
+**Complete (`18ff57bd`).** Descriptors match `ACEpotentials.site_descriptors` at
+1.75e-15 (`ace1_model`) and 4.50e-15 (`ace_model`) relative, over 64 sites x 120
+components. `ACECalculator(path)` works from a bare npz for both families, with
+cutoff, species and dtype inferred from the file; energies match exactly and
+forces to 1.2e-13 / 6.2e-13. Exposed as `calc.get_site_descriptors(atoms)` and as
+a standalone `site_descriptors(...)` with no ASE round-trip; both honour `domain`.
+
+The descriptor layout is species-blocked per `get_basis_inds` /
+`get_pairbasis_inds` (`src/models/ace.jl:544-566`), and a test checks the scatter
+offsets directly — **a wrong offset would still produce plausible magnitudes**,
+so agreement in magnitude alone would not catch it.
 
 #### Phase 10 — release readiness
 
