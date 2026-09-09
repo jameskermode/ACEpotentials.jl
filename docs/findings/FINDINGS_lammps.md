@@ -97,3 +97,45 @@ python export_bundle.py --npz ../si_fitted.npz --out si_ace.lammps-jax.json
 
 `run_artifacts/` holds the evidence for the numbers in this file: both logs,
 both dumps, the `si.data` geometry, and the 1.1 MB bundle itself.
+
+## Static analysis of the `cudaErrorIllegalAddress` crash (no GPU available)
+
+Done by reading `lammps-jax` `cpp/pair_jax_kokkos.cpp` while the Warwick network
+was down. **The bug was not found**, but two hypotheses are refuted and one
+premise we had both been working from is wrong. Recorded so the next attempt
+starts here rather than repeating it.
+
+**Wrong premise: "the plugin does not validate capacity at run time."** It does,
+in three places:
+
+- the edge-pack functor does `atomic_fetch_add`, then `if (edge + edges_to_add >
+  max_edges) { edge_overflow() = 1; return; }` — it returns **before** writing,
+  so an edge overflow cannot itself corrupt memory
+- `pack_atoms` clamps with `span = std::min(nall, max_atoms)`, and the pack
+  functor guards both `i >= max_atoms` and `j >= max_atoms`
+- before every launch, an `MPI_Allreduce` on `nall` and `nlocal` raises
+  `"LAMMPS-JAX atom capacity exceeded"` / `"owned-row capacity exceeded"`
+
+So a genuine capacity overflow aborts cleanly with a clear message. It does not
+present as an illegal address, and it is not what we are seeing.
+
+**Refuted: stale edge indices after reneighbouring.** `rebuild_edges` is
+hardcoded `true`, so the edge list is repacked every step, not cached across
+rebuilds. Atom re-sorting or migration cannot leave stale indices behind.
+
+**Refuted: the force scatter running past the model output.**
+`add_model_forces` uses `limit = newton_pair ? nall : nlocal` against a
+`max_atoms`-row view, which would be out of bounds if `nall > max_atoms` — but
+the `MPI_Allreduce` check above fires first.
+
+**Also checked and safe:** padded edges carry `senders = receivers = max_atoms`,
+one past the end of a `(max_atoms, 3)` array, but our exporter masks the index
+with `where(mask, idx, 0)` before gathering, per the nequip template.
+
+**Where that leaves it.** The pack and scatter paths are bounded and guarded, so
+suspicion moves to the exported program itself or to the PJRT/stream interaction
+rather than the C++ packing. The decisive experiment is still the staged one:
+does the abort track reneighbour *count* or step count
+(`nevery`/`ncheck` in `bench/in.si_bench`, script at `/tmp/nbr_test.sh` on
+moriarty)? Run that first; `compute-sanitizer` on a short run would localise the
+access directly.
