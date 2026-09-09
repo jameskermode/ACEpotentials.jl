@@ -1,6 +1,7 @@
 # Plan: Minimal Python + JAX Port of the ETACE Descriptor and Linear Fit
 
-**Status**: 📋 Design — not started. Phase 0 (performance spike) gates everything else.
+**Status**: ✅ Phase 0 complete (`0b65fca0`) — descriptor validated at 5.1e-15, gates 1 and 3
+resolved, gate 2 pending CUDA. Stage 1 approved to proceed.
 Stage 1 (fit in Julia, evaluate in JAX + LAMMPS) is a supported stopping point.
 
 **Date**: 2026-09-09
@@ -115,24 +116,32 @@ on identical systems.
 | 2 | Site descriptor, GPU, f32 **and** f64 | `benchmark/gpu_benchmark.jl` |
 | 3 | Design-matrix assembly: naive `vmap`-VJP **vs** hand-written JVP | `site_basis_jacobian` (`src/et_models/et_ace.jl:72`) |
 
-### Decision gates
+### Decision gates — RESOLVED
 
-- **(3) decides whether the custom JVP is mandatory.** `jax.jacrev` of `𝔹` w.r.t.
-  positions costs `n_basis × forward` — with `n_basis` in the hundreds that is a
-  ~300× penalty over one force evaluation. Julia does not pay it: `ET._jacobian_X`
-  pushes `(Rnl, ∂Rnl)` and `(Ylm, ∂Ylm)` through together, applying the chain rule
-  at the edge-feature level, so all `n_basis` derivatives emerge from roughly one
-  pass. If the `vmap`-VJP is within ~3× of the JVP on GPU, ship it and defer the
-  custom rule; otherwise the ~100 LOC custom JVP moves onto the Stage 2 critical path.
-- **(2) decides the precision split** (Stage 1: a note; Stage 2: a blocker). f64 throughput is 1/32–1/64 of f32 on
-  consumer and workstation NVIDIA parts (only datacenter parts run 1/2). If f64
-  GPU is slower than f64 CPU, fit assembly stays on CPU and the GPU serves MD and
-  training in f32 only.
-- **(1) calibrates expectations.** The classic Julia path does 512 atoms of Si/O
-  order 2 in 18.3 ms single-threaded after the `_assemble_grad_ed!` fix. Matching
-  that on CPU is not expected and is not the project's case.
+- **(3) the custom Jacobian is mandatory.** Naive `vmap`-VJP costs **479–1715×**
+  forward. A hybrid pushing analytic `dA/dr` through `dB/dA` costs **34–150×** and
+  agrees to 6.2e-16. That is 11–19× apart, far outside the "within ~3× → ship it"
+  criterion. The ~100 LOC custom JVP is a **committed Stage 2 deliverable**, not a
+  contingency.
+- **(2) precision split — UNMEASURED.** No CUDA device available locally.
+  `spike/jax_phase0/bench_jax.py` runs unmodified on a CUDA box and reports its
+  backend. Stage 1 is not blocked (MD runs f32); Stage 2 is.
+- **(1) JAX is faster than Julia on CPU, contrary to the original estimate.**
 
-### Prior evidence (favourable)
+  | atoms | JAX | Julia `site_basis` | |
+  |---|---|---|---|
+  | 64 | 0.24 ms | 0.97 ms | 4.0× faster |
+  | 512 | 0.86 ms | 7.93 ms | 9.2× faster |
+
+  The plan originally predicted Julia would win by 2–5×. Caveats: this is the ET
+  descriptor path, not the tuned classic *force* path; Julia was single-threaded on
+  Apple Silicon; and the model is small (n_B = 110, single species). Treat as
+  directional until confirmed on a larger multi-element model. Julia
+  `site_descriptors` (classic path) is 14.7 ms at 512 atoms, with 173 allocations
+  totalling 26 MB — the ET path is materialising large buffers, which is the
+  memory-bound behaviour originally predicted to hurt JAX.
+
+### Prior evidence (corroborated)
 
 `benchmark/FORCE_REGRESSION_FINDINGS.md` records that ET autograd forces cost
 **~2.1× their own energy evaluation** — the same regime `jax.grad` occupies. And
@@ -199,12 +208,43 @@ days) emitting JSON or npz. For Stage 1 it carries the *fitted* coefficients, so
 the same schema serves both stages — Stage 2 simply ignores the fitted `W`:
 
 - element list, `E0`s
-- Agnesi params per species pair (6 floats each, from `ET.agnesi_params`)
-- poly recursion coefficients `A, B, C` (`OrthPolyBasis1D3T` is three vectors)
+- Agnesi params per species pair (7 floats each, from `ET.agnesi_params`)
+- **radial basis, one of two branches:**
+  - *analytic* — poly recursion coefficients `A, B, C` (`OrthPolyBasis1D3T` is three
+    vectors) plus `Wnlq`
+  - *splined* (**the Stage 1 default**) — cubic spline knots and coefficients
 - `Rnl_spec`, `Ylm_spec`, `Aspec` (index pairs), `𝔸spec` (index tuples by order)
 - `A2Bmap` as sparse rows/cols/vals
-- `Wnlq`, readout `W`, `nnll` spec (for priors)
+- readout `W`, `nnll` spec (for priors)
 - pair-basis parameters, `rcut`
+
+**Use npz, not JSON.** Julia serialises matrices column-major, so 2-D arrays arrive
+transposed through JSON. (Phase 0 used JSON with explicit 1-D flattening; npz avoids
+the whole class of bug.)
+
+#### Splined radials — the Stage 1 default
+
+`ace1_model` splinifies the radial basis (`src/ace1_compat.jl:283`), and
+`convert2et` only dispatches on `LearnableRnlrzzBasis` (`src/et_models/convert.jl:180`),
+so a fitted production model cannot go through the analytic path as written. Phase 0
+worked around this by using `ace_model`; Stage 1 must handle the splined case,
+because fitted models are the ones worth exporting.
+
+The splining is narrow, which keeps this cheap. `SplineRnlrzzBasis` retains
+`transforms` and `envelopes` analytically and splines only `Wnlq · polys(y)` as a
+function of `y`, on a **uniform grid over [-1, 1]** with `Nspl = 30` (see
+`src/et_models/splinify.jl`: `P4ML.splinify(y -> WW[:,:,i] * polys_y(y), -1.0, 1.0, Nspl)`).
+So the schema needs one extra branch and nothing else changes.
+
+**Decision: Stage 1 exports splines.** Two reasons. It reproduces what Julia
+actually evaluates, so the JAX and Julia models agree bit-for-bit rather than
+differing by the spline approximation error — which is what you want when the export
+target is LAMMPS. And uniform-grid cubic evaluation in JAX is a floor, a gather of
+four coefficients and a cubic: likely *faster* than the 15-term recursion, and more
+GPU-friendly. Estimated ~0.5 day.
+
+The analytic branch stays in the schema for Stage 2, where a trainable `Wnlq` is
+required and splines are not differentiable w.r.t. the parameters that generated them.
 
 **`mace_jax/tools/cg.py::U_matrix_real` is not a shortcut.** It builds coupling in
 the e3nn `Irreps` layout (channel-wise, irrep-decomposed), not ACE's sparse
@@ -389,20 +429,20 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | Phase | Days |
 |---|---|
 | 0. Performance spike (gating; ~1 day if stopping at Stage 1) | 1–2 |
-| 1. Julia exporter (fitted model) + Python loader | 2–3 |
+| 1. Julia exporter (fitted model, splined radials) + Python loader | 2.5–3.5 |
 | 2. Descriptor forward | 4 |
 | 3. Neighbour-list adapters + fixed-capacity plumbing | 1 |
 | 4. Energy / forces / virial via `jax.grad` + ASE calculator | 1 |
 | 5. Validation harness (milestones 1–4) | 2 |
 | 6. LAMMPS export + integration testing | 4–5 |
 
-**≈ 15–18 working days ≈ 3–3.5 weeks.**
+**≈ 15–18 working days ≈ 3–3.5 weeks** (Phase 0 done; ~14–16 remain).
 
 ### Stage 2 — fit in JAX (incremental)
 
 | Phase | Days |
 |---|---|
-| 7. E/F/V design-matrix assembly (+ custom JVP if gate 3 says so) | 2–3 |
+| 7. E/F/V design-matrix assembly + custom JVP (**committed**, gate 3) | 3 |
 | 8. Bucketed batching for training-shaped workloads | 1 |
 | 9. Priors + solvers (lineax / optimistix) | 2–3 |
 | 10. Data loading, weights, key matching | 1 |
@@ -427,26 +467,30 @@ than they are today. Stopping there is a good outcome, not a failure.
 
 | Risk | Stage | Severity | Mitigation |
 |---|---|---|---|
-| Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort) | 1 | High | Dump Julia values and test from commit 1 |
+| ~~Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort)~~ | 1 | Resolved | Phase 0: all intermediates clean to 5e-15 |
+| Splined radial export branch | 1 | Medium | Decided: export splines (~0.5 day); see schema |
 | LAMMPS build environment | 1 | Medium | Start the build in week 1, in parallel |
 | NaN gradients from padded edges | 1 | Medium | Explicit masking pass; test under `grad` |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
 | Padding tax (capacity ≫ typical) | 1 | Low | Bucket tightly |
 | matscipy-neighbours not on PyPI | 1 | Low | `pip install git+...`; in-house to fix |
-| Design-matrix assembly too slow via generic AD | **2** | High | Phase 0 gate 3; custom JVP (~100 LOC) |
+| ~~Design-matrix assembly too slow via generic AD~~ | **2** | Resolved | Confirmed: hybrid JVP required, now committed (Phase 0) |
 | f64 GPU throughput on non-datacenter cards | **2** | High | Phase 0 gate 2; CPU fit assembly |
 
-Note that both High-severity risks fall in Stage 2. Stage 1's risk register is
-dominated by convention-matching and build environment — tedious, but bounded and
-diagnosable.
+Phase 0 retired the two highest-severity items: convention-matching is confirmed
+clean, and the design-matrix Jacobian question is settled (the hybrid JVP is
+required, and is now scoped work rather than an unknown). Stage 1's remaining risk
+is dominated by the LAMMPS build environment.
 
 ## Open questions
 
-1. Does the `sphericart` JAX binding expose *solid* harmonics with `normalisation=:L2`?
-   P4ML uses `real_solidharmonics(L; normalisation = :L2)`
-   (`P4ML/src/sphericart.jl:41`). If only spherical harmonics are exposed, add ~0.5 day.
-2. Dense `neighbour_matrix` or sparse edge list as the CPU default? Phase 0 should
-   measure both; the swappable pooling function makes this reversible.
+1. ~~Does the `sphericart` JAX binding expose *solid* harmonics at `normalisation=:L2`?~~
+   **CLOSED (Phase 0).** `sphericart.jax.solid_harmonics(xyz, l_max)` matches P4ML's
+   `real_solidharmonics(L; normalisation = :L2)` to 4.8e-15 with no normalisation
+   argument — the defaults already agree. `sphericart-jax` pins jax 0.10.1, which is
+   also what lammps-jax recommends.
+2. Dense `neighbour_matrix` or sparse edge list as the CPU default? Not yet measured;
+   the swappable pooling function makes this reversible.
 3. Should the exporter live in ACEpotentials.jl (as a `scripts/` entry point) or in
    the new Python repo as a Julia sidecar? Former is easier to keep in sync.
 4. Is there a case for an `acesuit-jax-common` package shared with mace-jax
