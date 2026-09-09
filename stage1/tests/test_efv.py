@@ -21,14 +21,12 @@ import jax.numpy as jnp
 from acejax import (ACECalculator, dense_graph, dense_to_sparse,
                     highest_precision, load, sparse_graph)
 
-NPZ = pathlib.Path(__file__).parent.parent / "si_fitted.npz"
-pytestmark = pytest.mark.skipif(not NPZ.exists(), reason="run export_model.jl first")
 TOL = 1e-10
 
 
-@pytest.fixture(scope="module")
-def case():
-    model, meta, z = load(NPZ)
+@pytest.fixture
+def case(npz):
+    model, meta, z = load(npz)
     from ase import Atoms
     atoms = Atoms(numbers=np.asarray(z["test_Z"]),
                   positions=np.asarray(z["test_pos"]).T,

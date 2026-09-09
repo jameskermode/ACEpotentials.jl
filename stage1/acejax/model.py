@@ -29,9 +29,9 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from .harmonics import real_spherical_harmonics
-from .radial import (agnesi_normalized, env_ace1_poly1sr, env_poly2sx,
-                     spline_eval)
+from .harmonics import real_solid_harmonics, real_spherical_harmonics
+from .radial import (agnesi_normalized, env_ace1_poly1sr, env_poly1sr,
+                     env_poly2sx, poly_recursion, spline_eval)
 
 
 @contextmanager
@@ -57,8 +57,21 @@ def pool_dense(edge_feats, mask):
 
 class ACEModel(eqx.Module):
     # ---- array leaves (parameters) ----
-    rnl_coefs: jax.Array          # (NZ, NZ, ncoef, n_rnl)
-    pair_coefs: jax.Array         # (NZ, NZ, ncoef, n_pair)
+    # radial: exactly one branch is populated per basis, chosen by radial_kind.
+    # Both are live array leaves (never static): for the splined branch Julia's
+    # `splinify` has already folded Wnlq into the coefficients, so they occupy
+    # Wnlq's place in the parameter tree; the analytic branch carries a true
+    # trainable Wnlq, which is what Stage 2 needs.
+    rnl_coefs: jax.Array          # spline:   (NZ, NZ, ncoef, n_rnl)
+    pair_coefs: jax.Array         # spline:   (NZ, NZ, ncoef, n_pair)
+    rnl_Wnlq: jax.Array           # analytic: (NZ, NZ, n_rnl, n_q)
+    pair_Wnlq: jax.Array          # analytic: (NZ, NZ, n_pair, n_q)
+    polys_A: jax.Array            # analytic: (n_q,)
+    polys_B: jax.Array
+    polys_C: jax.Array
+    pair_polys_A: jax.Array
+    pair_polys_B: jax.Array
+    pair_polys_C: jax.Array
     rnl_transform: jax.Array      # (NZ, NZ, 7)
     pair_transform: jax.Array     # (NZ, NZ, 7)
     rnl_envelope: jax.Array       # (NZ, NZ, 5)
@@ -75,27 +88,45 @@ class ACEModel(eqx.Module):
     aa_specs: tuple                               # per-order (n_v, order) int arrays
     lmax: int = eqx.field(static=True)
     ysolid: bool = eqx.field(static=True)
+    radial_kind: str = eqx.field(static=True)        # "spline" | "analytic"
+    pair_radial_kind: str = eqx.field(static=True)
+    pair_envelope_kind: str = eqx.field(static=True)  # "ace1_poly1sr" | "poly1sr"
     rnl_grid: tuple = eqx.field(static=True)      # (x0, h, n)
     pair_grid: tuple = eqx.field(static=True)
     elements: tuple = eqx.field(static=True)
 
     # -------------------------------------------------- edge embeddings
+    def _radial_one(self, r, zi, zj, kind, trans, coefs, grid, Wnlq, ABC, env):
+        """One radial basis, either branch.  `env` is the already-evaluated
+        envelope; both branches multiply by it identically."""
+        x = agnesi_normalized(r, trans[zi, zj])
+        if kind == "spline":
+            x0, h, n = grid
+            val = jax.vmap(lambda xx, c: spline_eval(xx, c, x0, h, n))(x, coefs[zi, zj])
+        elif kind == "analytic":
+            P = poly_recursion(x, *ABC)                        # (E, n_q)
+            val = jnp.einsum("eq,enq->en", P, Wnlq[zi, zj])    # (E, n_rnl)
+        else:
+            raise ValueError(f"unknown radial_kind {kind!r}")
+        return val * env[:, None]
+
     def radial(self, rij, zi, zj):
         """Rnl and the pair radial for each edge.  rij (E,3), zi/zj (E,) species indices."""
         r = jnp.linalg.norm(rij, axis=-1)
-        tp = self.rnl_transform[zi, zj]
-        x = agnesi_normalized(r, tp)
-        env = env_poly2sx(x, self.rnl_envelope[zi, zj])
-        x0, h, n = self.rnl_grid
-        # gather the (ncoef, n_rnl) coefficient block for each edge's species pair
-        spl = jax.vmap(lambda xx, c: spline_eval(xx, c, x0, h, n))(x, self.rnl_coefs[zi, zj])
-        Rnl = spl * env[:, None]
-
-        xp = agnesi_normalized(r, self.pair_transform[zi, zj])
-        envp = env_ace1_poly1sr(r, self.pair_envelope[zi, zj])
-        px0, ph, pn = self.pair_grid
-        splp = jax.vmap(lambda xx, c: spline_eval(xx, c, px0, ph, pn))(xp, self.pair_coefs[zi, zj])
-        Rpair = splp * envp[:, None]
+        # many-body envelope is applied in transformed coordinates
+        env = env_poly2sx(agnesi_normalized(r, self.rnl_transform[zi, zj]),
+                          self.rnl_envelope[zi, zj])
+        Rnl = self._radial_one(r, zi, zj, self.radial_kind, self.rnl_transform,
+                               self.rnl_coefs, self.rnl_grid, self.rnl_Wnlq,
+                               (self.polys_A, self.polys_B, self.polys_C), env)
+        # pair envelope is a function of r, and its form differs by model family
+        pe = self.pair_envelope[zi, zj]
+        envp = (env_ace1_poly1sr(r, pe) if self.pair_envelope_kind == "ace1_poly1sr"
+                else env_poly1sr(r, pe))
+        Rpair = self._radial_one(r, zi, zj, self.pair_radial_kind, self.pair_transform,
+                                 self.pair_coefs, self.pair_grid, self.pair_Wnlq,
+                                 (self.pair_polys_A, self.pair_polys_B, self.pair_polys_C),
+                                 envp)
         return Rnl, Rpair
 
     def angular(self, rij):
@@ -105,12 +136,8 @@ class ACEModel(eqx.Module):
         #
         # Pure JAX, not sphericart-jax: the latter lowers to an FFI custom call,
         # which the LAMMPS bundle would then have to resolve at run time.
-        if self.ysolid:
-            raise NotImplementedError(
-                "solid harmonics are not implemented: ace1_model uses "
-                "Ytype=:spherical.  ace_model's :solid default would need the "
-                "r^l scaling and its own normalisation.")
-        return real_spherical_harmonics(rij, self.lmax)
+        return (real_solid_harmonics(rij, self.lmax) if self.ysolid
+                else real_spherical_harmonics(rij, self.lmax))
 
     # -------------------------------------------------- many-body
     def edge_features(self, rij, zi, zj):

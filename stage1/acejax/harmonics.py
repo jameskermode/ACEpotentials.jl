@@ -8,9 +8,9 @@ compiled kernels only live inside the exporting process.  A stock-HLO
 implementation avoids that machinery entirely, and drops the `sphericart-jax`
 pin that forces jax==0.10.1 (the LAMMPS venv runs 0.11.1).
 
-Only the SPHERICAL convention is implemented: `ace1_model` uses
-`Ytype = :spherical` (ace1_compat.jl:407), and the analytic branch is Stage 2's
-problem.
+Both conventions are implemented: `ace1_model` uses `Ytype = :spherical`
+(ace1_compat.jl:407) while `ace_model` defaults to `:solid`
+(ace_heuristics.jl:149).
 
 Convention (matching SpheriCart / P4ML `real_sphericalharmonics(L;
 normalisation = :L2)`), with u = z/r and (x + iy)^m = A_m + i B_m:
@@ -22,6 +22,12 @@ normalisation = :L2)`), with u = z/r and (x + iy)^m = A_m + i B_m:
 sin^m(theta) factor out against A_m/B_m -- which carry s^m -- removes the
 removable singularity on the z axis.  No Condon-Shortley phase, matching
 SpheriCart.
+
+Solid harmonics are r^l * Y_lm (verified against sphericart to 7e-15).  Rather
+than computing the spherical form and multiplying, the two differ only in the
+radial power: r^-|m| for spherical, r^(l-|m|) for solid.  Since l >= |m| the
+solid branch involves NO division at all, so it is the better-conditioned of
+the two.
 
 Storage order is SpheriCart's: index l*l + l + m, m running -l..l.
 """
@@ -37,11 +43,8 @@ def _norm(l, m):
                            + math.lgamma(l - m + 1) - math.lgamma(l + m + 1)))
 
 
-def real_spherical_harmonics(xyz, l_max):
-    """Real spherical harmonics for `xyz` of shape (..., 3).
-
-    Returns (..., (l_max+1)^2), ordered l*l + l + m.
-    """
+def _harmonics(xyz, l_max, solid):
+    """Shared core; `solid` selects the radial power r^(l-|m|) vs r^-|m|."""
     x, y, z = xyz[..., 0], xyz[..., 1], xyz[..., 2]
     r2 = x * x + y * y + z * z
     r = jnp.sqrt(jnp.where(r2 > 0, r2, 1.0))
@@ -70,11 +73,18 @@ def real_spherical_harmonics(xyz, l_max):
             Rbar[(l, m)] = ((2 * l - 1) * u * Rbar[(l - 1, m)]
                             - (l + m - 1) * Rbar[(l - 2, m)]) / (l - m)
 
-    # r^-m, built by repeated division so only one reciprocal is formed
-    inv_r = jnp.where(r2 > 0, 1.0 / r, 0.0)
-    inv_rm = [jnp.ones_like(x)]
-    for m in range(1, l_max + 1):
-        inv_rm.append(inv_rm[m - 1] * inv_r)
+    # powers of r: r^-m for spherical (one reciprocal), r^k for solid (no division)
+    if solid:
+        rpow = [jnp.ones_like(x)]
+        for k in range(1, l_max + 1):
+            rpow.append(rpow[k - 1] * r)
+        radial = lambda l, am: rpow[l - am]
+    else:
+        inv_r = jnp.where(r2 > 0, 1.0 / r, 0.0)
+        inv_rm = [jnp.ones_like(x)]
+        for m in range(1, l_max + 1):
+            inv_rm.append(inv_rm[m - 1] * inv_r)
+        radial = lambda l, am: inv_rm[am]
 
     root2 = math.sqrt(2.0)
     out = [None] * ((l_max + 1) ** 2)
@@ -83,5 +93,15 @@ def real_spherical_harmonics(xyz, l_max):
             am = abs(m)
             c = _norm(l, am) * (root2 if m != 0 else 1.0)
             ang = A[am] if m >= 0 else B[am]
-            out[l * l + l + m] = c * Rbar[(l, am)] * ang * inv_rm[am]
+            out[l * l + l + m] = c * Rbar[(l, am)] * ang * radial(l, am)
     return jnp.stack(out, axis=-1)
+
+
+def real_spherical_harmonics(xyz, l_max):
+    """Real spherical harmonics, (..., 3) -> (..., (l_max+1)^2), order l*l+l+m."""
+    return _harmonics(xyz, l_max, solid=False)
+
+
+def real_solid_harmonics(xyz, l_max):
+    """Real solid harmonics r^l * Y_lm, same shape and ordering."""
+    return _harmonics(xyz, l_max, solid=True)

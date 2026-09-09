@@ -19,14 +19,12 @@ import jax.numpy as jnp
 
 from acejax import highest_precision, load
 
-NPZ = pathlib.Path(__file__).parent.parent / "si_fitted.npz"
-pytestmark = pytest.mark.skipif(not NPZ.exists(), reason="run export_model.jl first")
 TOL = 1e-10
 
 
-@pytest.fixture(scope="module")
-def case():
-    model, meta, z = load(NPZ)
+@pytest.fixture
+def case(npz):
+    model, meta, z = load(npz)
     n_nodes = int(z["test_pos"].shape[1])
     send = jnp.asarray(z["test_edge_i"], jnp.int32)      # centre atom (0-based)
     recv = jnp.asarray(z["test_edge_j"], jnp.int32)

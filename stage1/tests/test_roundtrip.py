@@ -17,13 +17,9 @@ from acejax import load
 from acejax.radial import (agnesi_normalized, env_ace1_poly1sr, env_poly2sx,
                            spline_eval)
 
-NPZ = pathlib.Path(__file__).parent.parent / "si_fitted.npz"
-pytestmark = pytest.mark.skipif(not NPZ.exists(), reason="run export_model.jl first")
-
-
-@pytest.fixture(scope="module")
-def loaded():
-    return load(NPZ)
+@pytest.fixture
+def loaded(npz):
+    return load(npz)
 
 
 def test_orientation(loaded):
@@ -32,7 +28,15 @@ def test_orientation(loaded):
     assert model.WB.shape == (meta["n_B"], NZ)
     assert model.Wpair.shape == (meta["n_pair"], NZ)
     assert model.A2B.shape == (meta["n_B"], meta["n_AA"])
-    assert model.rnl_coefs.shape == (NZ, NZ, meta["rnl_spline"]["ncoef"], meta["n_rnl"])
+    # the radial branch is per-basis, so check whichever one this model populated
+    if meta["radial_kind"] == "spline":
+        assert model.rnl_coefs.shape == (NZ, NZ, meta["rnl_spline"]["ncoef"], meta["n_rnl"])
+    else:
+        n_q = model.polys_A.shape[0]
+        assert model.rnl_Wnlq.shape == (NZ, NZ, meta["n_rnl"], n_q)
+        assert model.polys_B.shape == (n_q,) and model.polys_C.shape == (n_q,)
+    if meta["pair_radial_kind"] == "spline":
+        assert model.pair_coefs.shape == (NZ, NZ, meta["pair_spline"]["ncoef"], meta["n_pair"])
     assert z["probe_Rnl"].shape == (len(z["probe_r"]), meta["n_rnl"])
     assert z["test_pos"].shape[0] == 3 and z["test_edge_rij"].shape[0] == 3
 
@@ -42,6 +46,18 @@ def test_probe_transform(loaded):
     r = jnp.asarray(z["probe_r"])
     x = agnesi_normalized(r, model.rnl_transform[0, 0])
     assert np.max(np.abs(np.asarray(x) - z["probe_x"])) < 1e-14
+
+
+def test_branch_flags_are_consistent(loaded):
+    """The flags actually select what they claim; a silently wrong branch here
+    would still produce plausible numbers."""
+    model, meta, z = loaded
+    assert meta["radial_kind"] in ("spline", "analytic")
+    assert meta["pair_radial_kind"] in ("spline", "analytic")
+    assert model.radial_kind == meta["radial_kind"]
+    assert model.pair_radial_kind == meta["pair_radial_kind"]
+    assert model.ysolid == (meta["ybasis_kind"] == "real_solidharmonics")
+    assert model.pair_envelope_kind == meta["pair_envelope_kind"]
 
 
 def test_probe_envelope(loaded):

@@ -14,15 +14,34 @@
 
 using ACEpotentials, NPZ, JSON, StaticArrays, LinearAlgebra, Random, Printf
 using AtomsCalculators, ACEfit
+using Lux
 using LazyArtifacts, ExtXYZ, AtomsBase, Unitful
 M = ACEpotentials.Models
 
-const OUT = length(ARGS) >= 1 ? ARGS[1] : joinpath(@__DIR__, "si_fitted.npz")
+# usage: export_model.jl [out.npz] [ace1|ace]
+const OUT  = length(ARGS) >= 1 ? ARGS[1] : joinpath(@__DIR__, "si_fitted.npz")
+const KIND = length(ARGS) >= 2 ? ARGS[2] : "ace1"
+@assert KIND in ("ace1", "ace") "model kind must be ace1 or ace"
 
 # ---------------------------------------------------------------- fit
 elements = [:Si]; order = 3; totaldegree = 10
-@info "building ace1_model(elements=$elements, order=$order, totaldegree=$totaldegree)"
-model = ace1_model(elements = elements, order = order, totaldegree = totaldegree)
+if KIND == "ace1"
+    @info "building ace1_model(elements=$elements, order=$order, totaldegree=$totaldegree)"
+    model = ace1_model(elements = elements, order = order, totaldegree = totaldegree)
+else
+    # ace_model: LEARNABLE (analytic) rbasis, solid harmonics.  Its pair basis is
+    # still splined (ace_heuristics.jl:213), so the branches are per-basis.
+    @info "building ace_model(elements=$elements, order=$order, max_level=$totaldegree, Ytype=:solid)"
+    rcut0 = 5.5
+    ri = M._default_rin0cuts(tuple(elements...))
+    ri = (x -> (rin = x.rin, r0 = x.r0, rcut = rcut0)).(ri)
+    raw = M.ace_model(; elements = tuple(elements...), order = order, Ytype = :solid,
+                      level = M.TotalDegree(), max_level = totaldegree, maxl = 6,
+                      pair_maxn = totaldegree, rin0cuts = ri,
+                      init_WB = :glorot_normal, init_Wpair = :glorot_normal)
+    ps0, st0 = Lux.setup(MersenneTwister(1234), raw)
+    model = M.ACEPotential(raw, ps0, st0)
+end
 
 @info "fitting on Si_tiny with acefit!"
 data = ACEpotentials.example_dataset("Si_tiny").train
@@ -57,8 +76,22 @@ function spline_arrays(basis)
     return coefs, Float64(first(rng)), Float64(step(rng)), length(rng)
 end
 
-rnl_coefs, rnl_x0, rnl_h, rnl_n = spline_arrays(m.rbasis)
-pair_coefs, pair_x0, pair_h, pair_n = spline_arrays(m.pairbasis)
+_is_spline(b) = b isa M.SplineRnlrzzBasis
+rkind  = _is_spline(m.rbasis)    ? "spline" : "analytic"
+pkind  = _is_spline(m.pairbasis) ? "spline" : "analytic"
+@info "radial branches: rbasis=$rkind pairbasis=$pkind"
+
+# `Wnlq` stays a live parameter for the analytic branch -- Stage 2 needs it
+# trainable, and splines are not differentiable w.r.t. what generated them.
+function analytic_arrays(basis, ps_b)
+    NZ = length(basis._i2z)
+    W = zeros(NZ, NZ, length(basis.spec), length(basis.polys))
+    for iz = 1:NZ, jz = 1:NZ
+        W[iz, jz, :, :] = ps_b.Wnlq[:, :, iz, jz]
+    end
+    rs = basis.polys.refstate
+    return W, collect(rs.A), collect(rs.B), collect(rs.C)
+end
 
 # ---------------------------------------------------------------- transforms
 # NormalizedTransform(GeneralizedAgnesiTransform):
@@ -88,14 +121,28 @@ function env2sx_params(basis)
     end
     P
 end
+# ace1_model's pair basis uses ACE1_PolyEnvelope1sR (rcut, r0, p);
+# ace_model's uses PolyEnvelope1sR (rcut, p) -- a different formula, not just
+# different parameters.
 function env1sr_params(basis)
-    NZ = length(basis._i2z); P = zeros(NZ, NZ, 3)
-    for iz = 1:NZ, jz = 1:NZ
-        e = basis.envelopes[iz, jz]
-        @assert e isa M.ACE1_PolyEnvelope1sR "unsupported pair envelope $(typeof(e))"
-        P[iz, jz, :] = [e.rcut, e.r0, e.p]
+    NZ = length(basis._i2z)
+    e1 = basis.envelopes[1, 1]
+    if e1 isa M.ACE1_PolyEnvelope1sR
+        P = zeros(NZ, NZ, 3)
+        for iz = 1:NZ, jz = 1:NZ
+            e = basis.envelopes[iz, jz]
+            P[iz, jz, :] = [e.rcut, e.r0, e.p]
+        end
+        return P, "ace1_poly1sr"
+    elseif e1 isa M.PolyEnvelope1sR
+        P = zeros(NZ, NZ, 2)
+        for iz = 1:NZ, jz = 1:NZ
+            e = basis.envelopes[iz, jz]
+            P[iz, jz, :] = [e.rcut, e.p]
+        end
+        return P, "poly1sr"
     end
-    P
+    error("unsupported pair envelope $(typeof(e1))")
 end
 
 # ---------------------------------------------------------------- tensor
@@ -112,7 +159,9 @@ pair_rcuts = [m.pairbasis.rin0cuts[iz, jz].rcut for iz = 1:NZ, jz = 1:NZ]
 # WB / Wpair, and E0
 WB = Matrix(ps.WB)                                  # (n_B, NZ)
 Wpair = Matrix(ps.Wpair)                            # (n_pair, NZ)
-E0 = [Float64(m.Vref.E0[z]) for z in i2z]
+# ace_model may carry no Vref; treat that as zero one-body energies
+E0 = (m.Vref === nothing) ? zeros(length(i2z)) :
+     [Float64(get(m.Vref.E0, z, 0.0)) for z in i2z]
 
 # ---------------------------------------------------------------- probe values
 # Per-stage reference values so a mismatch localises to a stage rather than
@@ -166,6 +215,25 @@ test_pbc = Int32[Bool(b) for b in AtomsBase.periodicity(sys)]
 @printf("  virial trace = %.6f eV,  |V - V'| = %.2e (symmetry check)\n",
         test_V[1,1]+test_V[2,2]+test_V[3,3], maximum(abs.(test_V .- test_V')))
 
+# ---------------------------------------------------------------- branch data
+rnl_coefs = rnl_W = rnl_pA = rnl_pB = rnl_pC = nothing
+rnl_spl_meta = nothing
+if rkind == "spline"
+    rnl_coefs, rx0, rh, rn = spline_arrays(m.rbasis)
+    rnl_spl_meta = Dict("x0"=>rx0, "h"=>rh, "n"=>rn, "ncoef"=>size(rnl_coefs,3))
+else
+    rnl_W, rnl_pA, rnl_pB, rnl_pC = analytic_arrays(m.rbasis, ps.rbasis)
+end
+pair_coefs = pair_W = pair_pA = pair_pB = pair_pC = nothing
+pair_spl_meta = nothing
+if pkind == "spline"
+    pair_coefs, px0, ph, pn = spline_arrays(m.pairbasis)
+    pair_spl_meta = Dict("x0"=>px0, "h"=>ph, "n"=>pn, "ncoef"=>size(pair_coefs,3))
+else
+    pair_W, pair_pA, pair_pB, pair_pC = analytic_arrays(m.pairbasis, ps.pairbasis)
+end
+pair_env, pair_env_kind = env1sr_params(m.pairbasis)
+
 # ---------------------------------------------------------------- meta
 meta = Dict(
   "schema_version" => 1,
@@ -174,10 +242,10 @@ meta = Dict(
   "julia_version" => string(VERSION),
   "elements" => i2z,
   "order" => order, "totaldegree" => totaldegree,
-  "radial_kind" => "spline",              # Stage 2 may emit "analytic"
+  "radial_kind" => rkind, "pair_radial_kind" => pkind,
   "transform_kind" => "agnesi_normalized",
   "envelope_kind" => "poly2sx",
-  "pair_envelope_kind" => "ace1_poly1sr",
+  "pair_envelope_kind" => pair_env_kind,
   "ybasis_kind" => (occursin("Solid", string(typeof(m.ybasis.scbasis))) ?
                     "real_solidharmonics" : "real_sphericalharmonics"),
   "lmax" => Int(isqrt(length(m.ybasis)) - 1),
@@ -186,20 +254,17 @@ meta = Dict(
   "n_AA" => sum(length, aa_specs), "n_B" => size(A2B, 1),
   "aa_orders" => [length(s[1]) for s in aa_specs],
   "aa_lens" => [length(s) for s in aa_specs],
-  "rnl_spline" => Dict("x0"=>rnl_x0, "h"=>rnl_h, "n"=>rnl_n, "ncoef"=>size(rnl_coefs,3)),
-  "pair_spline" => Dict("x0"=>pair_x0, "h"=>pair_h, "n"=>pair_n, "ncoef"=>size(pair_coefs,3)),
+  "rnl_spline" => rnl_spl_meta, "pair_spline" => pair_spl_meta,
   "rcut" => maximum(rcuts),
   "nnll" => [[ [b.n, b.l] for b in bb ] for bb in M.get_nnll_spec(m.tensor)],
 )
 
 D = Dict{String, Any}(
   "meta_json" => Vector{UInt8}(JSON.json(meta)),
-  "rnl_spline_coefs" => rnl_coefs,          # (NZ,NZ,ncoef,n_rnl)
-  "pair_spline_coefs" => pair_coefs,        # (NZ,NZ,ncoef,n_pair)
   "rnl_transform" => transform_params(m.rbasis),      # (NZ,NZ,7)
   "pair_transform" => transform_params(m.pairbasis),
   "rnl_envelope" => env2sx_params(m.rbasis),          # (NZ,NZ,5)
-  "pair_envelope" => env1sr_params(m.pairbasis),      # (NZ,NZ,3)
+  "pair_envelope" => pair_env,
   "rcuts" => rcuts, "pair_rcuts" => pair_rcuts,
   "aspec_r" => aspec_r, "aspec_y" => aspec_y,
   "A2B" => A2B,                                        # (n_B, n_AA) dense
@@ -215,6 +280,19 @@ D = Dict{String, Any}(
   "test_edge_i" => edge_i, "test_edge_j" => edge_j, "test_edge_rij" => test_edge_rij,
   "test_site_E" => site_E, "test_E" => [test_E], "test_F" => test_F,
 )
+# only the populated radial branch is written; the loader defaults the other
+if rkind == "spline"
+    D["rnl_spline_coefs"] = rnl_coefs
+else
+    D["rnl_Wnlq"] = rnl_W; D["polys_A"] = rnl_pA; D["polys_B"] = rnl_pB; D["polys_C"] = rnl_pC
+end
+if pkind == "spline"
+    D["pair_spline_coefs"] = pair_coefs
+else
+    D["pair_Wnlq"] = pair_W
+    D["pair_polys_A"] = pair_pA; D["pair_polys_B"] = pair_pB; D["pair_polys_C"] = pair_pC
+end
+
 for (k, s) in enumerate(aa_specs)
     D["aa_spec_$(k)"] = Int32.(reduce(hcat, [collect(t) for t in s])' .- Int32(1))  # (n_v, order) 0-based
 end

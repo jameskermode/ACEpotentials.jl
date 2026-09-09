@@ -6,7 +6,24 @@ and reproduces its site energies and forces in JAX.
 
 ## Status
 
-Phases 1, 3 and 4 complete. Model fitted with `acefit!` on `Si_tiny` (BLR),
+Phases 1, 3, 4, 6 and 7 complete.
+
+**Phase 7 gate** — a fitted `ace_model` (analytic radials, solid harmonics)
+reaches the same tolerances as `ace1_model`:
+
+| quantity | `ace1_model` (spline, spherical) | `ace_model` (analytic, solid) |
+|---|---|---|
+| site energies | 3.70e-13 | 2.56e-13 |
+| total energy | 3.64e-12 | 1.82e-12 |
+| forces (edge list) | 1.25e-13 | 1.79e-13 |
+| E / F / V from ASE | 1.82e-12 / 1.25e-13 / 9.81e-13 | 1.82e-12 / 5.47e-13 / 2.26e-12 |
+| dense vs sparse pooling | 8.53e-14 | 5.68e-14 |
+
+Per-stage probes for the analytic branch: Rnl 3.18e-15, Rpair 2.96e-14 (splined),
+Ylm 6.25e-13 (solid). Every test is parametrised over both families, so neither
+branch can rot silently.
+
+Phases 1, 3 and 4 detail. Model fitted with `acefit!` on `Si_tiny` (BLR),
 64-atom rattled Si, 2842 edges, f64.
 
 **Phase 1 gate** — core against a Julia-supplied edge list:
@@ -39,11 +56,13 @@ flip**: `V = -dE/dε`, matching `site_virial = -sum(dv_i * r_i')`
 ## Run
 
 ```bash
-julia --project=stage1 stage1/export_model.jl     # fit + export -> si_fitted.npz
+julia --project=stage1 stage1/export_model.jl stage1/si_fitted.npz    ace1
+julia --project=stage1 stage1/export_model.jl stage1/si_ace_model.npz ace
 cd stage1 && uv run pytest tests/ -q -s
 ```
 
-`si_fitted.npz` is committed (0.3 MB) so the Python tests run without Julia.
+Both npz files are committed (0.3 MB each) so the Python tests run without
+Julia.
 
 ## Layout
 
@@ -61,6 +80,8 @@ cd stage1 && uv run pytest tests/ -q -s
 | `tests/test_padding.py` | padded edges do not perturb or NaN the gradient |
 | `tests/test_efv.py` | the Phase 3–4 gate: nlist, E/F/V, pooling layouts, ASE |
 | `tests/test_harmonics.py` | harmonics vs sphericart + no-custom-call guarantee |
+| `tests/conftest.py` | parametrises every test over both model families |
+| `lammps/` | Phase 6 bundle export, deck and gate (see its FINDINGS) |
 
 ## Schema (npz, `schema_version` 1)
 
@@ -85,9 +106,13 @@ probe_*             per-stage reference values (transform, envelope, Rnl, Rpair,
 test_*              structure, edges, per-site energies, total energy, forces
 ```
 
-`radial_kind` is `"spline"`. The analytic branch (`Wnlq` + poly recursion) is
-reserved for Stage 2, where a trainable `Wnlq` is required; the loader raises
-`NotImplementedError` rather than silently mishandling it.
+`radial_kind` and `pair_radial_kind` are each `"spline"` or `"analytic"`, and
+they are **independent**: `ace_model` has an analytic `rbasis` but a splined
+pair basis, because `ace_heuristics.jl:213` splinifies the latter. Likewise
+`pair_envelope_kind` distinguishes `ACE1_PolyEnvelope1sR` (`ace1_model`) from
+`PolyEnvelope1sR` (`ace_model`) -- different formulas, not just different
+parameters. The analytic branch carries a live trainable `Wnlq` plus the three
+recursion vectors, which is the path Stage 2 needs.
 
 ## Decisions worth not re-litigating
 

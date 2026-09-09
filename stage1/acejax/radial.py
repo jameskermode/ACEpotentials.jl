@@ -74,3 +74,28 @@ def spline_eval(x, coefs, x0, h, n):
     idx = ix[..., None] + jnp.arange(-1, 3)       # (..., 4)
     g = coefs[idx]                                # (..., 4, F)
     return jnp.einsum("...k,...kf->...f", w, g)
+
+
+def env_poly1sr(r, params):
+    """PolyEnvelope1sR; params = (rcut, p).  ((r/rcut)^-p - 1)(1 - r/rcut), 0 beyond rcut.
+
+    Distinct from ACE1_PolyEnvelope1sR: `ace_model`'s pair basis uses this one,
+    `ace1_model`'s uses the ACE1 form.
+    """
+    rcut, p = params[..., 0], params[..., 1]
+    inside = r < rcut
+    s = jnp.where(inside & (r > 0), r / rcut, 1.0)
+    return jnp.where(inside, (s ** (-p) - 1.0) * (1.0 - s), 0.0)
+
+
+def poly_recursion(y, A, B, C):
+    """OrthPolyBasis1D3T: P0 = A0, P1 = A1 y + B1, Pk = (Ak y + Bk) P_{k-1} + Ck P_{k-2}.
+
+    Three coefficient vectors are the whole basis, which is why the analytic
+    branch exports so little.  Validated against Julia in Phase 0 at 1.4e-15.
+    """
+    n = A.shape[0]
+    out = [jnp.broadcast_to(A[0], y.shape), A[1] * y + B[1]]
+    for k in range(2, n):
+        out.append((A[k] * y + B[k]) * out[k - 1] + C[k] * out[k - 2])
+    return jnp.stack(out, axis=-1)                       # (..., n_polys)

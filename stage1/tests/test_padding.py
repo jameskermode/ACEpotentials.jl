@@ -17,14 +17,9 @@ import jax.numpy as jnp
 
 from acejax import highest_precision, load
 
-NPZ = pathlib.Path(__file__).parent.parent / "si_fitted.npz"
-pytestmark = pytest.mark.skipif(not NPZ.exists(), reason="run export_model.jl first")
-
-
-@pytest.fixture(scope="module")
-def case():
-    model, meta, z = load(NPZ)
-    return model, meta, z
+@pytest.fixture
+def case(npz):
+    return load(npz)
 
 
 def _padded(model, z, n_pad, pad_vec):
