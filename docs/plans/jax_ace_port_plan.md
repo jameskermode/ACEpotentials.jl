@@ -455,10 +455,23 @@ export as custom-call targets resolved from `LAMMPS_JAX_FFI_HANDLERS`, which is 
 `contrib/ffi-replay` exists. A pure-JAX ACE descriptor is segment_sum, gather, prod
 and matmul — all stock HLO. Export with `custom_call_targets=()` and skip it.
 
-### Build environment (already working on `lestrade`)
+### Build environment
 
-No build needed — a working LAMMPS + plugin exists and has been used to validate
-EAM bundles against native `eam/alloy`:
+A working LAMMPS + plugin build exists and has been used to validate EAM bundles
+against native `eam/alloy`. **But it does not run on `lestrade`.**
+
+`lmp -h` — no deck, no bundle — dies with `Illegal instruction` (SIGILL, exit
+132). `liblammps.so.0` contains ~1800 `vmovdqu8` and other AVX-512 instructions;
+the build is tagged `SKX` (Skylake-X, which has AVX-512) while lestrade is an
+**i9-14900K** (Raptor Lake, no AVX-512 at all). The build targets a different
+host — the earlier EAM benchmark runs in `run/` must have been made there.
+The Kokkos GPU arch is likewise `AMPERE86` against lestrade's Ada (8.9).
+
+Two ways forward: run on the machine the build targets, or rebuild on the run
+host — `scripts/build_lammps_jax.sh` auto-detects both CPU and GPU arch, so it
+should produce a correct build with no edits.
+
+Paths as built:
 
 | item | path |
 |---|---|
@@ -664,7 +677,7 @@ than they are today. Stopping there is a good outcome, not a failure.
 | Silent basis-convention drift (spherical vs solid) | 1 | Medium | Export `ybasis_kind`; keep per-stage probe values |
 | TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
 | XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
-| ~~LAMMPS build environment~~ | 1 | Resolved | Working build on lestrade; see the build-environment table |
+| LAMMPS build/run host mismatch | 1 | **Open** | Build is SKX+AMPERE86; lestrade is Raptor Lake (no AVX-512) + Ada. Run on the target host or rebuild |
 | `sphericart-jax` emits a custom call | 1 | Medium | Implement spherical harmonics in pure JAX; also drops the jax 0.10.1 pin |
 | ~~NaN gradients from padded edges~~ | 1 | Resolved | Phase 1 (sparse) and Phase 4 (dense `neighbour_matrix` zero slots); pad at the cutoff, regression tests both layouts |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
