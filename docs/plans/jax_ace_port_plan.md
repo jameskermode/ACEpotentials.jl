@@ -623,7 +623,7 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 5. Validation harness (milestones 1–4) | 2 |
 | 6. LAMMPS export + integration testing | 4–5 |
 | ~~7. `ace_model` support: analytic radials + solid harmonics~~ ✅ `47aa6837` | 2 |
-| 8. Throughput benchmark vs Kokkos (after the Phase 6 gate) | 1 |
+| 8. Throughput benchmark vs Kokkos ⚠️ partly blocked (`59f56d90`) | 1 |
 | 9. Usable ASE calculator + descriptor access | 1.5 |
 | 10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI | 2.5–3 |
 
@@ -796,6 +796,40 @@ unknowns through a C++ plugin boundary.
 works, and the marginal cost and value of Stage 2 are both much better understood
 than they are today. Stopping there is a good outcome, not a failure.
 
+## Open issues found in Phase 8
+
+Two bugs, both bounding what Stage 1 can currently claim.
+
+**1. `jax/kk` aborts beyond ~50 MD steps** with `cudaErrorIllegalAddress`.
+216 atoms: 20 steps OK, 50 OK, **100 / 200 / 300 abort**. Not capacity — tripling
+`max_atoms` and `max_edges` does not help; what changes between 50 and 100 steps
+is neighbour-list rebuilds, so the repack path after reneighbouring is the
+suspect. The plugin does not validate capacity at run time, so a genuine overflow
+would present identically.
+
+This retroactively explains the Phase 6 NVE run that "did not finish in the
+timeout" — it was almost certainly aborting, not running slowly. **So Stage 1's
+LAMMPS path is verified for single-point evaluation and short runs, not for
+production MD.** Energy conservation remains unestablished, and cannot be
+established until this is fixed.
+
+**2. Shared-library shadowing invalidates rebuilds silently.**
+`BUILD_SHARED_LIBS=ON` puts every style in `liblammps.so`, and the documented
+`LD_LIBRARY_PATH` recipe puts `$V/lib` first — so a newly built `lmp` silently
+loads the *old* library. `lmp -h` showed no pace styles and `pair_style pace`
+reported ML-PACE "not enabled" while CMake had reported
+`Enabled packages: KOKKOS;MANYBODY;ML-PACE;PLUGIN`. Anything benchmarked without
+noticing would have been the old binary. Worth raising upstream.
+
+**The `pace` comparator is blocked, one layer deeper than expected.** v0.6.12
+resolves, fits `Si_tiny`, and exports a yace whose **basis size matches exactly —
+110 = 110** against v0.10 at the same order, cutoff and element. But it will not
+load: v0.6 emits `radbasename: "ACE.jl"` with `splinenodalvals`, while upstream
+ICAMS libpace expects `ChebPow`/`radcoefficients` plus `deltaSplineBins` and
+`nradbasemax`. The `wcwitt` fork does carry `acejl_radial.cpp` and parses
+further, then fails on `map::at` — version skew between this ACEpotentials
+vintage and the fork's `main`.
+
 ## Risks
 
 | Risk | Stage | Severity | Mitigation |
@@ -803,6 +837,7 @@ than they are today. Stopping there is a good outcome, not a failure.
 | ~~Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort)~~ | 1 | Resolved | Phase 0: all intermediates clean to 1.4e-15 (GPU) / 5.1e-15 (CPU) |
 | ~~Splined radial export branch~~ | 1 | Resolved | Phase 1: 102 B-spline coeffs, 76 LOC, bit-for-bit with Julia |
 | Silent basis-convention drift (spherical vs solid) | 1 | Medium | Export `ybasis_kind`; keep per-stage probe values |
+| `jax/kk` aborts beyond ~50 MD steps | 1 | **High** | See Open issues; blocks production MD and energy-conservation checks |
 | TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
 | XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
 | ~~LAMMPS build/run host mismatch~~ | 1 | Resolved | Run host is `moriarty` (Xeon 4216 + A4500), not lestrade; `/home` and `/storage` shared, `/tmp` not |
