@@ -1,8 +1,9 @@
 # Plan: Minimal Python + JAX Port of the ETACE Descriptor and Linear Fit
 
-**Status**: 🚧 Stage 1 in progress. Phase 0 complete (all three gates resolved). Phase 1
-complete (`89901596`): a fitted `ace1_model` exports and reproduces in JAX to 1.6e-15 on
-site energies, 4.2e-14 on forces. Next: neighbour-list adapters and the ASE calculator.
+**Status**: 🚧 Stage 1 in progress. Phase 0 complete (all three gates resolved).
+Phases 1, 3 and 4 complete (`89901596`, `20282a30`): a fitted `ace1_model` exports and
+reproduces energy, forces **and virial** from an ASE `Atoms` object to ~1e-12, via
+`matscipy-neighbours`, with an ASE calculator. 17 tests. Remaining: LAMMPS export.
 Stage 1 (fit in Julia, evaluate in JAX + LAMMPS) is a supported stopping point.
 
 **Date**: 2026-09-09
@@ -412,6 +413,19 @@ def energy_fn(positions, species, graph) -> per_node_energy  # [max_atoms]
   the gradient goes NaN**.
 - Must be `jax.export`-traceable: no data-dependent Python control flow.
 
+**Simplification found in Phase 4: the virial needs no cell handling.** mace-jax
+applies strain to positions *and* cell and then recomputes edge shifts. But under
+a strain ε, `r → r + εr` and `cell → cell + ε·cell`, so
+
+```
+rij = r_j - r_i + S@cell  →  rij + ε(r_j - r_i + S@cell) = rij + ε·rij
+```
+
+The cell contributions cancel exactly and the whole thing reduces to
+`rij_def = rij + rij @ eps`. The virial is therefore a **pure function of edge
+vectors**, so the same code path serves LAMMPS, where there is no cell at all.
+This section needs no separate virial treatment.
+
 **Specific hazard.** The Agnesi transform divides
 (`1/(1 + a·s^pin/(1 + s^(pin-pcut)))`, `agnesi.jl:59`) and `r = ‖rij‖` is
 non-differentiable at zero. Padded edges have `rij = 0`, so a naive port yields NaN
@@ -498,9 +512,15 @@ port from drifting.
 **Stage 1**
 
 1. ~~**Descriptor** — site basis `𝔹` matches Julia to 1e-10~~ ✅ Phase 0: 1.4e-15
-2. ~~**Observables** — energy and forces from a *fitted* model match Julia~~
-   ✅ Phase 1 (`89901596`): site energies 1.6e-15, total energy exactly 0,
-   forces 4.2e-14. Virial still to do, with the neighbour-list adapters.
+2. ~~**Observables** — energy, forces and virial from a *fitted* model match
+   `AtomsCalculators.energy_forces_virial`~~ ✅ Phases 1/3/4: from an ASE `Atoms`
+   object with periodic images, energy 1.8e-12 (scale 1e4), forces 1.0e-13,
+   virial 6.6e-12 (scale 79). Dense and sparse pooling agree to 8.5e-14. The
+   neighbour list reproduces Julia's edge set exactly (2842 edges, same
+   `(i, rij)` multiset). Julia's convention is
+   `site_virial = -Σ dv_i * 𝐫_i'` (`AtomsCalculatorsUtilities
+   /sitepotentials/assembly.jl:4`); the symmetric-displacement result agrees
+   with no sign flip.
 3. **Export** — `pair_style jax/kk` energies match the Python calculator on the
    same configuration
 4. **End-to-end** — a Julia-fitted Si potential runs in LAMMPS and reproduces the
@@ -569,7 +589,7 @@ than they are today. Stopping there is a good outcome, not a failure.
 | TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
 | XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
 | LAMMPS build environment | 1 | Medium | Start the build in week 1, in parallel |
-| ~~NaN gradients from padded edges~~ | 1 | Resolved | Phase 1: pad at the cutoff, not zero (zero pad → 1500 non-finite grads); regression test |
+| ~~NaN gradients from padded edges~~ | 1 | Resolved | Phase 1 (sparse) and Phase 4 (dense `neighbour_matrix` zero slots); pad at the cutoff, regression tests both layouts |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
 | Padding tax (capacity ≫ typical) | 1 | Low | Bucket tightly |
 | matscipy-neighbours not on PyPI | 1 | Low | `pip install git+...`; in-house to fix |
