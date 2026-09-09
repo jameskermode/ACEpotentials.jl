@@ -1,0 +1,463 @@
+# Plan: Minimal Python + JAX Port of the ETACE Descriptor and Linear Fit
+
+**Status**: 📋 Design — not started. Phase 0 (performance spike) gates everything else.
+Stage 1 (fit in Julia, evaluate in JAX + LAMMPS) is a supported stopping point.
+
+**Date**: 2026-09-09
+
+**Branch**: TBD
+
+## Overview
+
+Port the core ETACE descriptor and linear-fit functionality to Python + JAX, using
+Equinox and the JAX ecosystem (lineax, optimistix). Targets GPU-accelerated
+evaluation, compatibility with `lammps-jax` for LAMMPS export, GPU fit assembly,
+and a path to non-linear fits.
+
+**The work splits into two stages, and Stage 1 is a legitimate place to stop.**
+Stage 1 fits in Julia and evaluates in JAX — which also buys LAMMPS. Stage 2 moves
+fitting into JAX as well. See "Staging" below.
+
+This is *not* a Python convenience wrapper. Because JAX supplies graph batching,
+autodiff and GPU as framework properties rather than as separate migrations, this
+port lands close to where Phases 1–4 of the Julia EquivariantTensors roadmap
+(see `CLAUDE.md`) are trying to get. It does not replace that work: Julia users
+still need it, and the port depends on Julia to *generate* the O3 coupling
+coefficients.
+
+### Goals
+
+**Stage 1 — fit in Julia, evaluate in JAX**
+
+- Site descriptor `𝔹` numerically equivalent to `ACEpotentials.ETModels`
+- Energy, forces and virial from a *fitted* Julia model, via `jax.grad`
+- GPU-ready throughout; `lammps-jax` export compatibility
+- Architecture that admits Stage 2 and non-linear fits without rework
+
+**Stage 2 — fit in JAX**
+
+- Energy / force / virial design-matrix assembly
+- Solve via `lineax`; smoothness priors preserved
+- Data loading, per-observation weights
+
+### Non-goals (explicitly out of scope)
+
+- L ≠ 0 equivariants (the `sparse_equivariant_tensors` LL path) — L = 0 only
+- Porting O3 coupling-coefficient generation (see "Export, don't port")
+- Committees, splinified radials, `fast_evaluator` (already broken in Julia)
+- ASP / LSQR solvers, repulsion restraints, ZBL
+- Non-linear *training* (architecture must permit it; implementation deferred)
+
+## Staging
+
+### Stage 1 — fit in Julia, evaluate in JAX (and LAMMPS)
+
+Fit with `acefit!` as today, export the *fitted* model, and evaluate it in JAX.
+This is a complete, useful deliverable on its own: GPU-accelerated MD in LAMMPS
+for ACE potentials fitted by the existing, trusted Julia pipeline.
+
+**What it needs:** the exporter, the descriptor forward pass, energy/forces/virial
+via `jax.grad`, the neighbour-list adapters, an ASE calculator, and the LAMMPS
+export.
+
+**What it does not need — and this is the point:**
+
+- No design-matrix assembly, so **the Jacobian problem disappears**. Forces are one
+  VJP over a scalar energy, ~2–3× the forward pass. The `jacrev` cost that
+  dominates the Stage 2 risk register simply does not arise.
+- No `lineax` / `optimistix` solvers, no smoothness priors, no dataset loading, no
+  per-observation weights, no training-shaped minibatching.
+- f64 matters much less: MD runs f32, so the GPU precision gate stops being a
+  blocker and becomes a note.
+
+Roughly **15–18 days**, against 22–27 for the full scope.
+
+### Stage 2 — fit in JAX
+
+Adds design-matrix assembly, priors, solvers and data loading. Justified when you
+want GPU-accelerated fit assembly over large datasets, or as the platform for
+non-linear fits.
+
+### Does Stage 1 foreclose anything?
+
+No, provided the three decisions below are respected from the start — they cost
+~0.5 day and are mostly discipline:
+
+| Decision | Stage 1 cost | Why it matters later |
+|---|---|---|
+| Keep `Wnlq` live, not folded into the spec | one `einsum` | Non-linear fits need it trainable |
+| Edge-vector core, not positions+cell | none (forced by LAMMPS anyway) | All three nlist paths share one core |
+| Fixed-capacity + mask everywhere | none (forced by export anyway) | Stage 2 training batches are the same idea |
+
+Bucketing is the one item Stage 1 exercises only partially: export needs a single
+fixed capacity, whereas training needs several buckets. That is an extension of the
+same mechanism, not a redesign.
+
+## Phase 0 — Performance spike (1–2 days, gating)
+
+Everything downstream assumes JAX is competitive for this workload. That
+assumption is unverified and cheap to test. **Do this first; the result may
+change the project's shape.**
+
+Measurements 1 and 2 gate Stage 1. Measurement 3 gates Stage 2 only — if you
+intend to stop at Stage 1, it is informational and the spike shrinks to ~1 day.
+
+Implement `A` → `AA` → `𝔹` for one fixed Si model (`ace1_model(elements=[:Si],
+order=3, totaldegree=10, rcut=5.5)`). No fitting, no export, no neighbour list —
+feed it a precomputed edge list from Julia. Measure against `benchmark/common.jl`
+on identical systems.
+
+### Measurements
+
+| # | Measurement | Julia baseline |
+|---|---|---|
+| 1 | Site descriptor, CPU, 512 atoms | `benchmark/bench_forces_regression.jl` |
+| 2 | Site descriptor, GPU, f32 **and** f64 | `benchmark/gpu_benchmark.jl` |
+| 3 | Design-matrix assembly: naive `vmap`-VJP **vs** hand-written JVP | `site_basis_jacobian` (`src/et_models/et_ace.jl:72`) |
+
+### Decision gates
+
+- **(3) decides whether the custom JVP is mandatory.** `jax.jacrev` of `𝔹` w.r.t.
+  positions costs `n_basis × forward` — with `n_basis` in the hundreds that is a
+  ~300× penalty over one force evaluation. Julia does not pay it: `ET._jacobian_X`
+  pushes `(Rnl, ∂Rnl)` and `(Ylm, ∂Ylm)` through together, applying the chain rule
+  at the edge-feature level, so all `n_basis` derivatives emerge from roughly one
+  pass. If the `vmap`-VJP is within ~3× of the JVP on GPU, ship it and defer the
+  custom rule; otherwise the ~100 LOC custom JVP moves onto the Stage 2 critical path.
+- **(2) decides the precision split** (Stage 1: a note; Stage 2: a blocker). f64 throughput is 1/32–1/64 of f32 on
+  consumer and workstation NVIDIA parts (only datacenter parts run 1/2). If f64
+  GPU is slower than f64 CPU, fit assembly stays on CPU and the GPU serves MD and
+  training in f32 only.
+- **(1) calibrates expectations.** The classic Julia path does 512 atoms of Si/O
+  order 2 in 18.3 ms single-threaded after the `_assemble_grad_ed!` fix. Matching
+  that on CPU is not expected and is not the project's case.
+
+### Prior evidence (favourable)
+
+`benchmark/FORCE_REGRESSION_FINDINGS.md` records that ET autograd forces cost
+**~2.1× their own energy evaluation** — the same regime `jax.grad` occupies. And
+the ET kernels are already written in JAX style: `sparsesymmprod_ka.jl` does a
+direct gather-product-write per basis function, batched over nodes, *without*
+using the subproduct-reuse DAG in `symmprod_dag.jl`. The comparison is therefore
+codegen and memory traffic, not algorithm.
+
+## Architecture
+
+### Core principle: the model takes edge vectors
+
+The descriptor core accepts **edge vectors + species + segment ids**. Never
+positions and a cell. Three adapters feed it:
+
+```
+matscipy-neighbours ─┐
+lammps-jax nlist ────┼──▶ (rij, zi, zj, segment_ids, mask) ──▶ ETACE core
+LAMMPS (via export) ─┘
+```
+
+This is forced by the `lammps-jax` contract, which has **no cell and no shift
+vectors** — ghost atoms carry periodicity. It also matches what ETACE already
+does: `ETGraph.edge_data` holds `𝐫` per edge (`src/et_models/convert.jl:71-77`,
+`xij = (𝐫, z0, z1)`). Preserve that factoring; it is what makes all three paths
+work from one core.
+
+Consequence: the strain-derivative scaffolding for virials lives in the *fitting*
+adapter, not the core.
+
+### Components
+
+| Stage | Component | Julia source | Python | Est. LOC |
+|---|---|---|---|---|
+| 1 | Model export (fitted) | new (Julia side) | — | ~150 |
+| 1 | Loader + spec dataclasses | — | `specs.py` | ~150 |
+| 1 | Agnesi transform + envelope | `ET/src/transforms/agnesi.jl` | `radial.py` | ~30 |
+| 1 | Orthogonal polys (3-term rec.) | `P4ML/src/orthopolybasis.jl` | `radial.py` | ~20 |
+| 1 | Solid harmonics | SpheriCart via P4ML | `sphericart` JAX binding | dep |
+| 1 | `Rnl = SelectLinL(env · P)` | `src/models/Rnl_learnable.jl` (296) | `radial.py` | ~30 |
+| 1 | `A` pooling | `ET/src/ace/sparseprodpool.jl` (693) | `pool.py` | ~40 |
+| 1 | `AA` sparse symm. product | `ET/src/ace/sparsesymmprod.jl` (426) | `ace.py` | ~25 |
+| 1 | `𝔹 = A2B · AA` | sparse matmul | `ace.py` | ~5 |
+| 1 | Pair basis + one-body | `et_pair.jl`, `onebody.jl` | `pair.py` | ~50 |
+| 1 | Neighbour-list adapters | `ET.Atoms.interaction_graph` | `nlist.py` | ~80 |
+| 1 | Energy/forces/virial + ASE calculator | `et_calculators.jl:155` | `calculator.py` | ~80 |
+| 1 | LAMMPS export adapter | — | `lammps.py` | ~100 |
+| 2 | E/F/V design matrix | `et_calculators.jl:246-330` | `assemble.py` | ~120 |
+| 2 | Smoothness priors | `src/models/smoothness_priors.jl` (134) | `priors.py` | ~40 |
+| 2 | Solvers | ACEfit (1162) | `solve.py` (lineax/optimistix) | ~150 |
+| 2 | Data loading | `src/atoms_data.jl` (457) | adapted from mace-jax | ~120 |
+
+Roughly 750 LOC of core Python for Stage 1, ~1200 for both.
+
+### Export, don't port: the coupling coefficients
+
+`ET.O3` (`O3.jl` 454 LOC + `O3_utils.jl` + `PartialWaveFunctions` + `RepLieGroups`)
+computes generalized Clebsch–Gordan coefficients, real-SH transformations, and
+rank-N permutation-invariant pruning. Porting it is 2–4 weeks with a long tail of
+convention bugs. **Do not.**
+
+Everything the model needs is plain data. Write a Julia exporter (~150 LOC, 1–2
+days) emitting JSON or npz. For Stage 1 it carries the *fitted* coefficients, so
+the same schema serves both stages — Stage 2 simply ignores the fitted `W`:
+
+- element list, `E0`s
+- Agnesi params per species pair (6 floats each, from `ET.agnesi_params`)
+- poly recursion coefficients `A, B, C` (`OrthPolyBasis1D3T` is three vectors)
+- `Rnl_spec`, `Ylm_spec`, `Aspec` (index pairs), `𝔸spec` (index tuples by order)
+- `A2Bmap` as sparse rows/cols/vals
+- `Wnlq`, readout `W`, `nnll` spec (for priors)
+- pair-basis parameters, `rcut`
+
+**`mace_jax/tools/cg.py::U_matrix_real` is not a shortcut.** It builds coupling in
+the e3nn `Irreps` layout (channel-wise, irrep-decomposed), not ACE's sparse
+`A2Bmap` over an explicit (n,l,m) product spec with PI pruning. Conventions differ
+— `cg.py:31-33` documents a global sign discrepancy in e3nn-jax's real CG basis,
+which is why they fall back to torch's `e3nn.o3.wigner_3j`. It also drags in torch
+and cuequivariance. Keep it as an independent cross-check only.
+
+### Neighbour list
+
+**`libAtoms/matscipy-neighbours`** (MIT) is the primary backend: drop-in `"ijdDS"`
+API, OpenMP CPU core, CUDA/HIP GPU backend, zero-copy to JAX via DLPack with
+`array_namespace=jax.numpy`. Three properties matter here:
+
+- returns `D == r[j] - r[i] + S @ cell` directly — the edge vector the core wants
+- pairs sorted by `i` — matches `ETGraph`'s requirement (`ET/src/embed/graph.jl:26`)
+  and enables `segment_sum(..., indices_are_sorted=True)`
+- `neighbour_matrix` gives the dense `(n, K)` format with a `count` mask
+
+That last point is a genuine alignment: ET's internal layout is already
+`(maxneigs, nnodes, nfeat)` (`reshape_embedding`; `sparseprodpool_ka.jl` documents
+`BB[t] = #neighbours × #nodes × #features`). In the dense format the `A` pooling is
+a masked sum over the neighbour axis with **no scatter at all**.
+
+But `lammps-jax` is sparse (senders/receivers/edge_mask). So **write the pooling as
+one swappable function** over `(edge_features, segment_ids_or_counts, mask)` with
+dense and sparse implementations. Everything downstream — `AA`, `A2B`, readout — is
+per-node and layout-agnostic.
+
+Install friction: version 0.1.0, repo-only, not on PyPI. CPU via scikit-build-core;
+GPU is a separate documented build (`-Dcmake.define.ENABLE_CUDA=ON`).
+
+### Framework
+
+Equinox. `eqx.Module` for `ETACE`, `RadialBasis`, `PairModel`, `OneBody`; all specs
+and index arrays as `eqx.field(static=True)`; `Wnlq`, `W`, `E0s` as array leaves.
+The Lux `ps`/`st` split that `convert.jl` and `et_calculators.jl` thread by hand
+collapses into one PyTree.
+
+Equinox suits the export contract better than Flax NNX: `lammps-jax` wants a plain
+traceable function, and mace-jax reaches that via `nnx.merge(graphdef, params)` plus
+a hand-rolled pass to strip string metadata out of the param tree
+(`lammps_mliap_mace.py:69-80`). A fitted ACE model has no training-time state, so
+`eqx.combine` (or simply closing over the model) is enough.
+
+- **lineax** — `lx.QR()`, `lx.SVD()` cover ACEfit's `QR`, `RRQR`, `TruncatedSVD`
+- **optimistix** — BLR evidence maximization. ACEfit's
+  `bayesian_linear_regression_svd` (`bayesianlinear.jl:427`) is an SVD followed by a
+  2-parameter minimization of the log marginal likelihood under `Optim.jl`; a direct
+  substitution, ~40 LOC.
+
+## Reuse from mace-jax (MIT, vendor with attribution)
+
+Do **not** import `mace_jax` as a library — `setup.cfg` pulls torch, `e3nn==0.4.4`,
+cuequivariance and cuequivariance-jax transitively. Vendor ~300 LOC:
+
+- **`modules/utils.py::compute_forces_and_stress`** (lines 44–108) — the symmetric
+  displacement scheme, applying strain to positions *and* cell (hence edge shifts),
+  then `value_and_grad` at zero displacement. Already validated against torch-MACE.
+  Swap `energy_fn` for the per-species descriptor sum.
+- **`tools/scatter.py::scatter_sum`** — carries the `indices_are_sorted` /
+  `unique_indices` hints that matter for `A` pooling.
+- **`data/utils.py` config plumbing** — `Configuration` (with per-observation
+  `energy_weight` / `forces_weight` / `stress_weight`), `load_from_xyz`,
+  `AtomicNumberTable`, `compute_average_E0s`. Maps onto `src/atoms_data.jl` ~1:1.
+- **`data/neighborhood.py`** — superseded by matscipy-neighbours, but useful as a
+  reference for the non-periodic cell-extension trick and self-edge elimination.
+
+Not reusable: all of `modules/` and `adapters/` (Flax NNX on `e3nn_jax.Irreps`;
+MACE's radial is Bessel + polynomial cutoff, unrelated to Agnesi + orthogonalised
+Legendre + `(1-y²)²`), and the entire training stack (`streaming_loader.py` alone is
+1111 LOC that one `lineax` solve makes irrelevant).
+
+## LAMMPS export contract
+
+`lammps_jax/export.py` fixes the signature:
+
+```python
+def energy_fn(positions, species, graph) -> per_node_energy  # [max_atoms]
+# graph = LammpsNeighborList(senders, receivers, edge_mask)
+```
+
+- LAMMPS supplies the neighbour list; Kokkos packs it on device. No nlist code here.
+- No cell, no shifts, no PBC. `positions` spans `nlocal + nghost`.
+- Static shapes. Padding edges carry `senders == receivers == max_atoms`,
+  `edge_mask = False`.
+- Gather with `mode="fill"`, scatter with `mode="drop"`, **and guard divisions or
+  the gradient goes NaN**.
+- Must be `jax.export`-traceable: no data-dependent Python control flow.
+
+**Specific hazard.** The Agnesi transform divides
+(`1/(1 + a·s^pin/(1 + s^(pin-pcut)))`, `agnesi.jl:59`) and `r = ‖rij‖` is
+non-differentiable at zero. Padded edges have `rij = 0`, so a naive port yields NaN
+forces from padding alone — silently, and only under `grad`. Budget a deliberate
+masking pass: `safe_r = where(valid, r, 1.0)` before every transform, mask after.
+
+**Simplification over MACE.** cuEquivariance and OpenEquivariance kernels survive
+export as custom-call targets resolved from `LAMMPS_JAX_FFI_HANDLERS`, which is why
+`contrib/ffi-replay` exists. A pure-JAX ACE descriptor is segment_sum, gather, prod
+and matmul — all stock HLO. Export with `custom_call_targets=()` and skip it.
+
+Build requirement: the pair style needs the KOKKOS precision layer from LAMMPS
+10 Sep 2025 or newer, built against the same source tree as the `lmp` binary, plus
+a GPU and a matching PJRT plugin. **Start this build early, in parallel.**
+
+## Design decisions
+
+### 1. Keep `Wnlq` live — do not fold it into the spec
+
+For a linear ACE model `Wnlq` is one-hot, so `Rnl` is a re-indexing of the
+enveloped polynomials. Folding that in is a trap: it hard-codes linearity into the
+descriptor. Keep `Wnlq` as a `SelectLinL`-shaped leaf `(out_dim, in_dim, NZ²)`,
+initialise one-hot, let it be trainable later. Cost: one `einsum`.
+
+### 2. Bucketed fixed-capacity batching, designed in
+
+A linear fit assembles the design matrix once; training streams minibatches, and
+every distinct padded shape triggers an XLA recompile. Round `n_atoms` / `n_edges`
+to a small set of buckets and use that everywhere — the linear fit is then a single
+bucket. All three upstream libraries already agree on the idea
+(`jraph.pad_with_graphs`, lammps-jax's `max_atoms`/`max_edges` + mask,
+`neighbour_matrix`'s `(n, K)` + `count`). **This is the one item that is expensive
+to retrofit.**
+
+### 3. Precision split
+
+f64 for fit assembly and the solve (conditioning); f32 for GPU MD and training.
+`jax_enable_x64` must be set **before** `export_model` or the traced program
+silently truncates. `lammps-jax` supports f64 as of commit `a4304a2`.
+
+### 4. Priors are not equivalent across regimes
+
+The linear fit's `A/P` change of variables (`src/fit_model.jl:141`) is exact. As a
+training-loss penalty the smoothness prior becomes a soft regulariser. Fits will
+differ. Decide deliberately; do not discover this later.
+
+## Non-linear readiness
+
+Decisions 1–3 above are the whole cost of staying non-linear-ready (~0.5 day, mostly
+discipline), and they are the same decisions that keep Stage 1 from foreclosing
+Stage 2. With them in place, the two regimes share one forward function:
+
+- **linear**: `jacrev`/custom-JVP of the per-species descriptor sum w.r.t. positions
+  → design matrix → lineax
+- **non-linear**: `eqx.filter_grad` of the loss w.r.t. all params → optax
+
+Deferred without penalty: the optax loop, schedules, checkpointing, EMA/SWA. E/F/V
+loss weights already live in the vendored `Configuration` dataclass. Estimated
++5–8 days whenever wanted.
+
+## Validation milestones
+
+Each is a hard numerical gate against an existing Julia test. This is what keeps a
+port from drifting.
+
+**Stage 1**
+
+1. **Descriptor** — site basis `𝔹` for one Si structure matches Julia to 1e-10
+2. **Observables** — energy, forces and virial from a fitted model match
+   `AtomsCalculators.energy_forces_virial` on the same configuration
+3. **Export** — `pair_style jax/kk` energies match the Python calculator on the
+   same configuration
+4. **End-to-end** — a Julia-fitted Si potential runs in LAMMPS and reproduces the
+   Julia calculator's energies along a short trajectory
+
+**Stage 2**
+
+5. **Design matrix** — E/F/V blocks match `energy_forces_virial_basis`
+   (`src/et_models/et_calculators.jl:246`)
+6. **Fit** — `Si_tiny_dataset` reproduces the RMSE in
+   `test/et_models/test_et_silicon.jl`
+
+Test against dumped Julia values from the first commit, not at the end. The
+convention surface is large: 1-based → 0-based throughout `Aspec`/`𝔸spec`,
+SpheriCart's `lm2idx` ordering, and the `𝔸spec` sort that the ET source itself
+flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
+
+## Effort and sequencing
+
+### Stage 1 — fit in Julia, evaluate in JAX
+
+| Phase | Days |
+|---|---|
+| 0. Performance spike (gating; ~1 day if stopping at Stage 1) | 1–2 |
+| 1. Julia exporter (fitted model) + Python loader | 2–3 |
+| 2. Descriptor forward | 4 |
+| 3. Neighbour-list adapters + fixed-capacity plumbing | 1 |
+| 4. Energy / forces / virial via `jax.grad` + ASE calculator | 1 |
+| 5. Validation harness (milestones 1–4) | 2 |
+| 6. LAMMPS export + integration testing | 4–5 |
+
+**≈ 15–18 working days ≈ 3–3.5 weeks.**
+
+### Stage 2 — fit in JAX (incremental)
+
+| Phase | Days |
+|---|---|
+| 7. E/F/V design-matrix assembly (+ custom JVP if gate 3 says so) | 2–3 |
+| 8. Bucketed batching for training-shaped workloads | 1 |
+| 9. Priors + solvers (lineax / optimistix) | 2–3 |
+| 10. Data loading, weights, key matching | 1 |
+| 11. Validation harness (milestones 5–6) | 1 |
+
+**≈ 7–9 further days.** Full scope ≈ 22–27 days ≈ 4.5–5.5 weeks.
+
+### Non-linear fits (further, optional)
+
+**≈ 5–8 days** on top of Stage 2: optax loop, schedules, checkpointing.
+
+Sequence: spike → exporter → descriptor on CPU against matscipy-neighbours → GPU →
+LAMMPS export. Once the descriptor is trusted, validating the export is one
+comparison; doing it while the descriptor is still moving means debugging two
+unknowns through a C++ plugin boundary.
+
+**Review point at the end of Stage 1.** By then the descriptor is validated, LAMMPS
+works, and the marginal cost and value of Stage 2 are both much better understood
+than they are today. Stopping there is a good outcome, not a failure.
+
+## Risks
+
+| Risk | Stage | Severity | Mitigation |
+|---|---|---|---|
+| Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort) | 1 | High | Dump Julia values and test from commit 1 |
+| LAMMPS build environment | 1 | Medium | Start the build in week 1, in parallel |
+| NaN gradients from padded edges | 1 | Medium | Explicit masking pass; test under `grad` |
+| XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
+| Padding tax (capacity ≫ typical) | 1 | Low | Bucket tightly |
+| matscipy-neighbours not on PyPI | 1 | Low | `pip install git+...`; in-house to fix |
+| Design-matrix assembly too slow via generic AD | **2** | High | Phase 0 gate 3; custom JVP (~100 LOC) |
+| f64 GPU throughput on non-datacenter cards | **2** | High | Phase 0 gate 2; CPU fit assembly |
+
+Note that both High-severity risks fall in Stage 2. Stage 1's risk register is
+dominated by convention-matching and build environment — tedious, but bounded and
+diagnosable.
+
+## Open questions
+
+1. Does the `sphericart` JAX binding expose *solid* harmonics with `normalisation=:L2`?
+   P4ML uses `real_solidharmonics(L; normalisation = :L2)`
+   (`P4ML/src/sphericart.jl:41`). If only spherical harmonics are exposed, add ~0.5 day.
+2. Dense `neighbour_matrix` or sparse edge list as the CPU default? Phase 0 should
+   measure both; the swappable pooling function makes this reversible.
+3. Should the exporter live in ACEpotentials.jl (as a `scripts/` entry point) or in
+   the new Python repo as a Julia sidecar? Former is easier to keep in sync.
+4. Is there a case for an `acesuit-jax-common` package shared with mace-jax
+   (nlist adapter, strain helper, ASE calculator)? Premature — vendor now, extract
+   later if it proves out.
+
+## References
+
+- `lammps-jax` — https://github.com/abhijeetgangan/lammps-jax (MIT)
+- `matscipy-neighbours` — https://github.com/libAtoms/matscipy-neighbours (MIT)
+- `mace-jax` — https://github.com/ACEsuit/mace-jax (MIT)
+- Equinox ecosystem — https://docs.kidger.site/equinox/
+- `benchmark/FORCE_REGRESSION_FINDINGS.md` — Julia force-path baselines
+- `CLAUDE.md` — "Future Work: Full Lux-based Backend Migration"
