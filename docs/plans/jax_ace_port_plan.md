@@ -32,7 +32,9 @@ coefficients.
 
 **Stage 1 — fit in Julia, evaluate in JAX**
 
-- Site descriptor `𝔹` numerically equivalent to `ACEpotentials.ETModels`
+- Site descriptor `𝔹` numerically equivalent to `ACEpotentials.ETModels`, for
+  **both** `ace1_model` (splined radials, spherical harmonics) and `ace_model`
+  (analytic radials, solid harmonics)
 - Energy, forces and virial from a *fitted* Julia model, via `jax.grad`
 - GPU-ready throughout; `lammps-jax` export compatibility
 - Architecture that admits Stage 2 and non-linear fits without rework
@@ -593,8 +595,39 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 4. Energy / forces / virial via `jax.grad` + ASE calculator | 1 |
 | 5. Validation harness (milestones 1–4) | 2 |
 | 6. LAMMPS export + integration testing | 4–5 |
+| 7. `ace_model` support: analytic radials + solid harmonics | 2 |
 
-**≈ 15–18 working days ≈ 3–3.5 weeks** (Phase 0 done; ~14–16 remain).
+**≈ 17–20 working days ≈ 3.5–4 weeks** (Phases 0/1/3/4 done; ~8–10 remain).
+
+#### Phase 7 — `ace_model` and solid harmonics
+
+Stage 1 as built covers `ace1_model`: **splined** radials and **spherical**
+harmonics. Phase 7 adds the other half of ACEpotentials' model space —
+`ace_model`, which uses **learnable (analytic)** radials and defaults to
+**solid** harmonics. Independent of Phase 6; can run before, after or alongside.
+
+**Most of this is already validated.** Phase 0's spike targeted exactly this
+configuration — `ace_model` with `Ytype = :solid` and analytic Agnesi + 3-term
+recursion + `Wnlq` — and matched Julia to 1.4e-15 on CPU and GPU. Phase 7 is
+mainly promoting that code into `stage1/` behind the schema branches that
+already exist, rather than writing it fresh:
+
+- the exporter already records `ybasis_kind`, so the Ylm branch is plumbed
+- the schema already reserves the analytic radial branch alongside the splined one
+- the loader currently raises `NotImplementedError` on `radial_kind != "spline"`,
+  which is the single place the branch needs filling in
+- solid harmonics are `r^l · Y_lm`, a thin variant of the spherical
+  implementation once that exists in pure JAX (Phase 6, Part A)
+
+**This is also a Stage 2 prerequisite, pulled forward.** Design decision 1 notes
+that splines are not differentiable with respect to the parameters that
+generated them, so any trainable-`Wnlq` work — non-linear fits, and the analytic
+branch generally — needs exactly this path. Doing it here means Stage 2 starts
+with a live `Wnlq` already exercised rather than only reserved in the schema.
+
+Gate: a fitted `ace_model` reproduces Julia's energy, forces and virial to the
+same tolerances Phase 3–4 achieved for `ace1_model`, with both `ybasis_kind`
+values and both `radial_kind` values covered by tests.
 
 ### Stage 2 — fit in JAX (incremental)
 
