@@ -1,7 +1,7 @@
 # Plan: Minimal Python + JAX Port of the ETACE Descriptor and Linear Fit
 
-**Status**: ✅ Phase 0 complete (`0b65fca0`) — descriptor validated at 5.1e-15, gates 1 and 3
-resolved, gate 2 pending CUDA. Stage 1 approved to proceed.
+**Status**: ✅ Phase 0 complete — descriptor validated at 1.4e-15 on GPU, **all three gates
+resolved**. Stage 1 approved to proceed.
 Stage 1 (fit in Julia, evaluate in JAX + LAMMPS) is a supported stopping point.
 
 **Date**: 2026-09-09
@@ -118,14 +118,39 @@ on identical systems.
 
 ### Decision gates — RESOLVED
 
-- **(3) the custom Jacobian is mandatory.** Naive `vmap`-VJP costs **479–1715×**
-  forward. A hybrid pushing analytic `dA/dr` through `dB/dA` costs **34–150×** and
-  agrees to 6.2e-16. That is 11–19× apart, far outside the "within ~3× → ship it"
-  criterion. The ~100 LOC custom JVP is a **committed Stage 2 deliverable**, not a
-  contingency.
-- **(2) precision split — UNMEASURED.** No CUDA device available locally.
-  `spike/jax_phase0/bench_jax.py` runs unmodified on a CUDA box and reports its
-  backend. Stage 1 is not blocked (MD runs f32); Stage 2 is.
+- **(3) the custom Jacobian is mandatory**, on both CPU and GPU. Naive `vmap`-VJP
+  vs a hybrid pushing analytic `dA/dr` through `dB/dA`, as multiples of the forward
+  pass:
+
+  | | naive | hybrid | apart |
+  |---|---|---|---|
+  | CPU f64 | 479–1715× | 34–150× | 11–19× |
+  | GPU f64 | 71–253× | 11–20× | 6.6–13× |
+  | GPU f32 | 89–900× | 8–40× | 11–22× |
+
+  The GPU narrows the gap but nowhere near the "within ~3× → ship it" criterion.
+  The two agree to 6.2e-16 in f64, so the hybrid is correct, not an approximation.
+  The ~100 LOC custom JVP is a **committed Stage 2 deliverable**, not a contingency.
+- **(2) f64 on GPU is cheap — the plan's concern was wrong.** Measured on an
+  NVIDIA RTX 4000 Ada (compute 8.9), a *workstation* card whose FP64 arithmetic
+  rate is 1/64 of FP32 — i.e. the worst realistic case.
+
+  | atoms | GPU f32 | GPU f64 | f64/f32 |
+  |---|---|---|---|
+  | 64 | 0.055 ms | 0.167 ms | 3.0× |
+  | 512 | 0.103 ms | 0.560 ms | 5.4× |
+
+  **f64 costs 3–5.4×, not 32–64×.** The descriptor is gather- and
+  memory-bandwidth-bound, not FP64-FMA-bound, so the crippled arithmetic rate
+  barely registers. Consequence: **f64 GPU fit assembly is viable**, and the
+  precision split is a preference rather than a constraint. The GPU hybrid
+  Jacobian in f64 runs 10.91 ms at 512 atoms against Julia's 71.23 ms on CPU.
+
+  One caveat found while measuring: in f32 the naive and hybrid Jacobians agree
+  only to **5.9e-4**, against 6.2e-16 in f64. Assembling a design matrix in f32
+  would inject ~1e-4 relative error into an already ill-conditioned least-squares
+  problem. Fit assembly stays f64 — now for an evidenced reason rather than a
+  precautionary one.
 - **(1) JAX is faster than Julia on CPU, contrary to the original estimate.**
 
   | atoms | JAX | Julia `site_basis` | |
@@ -371,9 +396,16 @@ to retrofit.**
 
 ### 3. Precision split
 
-f64 for fit assembly and the solve (conditioning); f32 for GPU MD and training.
+f64 for fit assembly and the solve; f32 for GPU MD and training.
 `jax_enable_x64` must be set **before** `export_model` or the traced program
 silently truncates. `lammps-jax` supports f64 as of commit `a4304a2`.
+
+Phase 0 changed the *reason* for this split. It is not that f64 is unaffordable on
+GPU — measured at only 3–5.4× f32 on a 1/64-rate workstation card, because the
+kernel is memory-bound. It is that f32 accumulation degrades Jacobian agreement to
+5.9e-4, which is too coarse for an ill-conditioned least-squares assembly. So f64
+fit assembly on GPU is available if wanted, and f32 is a throughput choice for MD
+rather than a forced retreat from the GPU.
 
 ### 4. Priors are not equivalent across regimes
 
@@ -467,20 +499,22 @@ than they are today. Stopping there is a good outcome, not a failure.
 
 | Risk | Stage | Severity | Mitigation |
 |---|---|---|---|
-| ~~Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort)~~ | 1 | Resolved | Phase 0: all intermediates clean to 5e-15 |
+| ~~Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort)~~ | 1 | Resolved | Phase 0: all intermediates clean to 1.4e-15 (GPU) / 5.1e-15 (CPU) |
 | Splined radial export branch | 1 | Medium | Decided: export splines (~0.5 day); see schema |
 | LAMMPS build environment | 1 | Medium | Start the build in week 1, in parallel |
 | NaN gradients from padded edges | 1 | Medium | Explicit masking pass; test under `grad` |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
 | Padding tax (capacity ≫ typical) | 1 | Low | Bucket tightly |
 | matscipy-neighbours not on PyPI | 1 | Low | `pip install git+...`; in-house to fix |
-| ~~Design-matrix assembly too slow via generic AD~~ | **2** | Resolved | Confirmed: hybrid JVP required, now committed (Phase 0) |
-| f64 GPU throughput on non-datacenter cards | **2** | High | Phase 0 gate 2; CPU fit assembly |
+| ~~Design-matrix assembly too slow via generic AD~~ | **2** | Resolved | Confirmed on CPU and GPU: hybrid JVP required, now committed |
+| ~~f64 GPU throughput on non-datacenter cards~~ | **2** | Resolved | Measured 3–5.4× f32 on a 1/64-rate card; memory-bound, not FLOP-bound |
 
-Phase 0 retired the two highest-severity items: convention-matching is confirmed
-clean, and the design-matrix Jacobian question is settled (the hybrid JVP is
-required, and is now scoped work rather than an unknown). Stage 1's remaining risk
-is dominated by the LAMMPS build environment.
+Phase 0 retired all three highest-severity items: convention-matching is confirmed
+clean to 1.4e-15 on GPU, the design-matrix Jacobian question is settled (the hybrid
+JVP is required, and is now scoped work rather than an unknown), and f64 GPU
+throughput turned out to be a non-issue for this memory-bound kernel. Stage 1's
+remaining risk is dominated by the LAMMPS build environment and the splined-radial
+export branch.
 
 ## Open questions
 
