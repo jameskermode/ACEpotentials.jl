@@ -22,9 +22,14 @@ import jax.numpy as jnp
 import numpy as np
 from lammps_jax.export import LammpsNeighborList, wrap_energy_fn
 
-sys.path.insert(0, "/home/eng/essswb/si-ace/stage1")
-sys.path.insert(0, "/home/eng/essswb/si-ace")
-from export_bundle import MAX_ATOMS, MAX_EDGES, RCUT, energy_fn, meta, model
+import pathlib
+HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE))
+from export_bundle import build
+
+NPZ = sys.argv[1] if len(sys.argv) > 1 else HERE.parent / "si_fitted.npz"
+energy_fn, model, meta, RCUT, MAX_ATOMS, MAX_EDGES = build(NPZ)
 
 rng = np.random.default_rng(3)
 a = 5.43

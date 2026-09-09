@@ -11,10 +11,14 @@
 # CommKokkos::borders_device with a PSM3 fabric assertion.  That happens with
 # the stock lj bundle too, so it is the host's MPI/CUDA interaction, not ours.
 #
-# Usage: test_si_bundle.sh [bundle.json] [tag]
+# PYTHON must have numpy + jax + equinox + acejax's deps; the system python3
+# does not.  Override with PYTHON=..., default is the sibling export venv.
+#
+# Usage: [PYTHON=/path/to/python] test_si_bundle.sh [bundle.json] [tag]
 set -euo pipefail
 BUNDLE=${1:-si_ace.lammps-jax.json}; TAG=${2:-si}
 V=/storage/eng/essswb/venvs/lammps-jax
+PYTHON=${PYTHON:-$HOME/si-ace/.venv/bin/python}
 export PJRT=$V/lib/python3.12/site-packages/jax_plugins/xla_cuda12/xla_cuda_plugin.so
 export LAMMPS_PLUGIN_PATH=/storage/eng/essswb/lammps-jax-build/build-plugin-shared-cudart
 cd "$(dirname "$0")"
@@ -35,10 +39,10 @@ $V/bin/lmp-mpirun -np 2 $V/lib/lmp.real $KK -var pjrt $PJRT -var bundle "$BUNDLE
 grep -E "^ *0 +216|Nghost:" $TAG.np2.log | head -2
 
 echo "### $TAG np1 vs np2 ###"
-python3 cmpdump.py $TAG.np1.dump $TAG.np2.dump 1e-9
+$PYTHON cmpdump.py $TAG.np1.dump $TAG.np2.dump 1e-9
 
 for R in np1 np2; do
   echo "### $TAG $R vs the acejax Python calculator ###"
   PE=$(grep -A1 "^ *Step" $TAG.$R.log | awk 'NR==2{print $3}')
-  python3 check_vs_python.py $TAG.$R.dump ../si_fitted.npz "$PE"
+  $PYTHON check_vs_python.py $TAG.$R.dump ../si_fitted.npz "$PE"
 done

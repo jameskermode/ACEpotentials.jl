@@ -15,6 +15,7 @@ independent route, not a weakening.
 Usage: check_vs_python.py <lammps.dump> <npz> [pe_from_lammps]
 """
 import itertools
+import pathlib
 import sys
 
 import jax
@@ -23,7 +24,7 @@ jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpy as np
 
-sys.path.insert(0, "/home/eng/essswb/si-ace/stage1")
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from acejax import highest_precision, load
 
 

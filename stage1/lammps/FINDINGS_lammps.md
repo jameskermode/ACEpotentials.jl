@@ -85,3 +85,15 @@ any rank comparison built on it has the same flaw.
 | `check_vs_python.py` | rebuilds the config from the dump, evaluates acejax |
 | `cmpdump.py` | dump comparison (rewrite; the original scratchpad was cleared) |
 | `validate_abi.py` | ABI wrappers without LAMMPS, kept as a fast pre-check |
+
+## Reproducing
+
+```bash
+# on moriarty (NOT lestrade -- see the AVX-512 note above)
+cd stage1/lammps
+python export_bundle.py --npz ../si_fitted.npz --out si_ace.lammps-jax.json
+./test_si_bundle.sh                      # PYTHON=... to pick the interpreter
+```
+
+`run_artifacts/` holds the evidence for the numbers in this file: both logs,
+both dumps, the `si.data` geometry, and the 1.1 MB bundle itself.
