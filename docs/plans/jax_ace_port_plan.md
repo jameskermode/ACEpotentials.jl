@@ -163,11 +163,28 @@ on identical systems.
   precision split is a preference rather than a constraint. The GPU hybrid
   Jacobian in f64 runs 10.91 ms at 512 atoms against Julia's 71.23 ms on CPU.
 
-  One caveat found while measuring: in f32 the naive and hybrid Jacobians agree
-  only to **5.9e-4**, and in one run to **5.3e-1** at 64 atoms — against 6.2e-16 in
-  f64. f32 Jacobians are not merely coarse here, they are unreliable run to run.
-  Fit assembly stays f64 — now for an evidenced reason rather than a precautionary
-  one.
+  A 5.3e-1 discrepancy seen while measuring turned out **not** to be roundoff. See
+  `spike/jax_phase0/FINDINGS_f32.md`; two independent effects, both material:
+
+  **TF32 is on by default** for f32 matmuls on Ada (compute 8.9). Setting
+  `jax_default_matmul_precision=highest` improves the forward descriptor from
+  1.17e-3 to 2.93e-6 vs Julia — a 400× accuracy difference. **A 1.2e-3 relative
+  error in the descriptor is not acceptable for a production potential**, so
+  Stage 1 must pin matmul precision explicitly and verify the setting survives
+  `jax.export` into the lammps-jax bundle.
+
+  **XLA GPU autotuning selects a wrong kernel in ~30% of processes**, producing a
+  structurally wrong Jacobian element (-0.023 where the true value is -19.159).
+  Not a precision failure — the terms at that element sum with
+  `sum|t|/|sum t| = 1.002`, i.e. no cancellation. It vanishes with
+  `--xla_gpu_autotune_level=0` (10/10 clean), persists at precision=highest
+  (2/10 wrong), and is confined to **f32 and the Jacobian einsum only**: the
+  forward descriptor (20/20) and forces via `jax.grad` (20/20) are stable across
+  processes, and f64 is clean (10/10).
+
+  So Stage 1 is exposed to the TF32 issue but not the autotuning bug. Stage 2 is
+  exposed to both, since fit assembly *is* the Jacobian — a third independent
+  reason to assemble in f64.
 - **(1) JAX is faster than Julia on CPU, contrary to the original estimate.**
 
   All figures below are **same-machine** on lestrade (24-core Xeon-class + RTX 4000
@@ -429,10 +446,12 @@ silently truncates. `lammps-jax` supports f64 as of commit `a4304a2`.
 
 Phase 0 changed the *reason* for this split. It is not that f64 is unaffordable on
 GPU — measured at only 3–5.4× f32 on a 1/64-rate workstation card, because the
-kernel is memory-bound. It is that f32 accumulation degrades Jacobian agreement to
-5.9e-4, which is too coarse for an ill-conditioned least-squares assembly. So f64
-fit assembly on GPU is available if wanted, and f32 is a throughput choice for MD
-rather than a forced retreat from the GPU.
+kernel is memory-bound. It is that the f32 GPU path has two defects that f64 does
+not (`spike/jax_phase0/FINDINGS_f32.md`): TF32 by default costs ~400× accuracy,
+and XLA autotuning miscompiles the Jacobian einsum in ~30% of processes. f64 was
+clean in every test. So f64 fit assembly on GPU is both available and the safe
+choice, and f32 is a deliberate throughput trade for MD — one that still requires
+pinning matmul precision.
 
 ### 4. Priors are not equivalent across regimes
 
@@ -528,6 +547,8 @@ than they are today. Stopping there is a good outcome, not a failure.
 |---|---|---|---|
 | ~~Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort)~~ | 1 | Resolved | Phase 0: all intermediates clean to 1.4e-15 (GPU) / 5.1e-15 (CPU) |
 | Splined radial export branch | 1 | Medium | Decided: export splines (~0.5 day); see schema |
+| TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
+| XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
 | LAMMPS build environment | 1 | Medium | Start the build in week 1, in parallel |
 | NaN gradients from padded edges | 1 | Medium | Explicit masking pass; test under `grad` |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
