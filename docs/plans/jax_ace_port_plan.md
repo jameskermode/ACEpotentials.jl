@@ -124,13 +124,30 @@ on identical systems.
 
   | | naive | hybrid | apart |
   |---|---|---|---|
-  | CPU f64 | 479–1715× | 34–150× | 11–19× |
-  | GPU f64 | 71–253× | 11–20× | 6.6–13× |
-  | GPU f32 | 89–900× | 8–40× | 11–22× |
+  | CPU f64 | 359–1409× | 43–238× | 6–8× |
+  | GPU f64 | 70–255× | 9–20× | 7.5–13× |
+  | GPU f32 | 92–914× | 8–39× | 12–23× |
 
-  The GPU narrows the gap but nowhere near the "within ~3× → ship it" criterion.
-  The two agree to 6.2e-16 in f64, so the hybrid is correct, not an approximation.
-  The ~100 LOC custom JVP is a **committed Stage 2 deliverable**, not a contingency.
+  Nowhere near the "within ~3× → ship it" criterion in any configuration. The two
+  agree to 6.2e-16 in f64, so the hybrid is correct, not an approximation. The
+  ~100 LOC custom JVP is a **committed Stage 2 deliverable**, not a contingency.
+
+  **But the hybrid alone is not enough on CPU.** Absolute Jacobian times (ms),
+  same machine:
+
+  | atoms | Julia CPU | JAX CPU hybrid | JAX GPU f64 hybrid |
+  |---|---|---|---|
+  | 64 | 14.13 | 16.04 | 1.62 |
+  | 512 | 129.36 | 195.40 | 10.90 |
+
+  On CPU the JAX hybrid is **1.5× slower than Julia's `ET._jacobian_X`** at 512
+  atoms — the forward-pass advantage does not carry over. Only the GPU wins, and it
+  wins decisively (**11.9× faster than Julia CPU**).
+
+  **Consequence for Stage 2: fit assembly must target the GPU.** On CPU it would be
+  slower than simply assembling in Julia, which removes the reason to port it at
+  all. This does not affect Stage 1, whose forces are a single VJP over a scalar
+  energy.
 - **(2) f64 on GPU is cheap — the plan's concern was wrong.** Measured on an
   NVIDIA RTX 4000 Ada (compute 8.9), a *workstation* card whose FP64 arithmetic
   rate is 1/64 of FP32 — i.e. the worst realistic case.
@@ -147,24 +164,34 @@ on identical systems.
   Jacobian in f64 runs 10.91 ms at 512 atoms against Julia's 71.23 ms on CPU.
 
   One caveat found while measuring: in f32 the naive and hybrid Jacobians agree
-  only to **5.9e-4**, against 6.2e-16 in f64. Assembling a design matrix in f32
-  would inject ~1e-4 relative error into an already ill-conditioned least-squares
-  problem. Fit assembly stays f64 — now for an evidenced reason rather than a
-  precautionary one.
+  only to **5.9e-4**, and in one run to **5.3e-1** at 64 atoms — against 6.2e-16 in
+  f64. f32 Jacobians are not merely coarse here, they are unreliable run to run.
+  Fit assembly stays f64 — now for an evidenced reason rather than a precautionary
+  one.
 - **(1) JAX is faster than Julia on CPU, contrary to the original estimate.**
 
-  | atoms | JAX | Julia `site_basis` | |
-  |---|---|---|---|
-  | 64 | 0.24 ms | 0.97 ms | 4.0× faster |
-  | 512 | 0.86 ms | 7.93 ms | 9.2× faster |
+  All figures below are **same-machine** on lestrade (24-core Xeon-class + RTX 4000
+  Ada), ACEpotentials 0.10.2 via `Pkg.develop` so the Julia code is identical to the
+  dev checkout, Julia single-threaded, f64 unless noted.
 
-  The plan originally predicted Julia would win by 2–5×. Caveats: this is the ET
-  descriptor path, not the tuned classic *force* path; Julia was single-threaded on
-  Apple Silicon; and the model is small (n_B = 110, single species). Treat as
-  directional until confirmed on a larger multi-element model. Julia
-  `site_descriptors` (classic path) is 14.7 ms at 512 atoms, with 173 allocations
-  totalling 26 MB — the ET path is materialising large buffers, which is the
-  memory-bound behaviour originally predicted to hurt JAX.
+  **Forward descriptor (ms):**
+
+  | atoms | Julia CPU | JAX CPU | JAX GPU f64 | JAX GPU f32 |
+  |---|---|---|---|---|
+  | 64 | 1.371 | 0.315 | 0.175 | 0.054 |
+  | 512 | 11.555 | 0.992 | 0.556 | 0.102 |
+
+  JAX CPU beats Julia CPU by **4.4× / 11.6×**, confirming the earlier Apple Silicon
+  result (4.0× / 9.2×) on entirely different hardware. The plan originally predicted
+  Julia would win by 2–5×; that was wrong, and it is now wrong on two architectures.
+
+  Caveats that remain: this is the ET descriptor path, not the tuned classic *force*
+  path, and the model is small (n_B = 110, single species). Re-check on a production
+  multi-element model before anything load-bearing rests on the magnitude.
+
+  Incidentally, JAX CPU shows no meaningful gain from multiple threads here (0.992
+  vs 1.005 ms at 512 atoms with Eigen multithreading disabled), so the comparison
+  against single-threaded Julia is fair.
 
 ### Prior evidence (corroborated)
 
