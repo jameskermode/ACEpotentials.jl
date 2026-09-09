@@ -596,8 +596,9 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 5. Validation harness (milestones 1–4) | 2 |
 | 6. LAMMPS export + integration testing | 4–5 |
 | 7. `ace_model` support: analytic radials + solid harmonics | 2 |
+| 8. Throughput benchmark vs Kokkos (after the Phase 6 gate) | 1 |
 
-**≈ 17–20 working days ≈ 3.5–4 weeks** (Phases 0/1/3/4 done; ~8–10 remain).
+**≈ 18–21 working days ≈ 3.5–4 weeks** (Phases 0/1/3/4 done; ~9–11 remain).
 
 #### Phase 7 — `ace_model` and solid harmonics
 
@@ -696,6 +697,8 @@ export branch.
 
 ## References
 
+- `docs/plans/lammps_jax_benchmark_reference.md` — the `pair jax/kk` vs native
+  Kokkos EAM throughput benchmark that Phase 8 should reproduce for ACE
 - `lammps-jax` — https://github.com/abhijeetgangan/lammps-jax (MIT)
 - `matscipy-neighbours` — https://github.com/libAtoms/matscipy-neighbours (MIT)
 - `mace-jax` — https://github.com/ACEsuit/mace-jax (MIT)
