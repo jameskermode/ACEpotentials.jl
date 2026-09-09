@@ -58,46 +58,93 @@ that killed them are cheap to redo.
 The trigger is narrower than any of these: two 2-factor products, one a square
 and one mixed, in the same traced program.
 
-## What this says about Reactant for ACE
+## Is the STANDARD ETACE path traceable? (the question that matters)
 
-**Reactant does not save the rewrite.** `ace_export.jl` is a 234-line
-hand-written array reimplementation of ACE. It never traces ACEpotentials'
-kernels; it substitutes:
+An earlier draft of this file claimed "Reactant does not save the rewrite",
+generalising from `ace_export.jl`'s hand-written arrays. **That was wrong.**
+`ace_export.jl` hand-writing arrays is its own choice, not a demonstration that
+hand-writing is required. The ETACE rewrite was designed so the standard path
+would be traceable, and that is testable directly (`etace_traceable.jl`,
+`trace_detail.jl`, `confirm.jl`).
 
-- **radials** -> the model's splines re-tabulated on a 32768-point grid, then
-  cubic Hermite interpolation (its own comment records a 6e-11 force floor)
-- **Ylm** -> monomials + a least-squares map, because SpheriCart is untraceable
+Measured on Reactant 0.2.222 / CPU, 64-atom Si, `ace_model(order=3,
+max_level=10, maxl=6)`:
 
-So the array reformulation is the same intellectual work the JAX port needs;
-only the host language differs.
+| component | traces? | agreement |
+|---|---|---|
+| `yembed` — SpheriCart solid harmonics via P4ML | **YES** | 1.7e-10 |
+| `rembed` minus `SelectLinL` — Agnesi + polys + envelope | **YES** | 1.1e-13 |
+| `rembed` complete | no | scalar indexing |
+| `site_basis`, `et_model(G, ps, st)` | no | scalar indexing |
+| `abasis` / `aabasis` via `ka_evaluate` | no | `ka_with_reactant` MethodError |
 
-**Its `segment_sum` is a dense one-hot matmul:**
+So the standard path is **two specific layers away from traceable**, not
+architecturally incompatible.
+
+**Blocker 1 — `ET.SelectLinL`.** Every failure in `site_basis` bottoms out at
+`selectlinl.jl:56` -> `:68`:
+
+```julia
+@kernel function _ka_apply_selectlinl!(B, P, X, W, selector)
+   iB, jB = @index(Global, NTuple)
+   i_x = selector(X[iB])          # scalar index into an array of PStates
+   ...
+end
+```
+
+EquivariantTensors' own comments already mark this as a stopgap: *"Morally this
+should work, but it doesn't like the views it seems?! so we need write a
+kernel"* and *"there was a problem applying the selector when it was type
+unstable; now that this is fixed, maybe try to go back to the above
+implementation ... that way we don't have to write a custom rrule."*
+Precomputing the category as an integer array per edge and doing a gather plus
+batched matmul is array-expressible, traceable, and removes the custom rrule.
+
+**Blocker 2 — the sparse product kernels.** `PooledSparseProduct` and
+`SparseSymmProd` go through `ka_evaluate`. Reactant *does* ship
+`ReactantKernelAbstractionsExt`, so KA is not rejected outright, but dispatch
+fails for these kernels. Both are gather/prod/segment-sum — exactly what the JAX
+port writes directly as array ops.
+
+**Notable side finding:** SpheriCart traces fine. `ace_export.jl` replaces Ylm
+with fitted monomials on the premise that SpheriCart is untraceable; on this
+evidence that substitution was unnecessary — and it is the substitution that
+exposed the miscompilation bug above.
+
+## Performance context
+
+`ace_export.jl`'s `segment_sum` is a dense one-hot matmul:
 
 ```julia
 segment_sum(rows, idx, n) = permutedims(idx .== permutedims(1:n)) * rows
 ```
 
-At MAX_ATOMS 2560 x MAX_EDGES 40960 that is a 105M-entry matrix per call. This
-is an implementation choice, not a Reactant limitation, but it explains the
-reported ~5x slowdown and memory blowup versus JAX's scatter.
-
-**Accuracy comparison.** Our Stage 1 exports the model's own splines and uses
-sphericart directly: measured 1.4e-15 against Julia. `ace_export.jl` stacks a
-Hermite re-tabulation on top of the already-splined radials (6e-11) plus a
-fitted monomial Ylm. Our path is strictly better and needs no 32768-point table.
+At MAX_ATOMS 2560 x MAX_EDGES 40960 that is a 105M-entry matrix per call, which
+explains the reported ~5x slowdown and memory blowup versus JAX's scatter. This
+is a property of that implementation, not of Reactant, and a traceable standard
+path would not have it.
 
 ## Recommendation
 
-Proceed with the Stage 1 JAX port. Reactant is not ready for this workload:
-correctness is broken for l >= 2 and the reference implementation is not
-performance-competitive. The bug is narrow and worth reporting upstream --
-it may well be fixed quickly, at which point Reactant becomes worth
-re-evaluating for the Julia GPU story (roadmap Phase 4), independently of
-whether the JAX port proceeds.
+Proceed with the Stage 1 JAX port now: it is validated at 1.4e-15, and the
+Reactant route currently miscompiles for l >= 2.
 
-Performance was not measured: benchmarking a miscompiling path is not
-meaningful, and the dense `segment_sum` makes the reference non-competitive
-regardless.
+But do not write Reactant off. The standard ETACE path is two known stopgaps
+away from tracing, both inside EquivariantTensors, both array-expressible, and
+one already flagged for revisiting in its own source. If those are fixed, Julia
+gets an XLA/GPU path without a parallel Python implementation to maintain -- and
+because lammps-jax consumes StableHLO, which Reactant also emits, potentially
+the same LAMMPS pair style too.
+
+Two things worth doing regardless of the port:
+1. File the miscompilation bug upstream (`reactant_bug_repro.jl`).
+2. Try the `SelectLinL` rewrite. It is small, it is already wanted for other
+   reasons (it would drop a hand-written rrule), and it is the single change
+   that would tell us whether the rest of the path traces.
+
+Performance was not measured. Benchmarking a miscompiling path is not
+meaningful, and the two blockers mean the standard path cannot yet be timed at
+all.
 
 ## Files
 
@@ -109,4 +156,7 @@ regardless.
 | `reactant_bisect.jl` | stagewise compiled-vs-eager bisect |
 | `pattern.jl` | the divergence pattern on a real model |
 | `lsweep.jl`, `workaround.jl`, `minimal.jl` | trigger characterisation |
+| `etace_traceable.jl` | does the standard ETACE path trace? |
+| `trace_detail.jl` | backtraces locating the blockers |
+| `confirm.jl` | confirms yembed and rembed-minus-SelectLinL trace |
 | `_ace_setup.jl` | shared model/table/cluster setup |
