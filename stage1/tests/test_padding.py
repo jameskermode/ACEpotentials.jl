@@ -89,3 +89,32 @@ def test_zero_pad_would_nan(case):
     # recorded, not asserted either way: this is the trap, not a requirement
     if n_bad == 0:
         pytest.skip("zero pad happens not to NaN for this model; cutoff pad still used")
+
+
+def test_dense_padded_slots_are_parked_at_cutoff(case):
+    """`neighbour_matrix` leaves unused slots as zero vectors, which would NaN
+    the gradient exactly as the sparse zero pad does.  dense_graph must park them
+    at the cutoff so a caller cannot get this wrong by forgetting."""
+    model, meta, z = case
+    from acejax import dense_graph
+    rcut = float(meta["rcut"])
+    g = dense_graph(np.asarray(z["test_pos"]).T, np.asarray(z["test_cell"]).T,
+                    np.asarray(z["test_pbc"]).astype(bool), rcut, 64)
+    dead = ~g.mask
+    assert dead.any(), "no padded slots in this fixture; test is vacuous"
+    lengths = np.linalg.norm(g.rij[dead], axis=-1)
+    assert np.allclose(lengths, rcut), "padded slots not parked at the cutoff"
+
+    n, K = g.idx.shape
+    node_z = jnp.zeros(g.n_nodes, jnp.int32)
+    zi = jnp.zeros((n, K), jnp.int32)
+    mask = jnp.asarray(g.mask)
+
+    def total(r):
+        return jnp.sum(model.site_energies_dense(r, zi, zi, mask, node_z))
+
+    with highest_precision():
+        grad = np.asarray(jax.grad(total)(jnp.asarray(g.rij)))
+    n_bad = int((~np.isfinite(grad)).sum())
+    print(f"  non-finite dense gradient entries: {n_bad}")
+    assert n_bad == 0

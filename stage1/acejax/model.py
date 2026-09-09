@@ -107,23 +107,71 @@ class ACEModel(eqx.Module):
         return scj.spherical_harmonics(rij, self.lmax)
 
     # -------------------------------------------------- many-body
-    def site_basis(self, rij, zi, zj, segment_ids, n_nodes, mask=None):
-        """Site basis B (n_nodes, n_B) and pooled pair rows (n_nodes, n_pair)."""
+    def edge_features(self, rij, zi, zj):
+        """Per-edge (A-basis rows, pair rows).  Layout-agnostic: the caller
+        pools these however its neighbour-list layout dictates."""
         Rnl, Rpair = self.radial(rij, zi, zj)
         Ylm = self.angular(rij)
-        edge_A = Rnl[:, self.aspec_r] * Ylm[:, self.aspec_y]
-        A = pool_sparse(edge_A, segment_ids, n_nodes, mask)
-        AA = jnp.concatenate([jnp.prod(A[:, g], axis=-1) for g in self.aa_specs], axis=-1)
-        B = AA @ self.A2B.T
-        Apair = pool_sparse(Rpair, segment_ids, n_nodes, mask)
-        return B, Apair
+        return Rnl[:, self.aspec_r] * Ylm[:, self.aspec_y], Rpair
 
-    def site_energies(self, rij, zi, zj, segment_ids, n_nodes, node_z, mask=None):
-        """Per-site energies (n_nodes,).  `node_z` is the centre species index per node."""
-        B, Apair = self.site_basis(rij, zi, zj, segment_ids, n_nodes, mask)
+    def _from_pooled(self, A, Apair):
+        AA = jnp.concatenate([jnp.prod(A[:, g], axis=-1) for g in self.aa_specs], axis=-1)
+        return AA @ self.A2B.T, Apair
+
+    def site_basis(self, rij, zi, zj, segment_ids, n_nodes, mask=None):
+        """Sparse (edge-list) pooling -- the layout lammps-jax exports."""
+        edge_A, Rpair = self.edge_features(rij, zi, zj)
+        return self._from_pooled(pool_sparse(edge_A, segment_ids, n_nodes, mask),
+                                 pool_sparse(Rpair, segment_ids, n_nodes, mask))
+
+    def site_basis_dense(self, rij, zi, zj, mask):
+        """Dense (n, K) pooling -- matscipy-neighbours' `neighbour_matrix` form,
+        which maps onto ET's own (maxneigs, nnodes, nfeat) layout and needs no
+        scatter.  rij (n,K,3), zi/zj (n,K), mask (n,K)."""
+        n, K = mask.shape
+        flat = lambda a: a.reshape(n * K, *a.shape[2:])
+        edge_A, Rpair = self.edge_features(flat(rij), flat(zi), flat(zj))
+        un = lambda a: a.reshape(n, K, -1)
+        return self._from_pooled(pool_dense(un(edge_A), mask), pool_dense(un(Rpair), mask))
+
+    def _readout(self, B, Apair, node_z):
         e = jnp.einsum("ib,bi->i", B, self.WB[:, node_z])
         e = e + jnp.einsum("ip,pi->i", Apair, self.Wpair[:, node_z])
         return e + self.E0[node_z]
+
+    def site_energies(self, rij, zi, zj, segment_ids, n_nodes, node_z, mask=None):
+        """Per-site energies (n_nodes,).  `node_z` is the centre species index per node."""
+        return self._readout(*self.site_basis(rij, zi, zj, segment_ids, n_nodes, mask), node_z)
+
+    def site_energies_dense(self, rij, zi, zj, mask, node_z):
+        return self._readout(*self.site_basis_dense(rij, zi, zj, mask), node_z)
+
+    # -------------------------------------------------- energy / forces / virial
+    def energy_forces_virial(self, rij, zi, zj, senders, receivers, n_nodes,
+                             node_z, mask=None):
+        """E, F, V from edge vectors alone -- no cell needed.
+
+        Virial by the symmetric-displacement trick, after mace-jax
+        `modules/utils.py::compute_forces_and_stress` (MIT).  There the strain is
+        applied to positions *and* cell, hence to the edge shifts; because
+        rij = r[j] - r[i] + S@cell, both halves transform the same way and the
+        whole thing collapses to rij -> rij + rij @ eps.  That keeps the virial a
+        function of the edge vectors, consistent with the core.
+
+        Sign follows Julia (AtomsCalculatorsUtilities sitepotentials/assembly.jl:6,
+        `site_virial = -sum(dv_i * r_i')`), i.e. V = -dE/d(eps); verified against
+        the exported reference rather than argued from the algebra.
+        """
+        def total(r, eps):
+            sym = 0.5 * (eps + eps.T)
+            return jnp.sum(self.site_energies(r + r @ sym, zi, zj, senders,
+                                              n_nodes, node_z, mask))
+
+        eps0 = jnp.zeros((3, 3), rij.dtype)
+        E, (g_r, g_eps) = jax.value_and_grad(total, argnums=(0, 1))(rij, eps0)
+        F = (jnp.zeros((n_nodes, 3), rij.dtype)
+             .at[senders].add(g_r).at[receivers].add(-g_r))
+        return E, F, -g_eps
 
     # -------------------------------------------------- positions wrapper
     def energy_from_positions(self, positions, node_z, senders, receivers,

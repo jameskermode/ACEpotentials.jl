@@ -157,8 +157,14 @@ test_edge_rij = reduce(hcat, edge_rij)     # (3, n_edges)
 efv = AtomsCalculators.energy_forces_virial(sys, calc)
 test_E = ustrip(u"eV", efv.energy)
 test_F = reduce(hcat, [ustrip.(u"eV/Å", f) for f in efv.forces])   # (3, nat)
+# Julia convention (AtomsCalculatorsUtilities sitepotentials/assembly.jl:6):
+#   site_virial(dV, Rs) = - sum(dv_i * r_i')   i.e.  V = -sum_e dE/dr_e (x) r_e
+test_V = Matrix(ustrip.(u"eV", efv.virial))                       # (3,3)
+test_pbc = Int32[Bool(b) for b in AtomsBase.periodicity(sys)]
 @printf("test system: %d atoms, %d edges, E = %.10f eV\n", nat, length(edge_i), test_E)
 @printf("  sum(site_E) = %.10f   |diff| = %.2e\n", sum(site_E), abs(sum(site_E) - test_E))
+@printf("  virial trace = %.6f eV,  |V - V'| = %.2e (symmetry check)\n",
+        test_V[1,1]+test_V[2,2]+test_V[3,3], maximum(abs.(test_V .- test_V')))
 
 # ---------------------------------------------------------------- meta
 meta = Dict(
@@ -205,6 +211,7 @@ D = Dict{String, Any}(
   "probe_Rpair" => probe_Rpair, "probe_Ylm" => probe_Ylm,
   # test system
   "test_pos" => test_pos, "test_cell" => test_cell, "test_Z" => test_Z,
+  "test_V" => test_V, "test_pbc" => test_pbc,
   "test_edge_i" => edge_i, "test_edge_j" => edge_j, "test_edge_rij" => test_edge_rij,
   "test_site_E" => site_E, "test_E" => [test_E], "test_F" => test_F,
 )

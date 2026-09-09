@@ -6,8 +6,10 @@ and reproduces its site energies and forces in JAX.
 
 ## Status
 
-Gate **passed**, on a model fitted with `acefit!` on `Si_tiny` (BLR), 64-atom
-rattled Si, 2842 edges, f64:
+Phases 1, 3 and 4 complete. Model fitted with `acefit!` on `Si_tiny` (BLR),
+64-atom rattled Si, 2842 edges, f64.
+
+**Phase 1 gate** — core against a Julia-supplied edge list:
 
 | quantity | max abs error | relative |
 |---|---|---|
@@ -15,9 +17,24 @@ rattled Si, 2842 edges, f64:
 | total energy | 0.00e+00 | — |
 | forces | 1.14e-13 eV/Å | 4.15e-14 |
 
-Target was 1e-10; ~3 orders of margin. The floor is the cubic B-spline
-coefficient reproduction, measured at 1.14e-13 against Julia's
+**Phase 3–4 gate** — from an ASE `Atoms` object, own neighbour list, periodic
+images included, against `AtomsCalculators.energy_forces_virial`:
+
+| quantity | max abs error | scale |
+|---|---|---|
+| energy | 1.82e-12 eV | 10441.5 |
+| forces | 1.02e-13 eV/Å | 2.73 |
+| virial | 6.55e-12 eV | 79.4 |
+| dense vs sparse pooling | 8.53e-14 | — |
+
+Target was 1e-10 throughout; ~2–3 orders of margin. The floor is the cubic
+B-spline coefficient reproduction, measured at 1.14e-13 against Julia's
 `Interpolations.jl` evaluation over 20000 random points.
+
+The neighbour list reproduces Julia's edge set exactly (2842 edges, same
+`(i, rij)` multiset). **The virial sign matches Julia's convention with no
+flip**: `V = -dE/dε`, matching `site_virial = -sum(dv_i * r_i')`
+(AtomsCalculatorsUtilities `sitepotentials/assembly.jl:6`).
 
 ## Run
 
@@ -38,7 +55,10 @@ cd stage1 && uv run pytest tests/ -q -s
 | `acejax/io.py` | npz loader |
 | `tests/test_roundtrip.py` | array orientation + per-stage probe values |
 | `tests/test_gate.py` | the gate: site energies, total energy, forces |
+| `acejax/nlist.py` | matscipy-neighbours adapters, sparse and dense |
+| `acejax/calculator.py` | ASE calculator |
 | `tests/test_padding.py` | padded edges do not perturb or NaN the gradient |
+| `tests/test_efv.py` | the Phase 3–4 gate: nlist, E/F/V, pooling layouts, ASE |
 
 ## Schema (npz, `schema_version` 1)
 
@@ -85,3 +105,15 @@ reserved for Stage 2, where a trainable `Wnlq` is required; the loader raises
   keeps Stage 2 reachable.
 * **Index arrays are int32 leaves, not static fields.** Marking a JAX array
   static warns and is a mistake; integer leaves are simply not differentiated.
+* **Pooling is swappable, neither layout hard-wired.** `pool_sparse` (edge list,
+  what lammps-jax exports) and `pool_dense` ((n, K) + count, what
+  `neighbour_matrix` gives and what ET's own `(maxneigs, nnodes, nfeat)` layout
+  looks like) sit behind `edge_features` / `_from_pooled`; everything downstream
+  is per-node. `test_efv.py` pins that they agree to 8.5e-14.
+* **Strain acts on edge vectors.** Because `rij = r[j] - r[i] + S@cell` and both
+  halves transform under ε, the symmetric-displacement trick collapses to
+  `rij -> rij + rij @ ε`. No cell bookkeeping, so the same code path serves
+  LAMMPS, where there is no cell.
+* **`dense_graph` parks padded slots at the cutoff.** `neighbour_matrix` leaves
+  them as zero vectors, which NaNs the gradient the same way the sparse zero pad
+  does. Done in the adapter so a caller cannot forget.
