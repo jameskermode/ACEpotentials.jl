@@ -460,16 +460,21 @@ and matmul — all stock HLO. Export with `custom_call_targets=()` and skip it.
 A working LAMMPS + plugin build exists and has been used to validate EAM bundles
 against native `eam/alloy`. **But it does not run on `lestrade`.**
 
-`lmp -h` — no deck, no bundle — dies with `Illegal instruction` (SIGILL, exit
-132). `liblammps.so.0` contains ~1800 `vmovdqu8` and other AVX-512 instructions;
-the build is tagged `SKX` (Skylake-X, which has AVX-512) while lestrade is an
-**i9-14900K** (Raptor Lake, no AVX-512 at all). The build targets a different
-host — the earlier EAM benchmark runs in `run/` must have been made there.
-The Kokkos GPU arch is likewise `AMPERE86` against lestrade's Ada (8.9).
+**The run host is `moriarty`, not `lestrade`.** The build tag `SKX-AMPERE86`
+decodes exactly: moriarty is a Xeon Silver 4216 (Cascade Lake, has AVX-512) with
+an RTX A4500 (compute 8.6). `lmp -h` runs there normally.
 
-Two ways forward: run on the machine the build targets, or rebuild on the run
-host — `scripts/build_lammps_jax.sh` auto-detects both CPU and GPU arch, so it
-should produce a correct build with no edits.
+On lestrade the same binary dies with `Illegal instruction` (SIGILL, exit 132)
+before printing anything — `liblammps.so.0` carries ~1800 `vmovdqu8` and other
+AVX-512 instructions, and lestrade is an i9-14900K (Raptor Lake, no AVX-512 at
+all) with an Ada card (8.9). Nothing to fix; it is simply the wrong host.
+
+**`/home` and `/storage` are shared between the two; `/tmp` is not.** Stage work
+staged in `/tmp` on lestrade — including the Phase 0 spike env — is not visible
+on moriarty. Use a shared path for anything that has to cross.
+
+If a rebuild is ever needed, `scripts/build_lammps_jax.sh` auto-detects both CPU
+and GPU arch.
 
 Paths as built:
 
@@ -677,7 +682,7 @@ than they are today. Stopping there is a good outcome, not a failure.
 | Silent basis-convention drift (spherical vs solid) | 1 | Medium | Export `ybasis_kind`; keep per-stage probe values |
 | TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
 | XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
-| LAMMPS build/run host mismatch | 1 | **Open** | Build is SKX+AMPERE86; lestrade is Raptor Lake (no AVX-512) + Ada. Run on the target host or rebuild |
+| ~~LAMMPS build/run host mismatch~~ | 1 | Resolved | Run host is `moriarty` (Xeon 4216 + A4500), not lestrade; `/home` and `/storage` shared, `/tmp` not |
 | `sphericart-jax` emits a custom call | 1 | Medium | Implement spherical harmonics in pure JAX; also drops the jax 0.10.1 pin |
 | ~~NaN gradients from padded edges~~ | 1 | Resolved | Phase 1 (sparse) and Phase 4 (dense `neighbour_matrix` zero slots); pad at the cutoff, regression tests both layouts |
 | XLA compile blowup | 1 | Medium | Never unroll per basis function; gather over `(n_AA, max_order)` |
