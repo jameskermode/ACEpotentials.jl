@@ -629,8 +629,9 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | **11. JAX-only distributed MD spike (no LAMMPS)** — not started | 0.5 |
 | **12. LAMMPS ML-IAP route: CPU support, and a CI-testable path** — not started | 2–3 |
 | **13. MACE comparison via `symmetrix` on GPU** — not started | 2 |
+| *14. Traced neighbour list for end-to-end differentiability* — **optional** | 1–2 |
 
-**Remaining: phases 11–13, ~4.5–5.5 days.** None is blocked; 12 and 13 each need a
+**Remaining: phases 11–13, ~4.5–5.5 days**, plus optional phase 14. None is blocked; 12 and 13 each need a
 LAMMPS rebuild with extra packages (`ML-IAP`+`PYTHON`, and `symmetrix`
 respectively), into a new directory as with the ML-PACE rebuild.
 
@@ -943,6 +944,58 @@ Kokkos ML pair style can support CPU, reinforcing Phase 12's point that
 `jax/kk` being CUDA-only is a code-structure choice rather than an inherent
 constraint. Worth citing if the CPU backend is ever raised with the `lammps-jax`
 maintainer.
+
+#### Phase 14 (optional) — a traced neighbour list, for end-to-end differentiability
+
+**Not needed for correctness.** All three shipped backends — `matscipy-neighbours`,
+`matscipy`, the numpy fallback — are host-side C or numpy; `nlist.py` never
+imports `jnp`, so the neighbour list is built **outside the trace** and the JAX
+graph starts at the edge vectors.
+
+That is fine for forces and virials, and it is worth being precise about why: the
+neighbour list is a *discrete selection*, and with an envelope going smoothly to
+zero at the cutoff, `dE/dr` is exactly right with the list held fixed — pairs
+crossing the boundary contribute nothing there. Our forces match Julia to 1e-13
+with the NL entirely outside the graph, and the strain trick differentiates edge
+vectors rather than the selection, so the virial is unaffected too.
+
+**What it does block** is anything needing the graph to extend through neighbour
+construction:
+
+- backpropagating through an MD **trajectory** — learning a potential from
+  trajectory data, inverse design, optimising initial conditions
+- rebuilding the neighbour list **inside a `jit`-ed loop** rather than paying a
+  host round-trip per rebuild
+
+**Two backends already qualify.** `jax_md.partition.neighbor_list` splits into
+`allocate` (sizes buffers, not jittable) and `update` (jittable, traced), with a
+`did_buffer_overflow` flag precisely so a rebuild can happen inside a traced loop
+and signal when capacity was exceeded — differentiable simulation is jax-md's
+founding use case. `lammps-jax`'s `dist/parallel/local_neighbor_list.py` (273
+lines, pure `jnp`/`lax` cell list over fractional coordinates) qualifies for the
+same reasons.
+
+**The adapter is already the right shape.** The neighbour-list interface returns
+edge vectors + segment ids + mask, and pooling sits behind one swappable
+function, so a traced backend slots in beside the existing three rather than
+replacing them. Phase 11's spike runs on `dist/parallel`, which builds on
+`jax_md.partition` — so if `acejax` composes with it cleanly, that is most of the
+evidence this phase needs, obtained for free.
+
+**Gate:** a short MD trajectory run entirely inside `jit`, with `jax.grad` taken
+through it w.r.t. a model parameter or the initial positions, giving a finite
+gradient that matches a finite-difference check.
+
+**The honest caveat, which belongs in the write-up:** differentiating through a
+trajectory has costs the neighbour-list choice does not fix — memory for every
+intermediate across all steps, and a real non-smoothness whenever the neighbour
+*set* changes. Fixed capacity plus an overflow flag manages that; it does not
+remove it. Anyone reaching for this should know the discontinuity is inherent,
+not an artefact of the backend.
+
+**Optional because nothing currently needs it.** It is the enabling step for
+differentiable-simulation work, and worth doing when that work is actually
+wanted rather than speculatively.
 
 ### Stage 2 — fit in JAX (incremental)
 
