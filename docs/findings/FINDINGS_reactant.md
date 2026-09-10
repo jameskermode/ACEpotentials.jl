@@ -5,6 +5,9 @@ Julia 1.12.6, CPU (Apple Silicon). SPIKE CODE.
 
 **Version note:** the miscompilation reproduces on **both Reactant 0.2.222 and
 0.2.285** (the latest as of 2026-09-09), so it is not fixed by upgrading.
+Confirmed again on **Julia 1.13.0 + Reactant 0.2.285 / Reactant_jll 0.0.407**
+in a clean single-dependency environment, so it is not an artefact of the
+Julia version or of anything else in our stack.
 
 **EquivariantTensors cannot be installed alongside Reactant > 0.2.222.**
 ET depends on WignerD, which pins StructArrays <= 0.6.21, while Reactant 0.2.285
@@ -29,11 +32,21 @@ two-line reproducer. Eager Julia is correct; the compiled program is wrong and
 raises nothing.
 
 ```julia
+using Reactant
+Reactant.set_default_backend("cpu")
+
 f(u) = hcat(u[:, 3] .* u[:, 3], u[:, 2] .* u[:, 3])
-u = [1.0 2.0 3.0; 4.0 5.0 6.0]
+
+u  = [1.0 2.0 3.0; 4.0 5.0 6.0]
+ru = Reactant.to_rarray(u)
+
 f(u)                                    # [9.0 6.0; 36.0 30.0]   correct
 Array((@compile f(ru))(ru))             # [9.0 9.0; 36.0 36.0]   WRONG
 ```
+
+Runnable as-is in an environment with only Reactant installed; it is also
+committed as `spike/reactant_phase0/reactant_bug_repro.jl`, which is what to
+run rather than retyping the snippet.
 
 Two distinct elementwise products are deduplicated into one. See
 `reactant_bug_repro.jl`. Worth filing upstream.
