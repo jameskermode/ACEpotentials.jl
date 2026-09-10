@@ -626,12 +626,12 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | ~~8. Throughput benchmark vs Kokkos and ML-PACE~~ ✅ `ce9020d9` | 1 |
 | ~~9. Usable ASE calculator + descriptor access~~ ✅ `18ff57bd` | 1.5 |
 | ~~10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI~~ ✅ `0c670a3d` | 2.5–3 |
-| **11. JAX-only distributed MD spike (no LAMMPS)** — not started | 0.5 |
-| **12. LAMMPS ML-IAP route: CPU support, and a CI-testable path** — not started | 2–3 |
+| ~~11. JAX-only distributed MD spike (no LAMMPS)~~ ✅ **viable, and the fastest route** | 0.5 |
+| 12. LAMMPS ML-IAP route — **deprioritised by Phase 11; CI rationale stands** | 2–3 |
 | **13. MACE comparison via `symmetrix` on GPU** — not started | 2 |
 | *14. Traced neighbour list for end-to-end differentiability* — **optional** | 1–2 |
 
-**Remaining: phases 11–13, ~4.5–5.5 days**, plus optional phase 14. None is blocked; 12 and 13 each need a
+**Remaining: phases 12–13, ~4–5 days**, plus optional phase 14. None is blocked; 12 and 13 each need a
 LAMMPS rebuild with extra packages (`ML-IAP`+`PYTHON`, and `symmetrix`
 respectively), into a new directory as with the ML-PACE rebuild.
 
@@ -800,7 +800,66 @@ or vendor the neighbour-list adapter.
 Gate: `pip install` from a clean environment, then run the README's usage example
 and the test suite, both green.
 
-#### Phase 11 — a JAX-only distributed MD spike (no LAMMPS)
+#### Phase 11 — a JAX-only distributed MD spike (no LAMMPS) ✅ COMPLETE
+
+**Result: viable, worth pursuing, and the fastest of the three deployment routes
+at every size measured once capacities are tuned.**
+
+Gate passed on GPU and CPU. `acejax` runs real distributed MD through
+`dist/parallel/` — velocity Verlet inside one jitted `shard_map` via
+`lax.fori_loop`, so the inner loop never touches the host:
+
+| check | result |
+|---|---|
+| 512-atom forces, 1/2/4/8 ranks | max abs dF **1.4–1.6e-13**; abs dE/E <= 1.7e-16 |
+| same on GPU (A4500, 1 device) | max abs dF **1.25e-13** |
+| 20-step NVE, ranks 1/2/4/8 | final PE **bit-identical across rank counts**, and equal to ASE |
+| energy conservation, dt = 0.25 fs | +0.037 meV/atom/ps |
+
+`dt = 1 fs` collapses — that is `Si_tiny`'s missing repulsive core, documented in
+`bench/results.md`, not the engine.
+
+**Cost to wire up: ~30 lines.** Three conventions had to be matched: the centre
+sits on the *receiver* in `dist/parallel` and on the *sender* in `acejax`
+(`rij = -dR`, `zi`/`zj` swapped); ghost species come from
+`ghost_exchange_subgraph`'s `node_species`, which `nequix_bench.py` discards; and
+gradients are w.r.t. fractional positions, so `F_real = -g_frac @ inv(box)`.
+
+**ACE never calls `exchange_fn`.** It is one-hop, so the per-layer feature
+exchange is dead weight — only `ghost_exchange.py` + `local_neighbor_list.py`
+(823 of ~1900 lines) are on the ACE path, and **the `[dist]` extra
+(`jax-md`, `e3nn-jax`, `nequix`) is not needed at all.**
+
+**Throughput**, as a fraction of raw `acejax` retained (f64, sparse `A2B`):
+
+| atoms | `pair jax/kk` (n_B=69) | **dist** | `pair jax/kk` (710) | **dist** |
+|---|---|---|---|---|
+| 216 | 0.13 | **0.51** | 0.19 | **0.54** |
+| 1728, default capacities | 0.63 | 0.41 | 0.60 | 0.40 |
+| **1728, capacities 1.15/1.27** | 0.63 | **0.74** | 0.60 | **0.69** |
+
+**The entire gap is static-shape padding again — the third time in this project.**
+`1/ratio` tracks the edge-slot ratio to 1.06–1.20x, and on CPU the correspondence
+is exact, so the exchange, masking and `psum` cost nothing measurable. Capacity
+below ~1.05/1.1 overflows, detectable at runtime through the overflow flags
+rather than silently.
+
+Reneighbouring, which the LAMMPS numbers exclude entirely, is 1.2–2.5 ms at 1728
+atoms — ~1.4% of runtime at a 20-step interval.
+
+**Caveats.** Multi-device was verified for **correctness only**, on a forced
+8-device CPU mesh; moriarty has one GPU, so there is **no scaling claim** — those
+ranks are threads. Single species, orthorhombic cells. The integrator is 15 lines
+of NVE: no thermostats, constraints, analysis or file formats, which remains the
+reason LAMMPS is not replaced.
+
+Also confirms the Julia question in the strongest form: at 1 rank on CPU the
+distributed plumbing costs *nothing* measurable beyond padding, because XLA keeps
+the whole step in one compiled region. A Julia port interleaving MPI.jl with
+CUDA.jl would not get that for free.
+
+#### Phase 11 (original brief follows)
+
 
 **Half a day, and it goes before Phase 12 because it may change what Phase 12 is
 worth.** Pointed out by the `lammps-jax` author, who notes it is deliberately
