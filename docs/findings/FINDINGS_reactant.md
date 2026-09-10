@@ -5,9 +5,20 @@ Julia 1.12.6, CPU (Apple Silicon). SPIKE CODE.
 
 **Version note:** the miscompilation reproduces on **both Reactant 0.2.222 and
 0.2.285** (the latest as of 2026-09-09), so it is not fixed by upgrading.
-Confirmed again on **Julia 1.13.0 + Reactant 0.2.285 / Reactant_jll 0.0.407**
-in a clean single-dependency environment, so it is not an artefact of the
-Julia version or of anything else in our stack.
+Re-confirmed on Reactant 0.2.285 / Reactant_jll 0.0.407 in clean
+single-dependency environments across every Julia version Reactant tests:
+
+| Julia | in Reactant CI? | result |
+|---|---|---|
+| 1.11.9 | yes (version sweep) | MISMATCH |
+| 1.12.7 | yes (version sweep) | MISMATCH |
+| 1.13.0 | **no** | MISMATCH |
+
+Reactant's `Project.toml` says `julia = "1.10"`, an open upper bound, so the
+resolver installs happily on 1.13 -- but its CI matrix is 1.10 (primary) plus a
+1.11/1.12 sweep, with no 1.13 row. **Report this upstream against 1.11 or 1.12,
+not 1.13**, or the version is an easy way to dismiss the bug. The 1.13 row is
+included only to show the behaviour does not change there.
 
 **EquivariantTensors cannot be installed alongside Reactant > 0.2.222.**
 ET depends on WignerD, which pins StructArrays <= 0.6.21, while Reactant 0.2.285
