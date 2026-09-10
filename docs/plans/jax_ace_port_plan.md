@@ -626,10 +626,11 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 8. Throughput benchmark vs Kokkos ⚠️ partly blocked (`59f56d90`) | 1 |
 | ~~9. Usable ASE calculator + descriptor access~~ ✅ `18ff57bd` | 1.5 |
 | 10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI | 2.5–3 |
-| 11. LAMMPS ML-IAP route: CPU support, and a CI-testable path | 2–3 |
-| 12. MACE comparison via `symmetrix` on GPU | 2 |
+| 11. JAX-only distributed MD spike (no LAMMPS) | 0.5 |
+| 12. LAMMPS ML-IAP route: CPU support, and a CI-testable path | 2–3 |
+| 13. MACE comparison via `symmetrix` on GPU | 2 |
 
-**≈ 27–31 working days ≈ 5.5–6.5 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
+**≈ 27.5–31.5 working days ≈ 5.5–6.5 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
 blocked on two open bugs; Phase 10 remains, ~3 days).
 
 #### Phase 7 — `ace_model` and solid harmonics
@@ -782,7 +783,57 @@ or vendor the neighbour-list adapter.
 Gate: `pip install` from a clean environment, then run the README's usage example
 and the test suite, both green.
 
-#### Phase 11 — a CPU route into LAMMPS, via ML-IAP
+#### Phase 11 — a JAX-only distributed MD spike (no LAMMPS)
+
+**Half a day, and it goes before Phase 12 because it may change what Phase 12 is
+worth.** Pointed out by the `lammps-jax` author, who notes it is deliberately
+under-documented.
+
+`lammps_jax/dist/parallel/` (~1900 lines) is a **LAMMPS-free distributed MD
+engine in JAX**: domain decomposition, ghost exchange, force decomposition and
+cell-list neighbour building on `shard_map` + `Mesh` + `lax.psum` collectives,
+with `jax_md` for partitioning. `dist/scripts/nequix_bench.py` is the driver that
+wires a model in.
+
+**The plumbing is model-agnostic** — `ghost_exchange`, `local_neighbor_list` and
+`replicate_data` import only jax/numpy; only `feature_exchange` touches e3nn. So
+`acejax` should slot in where `NequixCalculator` sits, the interface being
+essentially `energy_fn(positions, **kwargs)` over a neighbour structure, which is
+close to what `site_energies` already is.
+
+**Why it goes first.** It is a third deployment route, and it sidesteps the
+constraint Phase 12 exists to solve:
+
+| route | CPU | GPU | needs LAMMPS |
+|---|---|---|---|
+| `pair_style jax/kk` | no | yes | yes |
+| ML-IAP (Phase 12) | yes | yes | yes |
+| **JAX-only distributed MD** | **yes** | **yes** | **no** |
+
+JAX runs natively on both, so the CUDA-only problem does not arise. Half a day
+spent here could make Phase 12's 2–3 days unnecessary, or at least reprioritise
+them — that asymmetry is the argument for the ordering.
+
+**What it does not replace.** LAMMPS brings thermostats, constraints, analysis,
+file formats and community familiarity. This complements that; it does not
+substitute for it. Anyone wanting a production MD workflow will still want
+LAMMPS, which is why Phase 12 is deferred rather than dropped.
+
+**Gate:** `acejax` runs a distributed MD step through `dist/parallel/` and
+reproduces the ASE calculator's energies and forces on the same configuration.
+Single device first; multi-device only if that works cleanly.
+
+**Also worth reporting:** whether this is a plausible route for Julia. The author
+wonders whether the approach ports without Reactant/Enzyme, and the algorithms
+themselves do not need either — MPI.jl and CUDA.jl cover collectives and kernels.
+The catch is that the JAX version keeps the **whole step, collectives included,
+inside one compiled region**, so XLA overlaps communication with compute; a Julia
+port interleaving MPI.jl with CUDA.jl would be correct but would not get that for
+free. Note the symmetry with our Reactant findings: fixing the two ET blockers
+would give Julia the same whole-step compilation, so "port without Reactant" and
+"fix ET's `SelectLinL` and KA paths" are alternative routes to the same property.
+
+#### Phase 12 — a CPU route into LAMMPS, via ML-IAP
 
 **The problem.** `pair_style jax/kk` is CUDA-only — `scripts/build_lammps_jax.sh`
 hard-errors without a GPU, and the pair style has no CPU path. Since `acejax` is
@@ -827,7 +878,7 @@ the plugin path is configurable, and the stream handoff
 simpler synchronous CPU branch. Worth raising with the `lammps-jax` maintainer,
 since it benefits every model using the plugin rather than only ours.
 
-#### Phase 12 — how does this compare with MACE?
+#### Phase 13 — how does this compare with MACE?
 
 The question people will actually ask. Phase 8 answers "ACE in JAX versus ACE in
 C++"; this answers "ACE versus the foundation models most users reach for".
@@ -872,7 +923,7 @@ weigh against that generality, not a favourable ratio.
 
 **One incidental finding worth noting:** `symmetrix` ships **both CPU (OpenMP)
 and GPU (CUDA)** Kokkos paths for its pair style. That is direct evidence that a
-Kokkos ML pair style can support CPU, reinforcing Phase 11's point that
+Kokkos ML pair style can support CPU, reinforcing Phase 12's point that
 `jax/kk` being CUDA-only is a code-structure choice rather than an inherent
 constraint. Worth citing if the CPU backend is ever raised with the `lammps-jax`
 maintainer.
