@@ -615,20 +615,36 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 
 | Phase | Days |
 |---|---|
-| 0. Performance spike (gating; ~1 day if stopping at Stage 1) | 1–2 |
-| 1. Julia exporter (fitted model, splined radials) + Python loader | 2.5–3.5 |
-| 2. Descriptor forward | 4 |
-| 3. Neighbour-list adapters + fixed-capacity plumbing | 1 |
-| 4. Energy / forces / virial via `jax.grad` + ASE calculator | 1 |
-| 5. Validation harness (milestones 1–4) | 2 |
-| 6. LAMMPS export + integration testing | 4–5 |
+| ~~0. Performance spike (gating)~~ ✅ all three gates resolved | 1–2 |
+| ~~1. Julia exporter (fitted model, splined radials) + Python loader~~ ✅ `89901596` | 2.5–3.5 |
+| ~~2. Descriptor forward~~ ✅ `89901596` | 4 |
+| ~~3. Neighbour-list adapters + fixed-capacity plumbing~~ ✅ `20282a30` | 1 |
+| ~~4. Energy / forces / virial via `jax.grad` + ASE calculator~~ ✅ `20282a30` | 1 |
+| ~~5. Validation harness (milestones 1–4)~~ ✅ 66 tests | 2 |
+| ~~6. LAMMPS export + integration testing~~ ✅ `d6c99f78` | 4–5 |
 | ~~7. `ace_model` support: analytic radials + solid harmonics~~ ✅ `47aa6837` | 2 |
-| 8. Throughput benchmark vs Kokkos ⚠️ partly blocked (`59f56d90`) | 1 |
+| ~~8. Throughput benchmark vs Kokkos and ML-PACE~~ ✅ `ce9020d9` | 1 |
 | ~~9. Usable ASE calculator + descriptor access~~ ✅ `18ff57bd` | 1.5 |
-| 10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI | 2.5–3 |
-| 11. JAX-only distributed MD spike (no LAMMPS) | 0.5 |
-| 12. LAMMPS ML-IAP route: CPU support, and a CI-testable path | 2–3 |
-| 13. MACE comparison via `symmetrix` on GPU | 2 |
+| ~~10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI~~ ✅ `0c670a3d` | 2.5–3 |
+| **11. JAX-only distributed MD spike (no LAMMPS)** — not started | 0.5 |
+| **12. LAMMPS ML-IAP route: CPU support, and a CI-testable path** — not started | 2–3 |
+| **13. MACE comparison via `symmetrix` on GPU** — not started | 2 |
+
+**Remaining: phases 11–13, ~4.5–5.5 days.** None is blocked; 12 and 13 each need a
+LAMMPS rebuild with extra packages (`ML-IAP`+`PYTHON`, and `symmetrix`
+respectively), into a new directory as with the ML-PACE rebuild.
+
+Open items outside the numbered phases:
+
+- **held on upstream** — the ghost/pad truncation prototype, waiting on the
+  `lammps-jax` maintainer's neighbour-matrix-layout push, since building against
+  a base that is about to change would waste the work
+- **cheap and unfiled** — the Reactant miscompilation bug (two-line reproducer,
+  confirmed on 0.2.285) and the WignerD PR to EquivariantTensors that would lift
+  the Reactant version ceiling from 0.2.222
+- **known gaps, deliberately open** — short-range port fidelity below ~2 Å (all
+  agreement was measured near equilibrium), and the n_B=710 crossover between the
+  two padding causes
 
 **≈ 27.5–31.5 working days ≈ 5.5–6.5 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
 blocked on two open bugs; Phase 10 remains, ~3 days).
