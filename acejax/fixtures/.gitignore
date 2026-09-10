@@ -2,3 +2,8 @@
 #   ACE_ORDER=3 ACE_TOTALDEGREE=19 ACE_RCUT=6.0 ACE_NOFIT=1 \
 #     julia --project=julia julia/export_model.jl fixtures/si_1429.npz ace1
 si_1429.npz
+si_1429.npz
+si_s69.npz
+si_m710.npz
+si_l2849.npz
+si_211.npz

@@ -304,6 +304,96 @@ architecture. A substantial fraction of the small-basis gap remains
 unattributed. That is the honest state: the measurement says where to look
 next — the harmonics — not what the answer is.
 
+# CORRECTION: the series above used an unrealistic model shape
+
+Everything above reached its basis size via **high lmax at low correlation
+order** — the 1429-function model is lmax 10, order 3. Real ACE potentials do
+not get there that way: they use **lmax 3-6 with correlation order 4-5**. The
+exemplar shipped with LAMMPS, `Cu-PBE-core-rep.ace`, is rank 6 / lmax 6 / 742
+functions — high body order, moderate lmax. Ours was the opposite shape.
+
+**This invalidated the headline per-stage result.** lmax 10 gives 121 Ylm
+channels against 36 at lmax 5, so of course the angular stage dominated — we
+made it dominate. The series was rebuilt at **order 4, lmax 5** throughout, with
+only the size varying.
+
+## Rebuilt series: order 4, lmax 5, rcut 6.0, Si
+
+| | acejax | pace | gap | AA terms by rank |
+|---|---|---|---|---|
+| small | 69 | 78 | 13% | 8 / 39 / 37 / 21 |
+| mid | 710 | 693 | 2.4% | 14 / 270 / 1191 / 1481 |
+| large | **2849** | **2874** | **0.9%** | 18 / 672 / 7134 / 16292 |
+
+Both sides now match on shape as well as count. The large point is genuinely
+production-scale — bigger than the 742-function Cu exemplar. Construction was
+fast (0.1-0.5 s); `_auto_nnllmm_spec` was not the bottleneck its comment warns
+about at these sizes.
+
+## The per-stage picture changes completely
+
+Same measurement, GPU, 1728 atoms, f64, sparse `A2B`:
+
+| stage | lmax 10 / order 3 (n_B=1429) | **lmax 5 / order 4 (n_B=2849)** |
+|---|---|---|
+| angular (Ylm) | **51.7%** | **18.9%** |
+| AA products | **3.8%** | **37.6%** |
+| radial | 20.7% | 28.0% |
+| A2B contraction | 16.4% | 54.1% |
+
+**The 51.7% angular figure was a property of the model we built, not of ACE.**
+At a realistic shape the harmonics are ~19% and the `AA` products are ~38%.
+
+**And the recursive-evaluator hypothesis is back.** It was dismissed on
+"AA is 3.8%, so it cannot explain much" — but that was measured on a shape with
+almost no high-rank terms. At order 4 the rank-3 and rank-4 blocks hold 7134 and
+16292 terms, `AA` is ~38% of the time, and `ace_recursive.cpp` exists precisely
+to share subproducts across those. That dismissal was conditioned on our model
+choice and should not have been generalised.
+
+`A2B` remains the single largest stage even sparse. Dense is not an option at
+this size at all: 2849 x 24116 is 550 MB in f64 and takes **679 ms/step**
+against 6 ms sparse.
+
+## Throughput, realistic shape (atom-steps/s at 1728 atoms)
+
+| basis | jax f64 | jax f32 | pace | pace/f64 | pace/f32 |
+|---|---|---|---|---|---|
+| 69 vs 78 | 3.15e5 | 6.47e5 | 9.54e5 | **3.0x** | 1.5x |
+| 710 vs 693 | 6.45e4 | 1.17e5 | 1.39e5 | **2.1x** | 1.2x |
+| 2849 vs 2874 | 1.27e4 | 2.24e4 | 3.30e4 | **2.6x** | 1.5x |
+
+**The monotonic narrowing does not survive the reshape.** The earlier series
+gave 5.8x -> 4.2x -> 2.7x; at a realistic shape it is 3.0x -> 2.1x -> 2.6x —
+narrower overall, and roughly flat rather than steadily converging. The clean
+trend was partly an artefact of varying lmax along with size.
+
+In f32 the two are within 1.2-1.5x throughout.
+
+## Our spherical harmonics against sphericart
+
+The harmonics are hand-written because sphericart lowers to an FFI custom call,
+which would put a custom-call target in exported StableHLO. Measured on GPU,
+1728 atoms, f64:
+
+| lmax | isolated | end-to-end (`site_basis`) |
+|---|---|---|
+| 4 | sphericart **3.06x faster** | **ours 1.25x faster** |
+| 10 | ours 1.5x faster | **ours 1.13x faster** |
+
+**Ours is faster end-to-end at both, despite losing 3x in isolation at lmax 4.**
+XLA fuses our recursion into the surrounding computation; sphericart's FFI call
+is an opaque barrier that forces intermediates to be materialised. Our isolated
+harmonic call at lmax 4 (2.209 ms) is *slower than the whole `site_basis` that
+contains it* (1.315 ms), which is only possible with fusion.
+
+So there is no fork to make: the pure-JAX recursion stands on speed as well as
+on avoiding the FFI machinery, and no second backend is needed. Folding
+`r^(l-|m|)` in — no division at all — is likely part of why.
+
+This is also the clearest demonstration of why isolated stage timings mislead
+here, and why the end-to-end delta was the right thing to insist on.
+
 ## Not obtained
 
 **A `pace` comparison of two *fitted* potentials.** The comparison above matches

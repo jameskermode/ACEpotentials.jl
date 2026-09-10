@@ -30,6 +30,10 @@ elements = Symbol.(split(get(ENV, "ACE_ELEMENTS", "Si"), ","))
 order       = parse(Int, get(ENV, "ACE_ORDER", "3"))
 totaldegree = parse(Int, get(ENV, "ACE_TOTALDEGREE", "10"))
 rcut_kw     = haskey(ENV, "ACE_RCUT") ? parse(Float64, ENV["ACE_RCUT"]) : nothing
+# maxl matters: real ACE potentials use lmax 3-6 with correlation order 4-5, not
+# high lmax at low order.  ace1_model derives lmax from totaldegree; ace_model
+# lets it be set, which is why the benchmark series uses ace_model.
+maxl_kw     = parse(Int, get(ENV, "ACE_MAXL", "6"))
 if KIND == "ace1"
     @info "building ace1_model(elements=$elements, order=$order, totaldegree=$totaldegree)"
     model = rcut_kw === nothing ?
@@ -43,7 +47,7 @@ else
     ri = M._default_rin0cuts(tuple(elements...))
     ri = (x -> (rin = x.rin, r0 = x.r0, rcut = rcut0)).(ri)
     raw = M.ace_model(; elements = tuple(elements...), order = order, Ytype = :solid,
-                      level = M.TotalDegree(), max_level = totaldegree, maxl = 6,
+                      level = M.TotalDegree(), max_level = totaldegree, maxl = maxl_kw,
                       pair_maxn = totaldegree, rin0cuts = ri,
                       init_WB = :glorot_normal, init_Wpair = :glorot_normal)
     ps0, st0 = Lux.setup(MersenneTwister(1234), raw)
