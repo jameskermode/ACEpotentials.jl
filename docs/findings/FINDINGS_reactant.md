@@ -31,16 +31,30 @@ ET depends on WignerD, which pins StructArrays <= 0.6.21, while Reactant 0.2.285
 requires StructArrays >= 0.7.2. So 0.2.222 is not an arbitrary choice -- it is
 the newest Reactant that can coexist with ET at all.
 
-**This looks cheap to fix.** WignerD is used in ET's `src/` at exactly two
-places, `O3_utils.jl:173` and `:185`, inside `D_from_angles` /
-`QD_from_angles` -- utilities that build a rotation Q and matching Wigner-D
-matrix so equivariance can be checked as `y о Q = D * y`. They have **no callers
-anywhere in `src/`**, are not exported, and are used only by
-`test/O3/test_O3_transforms.jl`. WignerD is also already listed in ET's test
-target. Moving those two functions into the test suite, or behind a weakdep
-extension, would drop the dependency and lift the Reactant ceiling from 0.2.222
-to current -- a one-PR change that unblocks testing ETACE against current
-Reactant.
+**This was cheap to fix, and is now done:
+[ACEsuit/EquivariantTensors.jl#143](https://github.com/ACEsuit/EquivariantTensors.jl/pull/143).**
+WignerD is used in ET's `src/` at exactly two places, in `O3/O3_utils.jl`,
+inside `D_from_angles` / `QD_from_angles` -- utilities that build a rotation Q
+and matching Wigner-D matrix so equivariance can be checked as `y о Q = D * y`.
+They have **no callers anywhere in `src/`**, are not exported, and are used
+only by `test/O3/test_O3_transforms.jl`. WignerD was already in ET's test
+target, so the PR moves both functions into `test/test_utils/utils_testO3.jl`
+and drops WignerD from `[deps]`.
+
+Note the failure mode is subtler than "cannot be installed": asking for ET and
+Reactant 0.2.285 together does **not** error, it silently resolves to
+**EquivariantTensors 0.1.2**, four minor versions back, from before WignerD was
+a dependency. The conflict is only visible if ET is pinned:
+
+```
+Unsatisfiable requirements detected for package StructArrays [09ab397b]:
+ ├─restricted by compatibility requirements with Reactant [3c362404] to versions: 0.7.2 - 0.7.3
+ └─restricted by compatibility requirements with WignerD [87c4ff3e] to versions: 0.5.0 - 0.6.21 — no versions left
+```
+
+With #143 applied, a dev'd ET and Reactant 0.2.285 resolve and precompile
+together, so the KA-tracing question below can finally be tested against a
+current Reactant.
 
 ## Headline
 
@@ -252,8 +266,12 @@ Two things worth doing regardless of the port:
    *measured* to trace exactly (4.44e-16). But first check whether KA kernels
    trace on a CUDA host -- if they do not, the whole ET evaluation path needs
    de-KA-ing, not just this one layer, which is a much larger commitment.
-3. Raise the ET -> WignerD -> StructArrays pin, which currently caps Reactant at
-   0.2.222 and blocks testing against current releases.
+3. ~~Raise the ET -> WignerD -> StructArrays pin, which currently caps Reactant
+   at 0.2.222 and blocks testing against current releases.~~ -- **done**, filed
+   as [EquivariantTensors.jl#143](https://github.com/ACEsuit/EquivariantTensors.jl/pull/143).
+   Once merged, blocker 2 can be re-tested on a CUDA host against current
+   Reactant, which is the measurement that decides whether the `SelectLinL`
+   rewrite is worth attempting.
 
 Performance was not measured. Benchmarking a miscompiling path is not
 meaningful, and the two blockers mean the standard path cannot yet be timed at
