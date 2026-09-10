@@ -11,27 +11,41 @@ shape and same-host ratios do.
 > The scaling series was built at an unrealistic model shape (high lmax, low
 > correlation order). Two conclusions below — "angular is 51.7% of runtime" and
 > "the pace/acejax ratio narrows monotonically" — are artefacts of that choice
-> and are superseded there. The absolute throughputs stand.
+> and are superseded there. The absolute throughputs stand, but they are the
+> throughputs of a 110-function model and **none of them are what
+> `scaling.png` plots**; the figure is built entirely from the realistic-shape
+> numbers in the CORRECTION section. Two sections below are marked SUPERSEDED
+> for that reason.
 
 ## Scaling
 
 ![ACE throughput vs atom count](scaling.png)
 
-Throughput in timesteps/s against atom count, log-log, one panel per precision,
-in the shape of the upstream chart in
-`docs/plans/lammps_jax_benchmark_reference.md` so the two can be read side by
-side. Regenerate with `uv run --with matplotlib python make_plot.py`.
+Throughput in timesteps/s against atom count, log-log, one panel per basis
+size, at the realistic shape of the CORRECTION section (n_B = 69, 710, 2849).
+Regenerate with `uv run --with matplotlib python make_plot.py`.
 
-Three things the shape shows that the tables do not:
+**Solid lines are LAMMPS pair styles; dashed lines are acejax called directly
+from Python**, which is *not* a pair style: it carries no neighbour list, no
+communication, no integration, and no static-shape padding. Same hue = same
+implementation, so within a colour the solid/dashed gap is the cost of the
+plugin path, and between colours it is the cost of the implementation.
 
-- **The f64 dip at 216 atoms is visible as a V**, not a smooth curve. It is the
-  capacity effect below, and it reproduces to under 1%.
-- **f32 and f64 share a y-axis**, so the ~2.2x gap between them is a vertical
-  offset rather than a number to compare across two scales.
-- **Stillinger-Weber is near-flat** while the ACE curves fall roughly as 1/N —
-  SW keeps near-constant wall time over this range, so the visible gap widens
-  with system size. That is a scale reference, not a like-for-like comparison:
-  it is a classical 3-body potential, different physics entirely.
+Four things the shape shows that the tables do not:
+
+- **The f64 dip at 216 atoms is a V in the LAMMPS lines and absent from the
+  Python ones.** In `pair jax/kk` f64, 216 atoms is *slower* than 64 at
+  n_B = 69 and at n_B = 710; in Python, 216 atoms is faster than 64 at all
+  three basis sizes. So the dip belongs to the plugin path — bundle capacity
+  and kernel shape — not to the model.
+- **The plugin gap narrows with system size rather than sitting at a constant
+  offset.** The shaded f64 band is at its widest at the left-hand end
+  (64-216 atoms) of every panel and at its narrowest at 1728.
+- **The f32 pair narrows the same way**, so this is not a precision effect.
+- **At n_B = 2849 the dashed blue line crosses above the green one**: the model
+  in Python is slightly faster in f64 than `pair pace/kk` at a matched basis
+  size. That crossing is not like-for-like (see below) but it locates the
+  remaining gap in the plugin path rather than in the kernel.
 
 ## Method, and what it excludes
 
@@ -88,7 +102,12 @@ The f64 216-atom point at 1.35x reproduces to under 1% across five runs
 The same margin is fine for f32 at that size, consistent with a tiling effect
 that depends on element width.
 
-## acejax in Python, same GPU
+## acejax in Python, same GPU (n_B = 110 — SUPERSEDED)
+
+> **These numbers are for the superseded 110-function model** (order 3,
+> lmax 4) and correspond to no series in `scaling.png`. The Python series at
+> the current shapes is measured further down, under "acejax in Python at the
+> realistic shapes". Do not mix the two.
 
 Forces via `jax.grad`, `min` of 10 repeats, compilation excluded.
 
@@ -108,7 +127,11 @@ earlier 3-5.4x measurement on different hardware: the descriptor is
 memory-bound, so the 1/32 FP64 arithmetic rate is not what governs. f64 is not
 the afterthought here that it is for cheaper potentials.
 
-## Plugin overhead
+## Plugin overhead (n_B = 110 — SUPERSEDED)
+
+> **Superseded**, for the same reason: both sides of these ratios are the
+> 110-function model. The realistic-shape version is "The plugin gap across
+> sizes" below, and it is a good deal larger than the ~80% quoted here.
 
 Best-case LAMMPS against acejax-in-Python at the same size and precision:
 
@@ -323,7 +346,12 @@ channels against 36 at lmax 5, so of course the angular stage dominated — we
 made it dominate. The series was rebuilt at **order 4, lmax 5** throughout, with
 only the size varying.
 
-## Rebuilt series: order 4, lmax 5, rcut 6.0, Si
+## Rebuilt series: order 4, lmax 4-5, rcut 6.0, Si
+
+One detail worth correcting in the sentence above: the rebuilt series is order 4
+throughout, but the *small* model is lmax 4, not 5 — `fixtures/si_s69.npz`
+carries `lmax: 4`, while `si_m710.npz` and `si_l2849.npz` carry `lmax: 5`. It is
+labelled "order 4, lmax 4-5" in `scaling.png` for that reason.
 
 | | acejax | pace | gap | AA terms by rank |
 |---|---|---|---|---|
@@ -375,6 +403,150 @@ narrower overall, and roughly flat rather than steadily converging. The clean
 trend was partly an artefact of varying lmax along with size.
 
 In f32 the two are within 1.2-1.5x throughout.
+
+## acejax in Python at the realistic shapes
+
+The same model, same GPU, called directly from Python — no LAMMPS. Forces via
+`jax.grad`, sparse `A2B`, `min` of 10 repeats, compilation excluded. Exact edge
+and atom counts: nothing is padded, which is the point of the comparison.
+
+`bench_acejax.py --npz fixtures/si_{s69,m710,l2849}.npz --reps 2 3 4 5 6
+--repeats 10 --a2b-sparse [--f32]`
+
+**n_B = 69** (order 4, lmax 4)
+
+| atoms | edges | f64 ms/step | f64 atom-steps/s | f32 ms/step | f32 atom-steps/s |
+|---|---|---|---|---|---|
+| 64 | 2852 | 0.301 | 2.13e5 | 0.179 | 3.58e5 |
+| 216 | 9582 | 0.514 | 4.20e5 | 0.264 | 8.19e5 |
+| 512 | 22796 | 0.934 | 5.48e5 | 0.319 | 1.61e6 |
+| 1000 | 44548 | 2.002 | 4.99e5 | 0.620 | 1.61e6 |
+| 1728 | 76920 | 3.465 | 4.99e5 | 1.480 | 1.17e6 |
+
+**n_B = 710** (order 4, lmax 5)
+
+| atoms | edges | f64 ms/step | f64 atom-steps/s | f32 ms/step | f32 atom-steps/s |
+|---|---|---|---|---|---|
+| 64 | 2852 | 0.788 | 8.12e4 | 0.282 | 2.27e5 |
+| 216 | 9582 | 1.779 | 1.21e5 | 0.536 | 4.03e5 |
+| 512 | 22796 | 3.984 | 1.28e5 | 2.003 | 2.56e5 |
+| 1000 | 44548 | 8.689 | 1.15e5 | 4.508 | 2.22e5 |
+| 1728 | 76920 | 16.062 | 1.08e5 | 8.948 | 1.93e5 |
+
+**n_B = 2849** (order 4, lmax 5)
+
+| atoms | edges | f64 ms/step | f64 atom-steps/s | f32 ms/step | f32 atom-steps/s |
+|---|---|---|---|---|---|
+| 64 | 2852 | 1.652 | 3.87e4 | 0.551 | 1.16e5 |
+| 216 | 9582 | 4.018 | 5.38e4 | 1.922 | 1.12e5 |
+| 512 | 22796 | 11.361 | 4.51e4 | 6.236 | 8.21e4 |
+| 1000 | 44548 | 25.129 | 3.98e4 | 15.825 | 6.32e4 |
+| 1728 | 76920 | 46.624 | 3.71e4 | 31.570 | 5.47e4 |
+
+**Exclusions, restated** — these are the same two the LAMMPS numbers carry, plus
+one the LAMMPS numbers do not:
+
+1. **No reneighbouring.** The edge list is built once per size and reused, as
+   `timestep 0.0` does on the LAMMPS side.
+2. **Compilation excluded.** The first call is run and discarded; the reported
+   figure is the `min` of 10 timed repeats after it. Unlike the `run 100`
+   numbers, compilation is fully outside the measurement here, not merely a
+   small share of it.
+3. **No neighbour list, no MPI communication, no integration, and no padding.**
+   That is what makes this the right baseline for isolating plugin cost, and
+   what makes it *not* a pair style.
+
+**Repeatability.** The whole six-block series was run twice, in separate
+processes: once with `XLA_PYTHON_CLIENT_PREALLOCATE=false` and once with JAX's
+default preallocation. Of the nine points longer than 5 ms/step, eight agree to
+within 1.5% and the ninth to 3.3%; points under 1 ms scatter far more, up to 17%
+(0.226 vs 0.264 ms at n_B = 69, 216 atoms), which is what timing a quarter of a
+millisecond over the Python/JAX dispatch path costs. There is no systematic
+difference between the two settings, so preallocation is not what the LAMMPS
+comparison turns on. The table above is the default-preallocation run; both raw
+logs are on moriarty at `~/si-ace/acejax/bench/py_series{,_prealloc}.txt`, with
+the compute-app samplers beside them.
+
+**GPU exclusivity.** A first attempt failed outright — another process held
+15.2 GB of the 20 GB card and every allocation OOM'd, so no numbers were
+produced. Both reported runs were taken with `nvidia-smi
+--query-compute-apps` verified empty beforehand and a 3-second sampler running
+throughout; in neither run does a second PID ever appear.
+
+## The plugin gap across sizes
+
+`pair jax/kk` throughput divided by acejax-in-Python throughput at the same
+size, precision and basis — the fraction of raw model throughput that survives
+the plugin path. Alongside it, how much each bundle's static shapes over-provision
+against what that configuration actually uses.
+
+| atoms | atom slots / atoms | edge slots / edges | 69 f64 | 710 f64 | 2849 f64 | 69 f32 | 710 f32 | 2849 f32 |
+|---|---|---|---|---|---|---|---|---|
+| 64 | 15.0x | 1.68x | 0.34 | 0.32 | 0.18 | 0.30 | 0.17 | 0.08 |
+| 216 | 8.0x | 1.45x | 0.13 | 0.19 | 0.18 | 0.34 | 0.19 | 0.14 |
+| 512 | 5.6x | 1.37x | 0.37 | 0.49 | 0.35 | 0.29 | 0.41 | 0.27 |
+| 1000 | 4.4x | 1.47x | 0.55 | 0.55 | 0.39 | 0.36 | 0.48 | 0.38 |
+| 1728 | 3.7x | 1.40x | **0.63** | **0.60** | **0.34** | 0.55 | 0.61 | 0.41 |
+
+**The overhead is not a constant offset — it shrinks as the system grows.**
+Retention rises by 1.8-1.9x between 64 and 1728 atoms in the f64 columns, and by
+1.8-5x in f32. On the plot this is the shaded band closing from left to right —
+not monotonically, since 216 atoms is a local worst case in f64 at the two
+smaller bases, the same V the LAMMPS series shows. This is the thing the ratio
+table alone could not say.
+
+**Two mechanisms with exactly known padding factors** — their *effect* on
+runtime is a different matter, see the caveat below. The bundles have static
+shapes, so every padded slot is evaluated:
+
+- The **atom** axis is padded to `max_atoms`, which covers local atoms *plus
+  ghosts* plus a 1.25x margin — 15.0x the local atom count at 64 atoms, falling
+  to 3.7x at 1728 as the surface-to-volume ratio does. `export_bundle.py` passes
+  `positions.shape[0]`, i.e. `max_atoms`, as the node count to
+  `model.site_energies`, so the per-atom stages (`A` pooling, `AA` products,
+  `A2B`, readout) run over every slot. In Python they run over exactly `N`.
+- The **edge** axis is padded ~1.4x throughout, so the edge-wise stages
+  (radial, angular, `edge_A`) pay a roughly constant 1.4x.
+
+That the atom padding falls with N while the edge padding does not is
+consistent with the narrowing, and it predicts the second pattern in the table:
+
+**Retention is worst at n_B = 2849** — 0.34 at 1728 atoms against 0.60-0.63 at
+the two smaller bases. That is where the per-atom stages dominate (`A2B` 54%,
+`AA` 38% of `site_basis` at this shape), so the 3.7x atom-slot padding lands on
+most of the work rather than a minority of it.
+
+**What is not separated here.** This measurement gives the *total* cost of the
+plugin path; it does not decompose it. Padding, LAMMPS's own neighbour list,
+MPI-layer bookkeeping, integration and the PJRT call boundary are all inside
+these ratios. The padding factors above are exact counts and the code path is
+verified, but no experiment here attributes a share of the lost throughput to
+each. Re-running one point with capacities cut to the actual counts would do
+that, and has not been done.
+
+## What that says about the pace comparison
+
+At 1728 atoms, `pair pace/kk` against acejax **in Python**:
+
+| basis (ours vs pace) | pace / acejax f64 | pace / acejax f32 |
+|---|---|---|
+| 69 vs 78 | 1.9x | 0.8x |
+| 710 vs 693 | 1.3x | 0.7x |
+| 2849 vs 2874 | **0.9x** | 0.6x |
+
+**This is not like-for-like and must not be quoted as "acejax beats pace".**
+pace is measured inside LAMMPS and pays the neighbour list, communication and
+integration that the Python line does not, so the comparison flatters our side.
+The honest reading is a bound in the other direction: **the like-for-like
+deficit at n_B = 2849 (2.6x, both in LAMMPS) is larger than any deficit
+attributable to the kernel** — in Python the same model in f64 matches pace's
+throughput at a matched basis size. Whatever the kernel gap is at production
+basis size, it is smaller than the plugin path's contribution.
+
+**f64 against f32 in Python** costs 2.34x at n_B = 69, 1.80x at 710 and 1.48x at
+2849, all at 1728 atoms. The penalty *falls* as the basis grows, consistent with
+the large-basis stages being bandwidth- and index-bound rather than
+arithmetic-bound.
 
 ## Our spherical harmonics against sphericart
 
