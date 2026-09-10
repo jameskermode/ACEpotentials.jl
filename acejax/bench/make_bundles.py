@@ -13,7 +13,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 A_SI = 5.43
 
 
-def capacities(reps, rcut, skin=1.0, atom_margin=1.25, edge_margin=1.35):
+def capacities(reps, rcut, skin=1.0, atom_margin=1.25, edge_margin=2.0):
     """Analytic ghost/edge counts for an 8-atom-cell diamond supercell."""
     L = A_SI * reps
     n = 8 * reps**3
@@ -33,18 +33,21 @@ def main():
     p.add_argument("--reps", type=int, nargs="+", default=[2, 3, 4, 5, 6, 8])
     p.add_argument("--outdir", type=pathlib.Path, default=HERE / "bundles")
     p.add_argument("--python", default=sys.executable)
+    p.add_argument("--precision", choices=["float64", "float32"], default="float64")
+    p.add_argument("--edge-margin", type=float, default=2.0)
     a = p.parse_args()
-    a.outdir.mkdir(exist_ok=True)
+    a.outdir.mkdir(parents=True, exist_ok=True)
     meta = json.loads(bytes(__import__("numpy").load(a.npz)["meta_json"]).decode())
     rcut = float(meta["rcut"])
     for reps in a.reps:
-        n, ma, me = capacities(reps, rcut)
+        n, ma, me = capacities(reps, rcut, edge_margin=a.edge_margin)
         out = a.outdir / f"si_r{reps}_n{n}.lammps-jax.json"
         print(f"reps={reps} atoms={n} max_atoms={ma} max_edges={me} -> {out.name}", flush=True)
         subprocess.run([a.python, str(HERE.parent / "lammps" / "export_bundle.py"),
                         "--npz", str(a.npz), "--out", str(out),
                         "--max-atoms", str(ma),
-                        "--edges-per-atom", str(max(1, -(-me // ma)))],
+                        "--edges-per-atom", str(max(1, -(-me // ma))),
+                        "--precision", a.precision],
                        check=True, stdout=subprocess.DEVNULL)
 
 

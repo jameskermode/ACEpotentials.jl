@@ -36,9 +36,10 @@ sys.path.insert(0, str(HERE.parent))        # so `import acejax` works from anyw
 from acejax import load
 
 
-def build(npz, max_atoms=2560, edges_per_atom=64):
+def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64"):
     """Return (energy_fn, model, meta, rcut, max_atoms, max_edges)."""
-    model, meta, _ = load(npz, dtype=jnp.float64)
+    dtype = jnp.float64 if precision == "float64" else jnp.float32
+    model, meta, _ = load(npz, dtype=dtype)
     rcut = float(meta["rcut"])
     n_species = len(meta["elements"])
     max_edges = max_atoms * edges_per_atom
@@ -68,16 +69,20 @@ def main():
                    default=HERE / "si_ace.lammps-jax.json")
     p.add_argument("--max-atoms", type=int, default=2560)
     p.add_argument("--edges-per-atom", type=int, default=64)
+    p.add_argument("--precision", choices=["float64", "float32"], default="float64",
+                   help="bundle precision; f32 is ~2.5x faster here because the "
+                        "descriptor is memory-bound, not FLOP-bound")
     a = p.parse_args()
     if not a.npz.exists():
         p.error(f"npz not found: {a.npz}")
 
     energy_fn, model, meta, rcut, max_atoms, max_edges = build(
-        a.npz, a.max_atoms, a.edges_per_atom)
+        a.npz, a.max_atoms, a.edges_per_atom, a.precision)
     print("model:", a.npz, "| elements", meta["elements"], "rcut", rcut,
           "n_B", meta["n_B"], "lmax", meta["lmax"],
           "| radial", meta["radial_kind"], "| Y", meta["ybasis_kind"])
-    print("capacities: max_atoms", max_atoms, "max_edges", max_edges)
+    print("capacities: max_atoms", max_atoms, "max_edges", max_edges,
+          "| precision", a.precision)
 
     export_model(
         energy_fn=energy_fn,
@@ -86,7 +91,7 @@ def main():
         max_edges=max_edges,
         cutoff=rcut,
         unit_style="metal",
-        precision="float64",
+        precision=a.precision,
         force_output="atom-force",   # forces by autodiff from the energy
         newton="on",                 # energy exports are newton on only
         n_hops=1,

@@ -92,30 +92,21 @@ ACEpotentials 0.6.12, which is past the point where this was worth pressing on.
 
 **No contract was loosened and no field was invented to force a pass.**
 
-## A new bug: `jax/kk` aborts in longer MD runs
+## The MD abort, and why the method changed
 
-Independent of the comparator, and it bounds the benchmark:
+An earlier version of this file reported `jax/kk` aborting with
+`cudaErrorIllegalAddress` beyond ~50 MD steps and suspected the reneighbour
+repack path. That was wrong about the cause. `compute-sanitizer` put the fault
+in LAMMPS's own `NBinKokkos::bin_atoms()` with no `pair_jax_kokkos` frame, and
+the root cause is that the `Si_tiny` test potential has **no repulsive core**:
+its dimer curve turns over around 1.5 A and diverges attractively, so atoms
+collapse into each other. It reproduces in pure ASE NVE with no LAMMPS at all.
+See `FINDINGS_lammps.md`.
 
-```
-cudaDeviceSynchronize() error( cudaErrorIllegalAddress )
-```
-
-| steps (216 atoms) | result |
-|---|---|
-| 20 | OK |
-| 50 | OK (loop 0.268 s) |
-| 100 | **abort** |
-| 200, 300 | **abort** |
-
-**It is not capacity.** Tripling the bundle capacities (max_atoms 1736 -> 3200,
-max_edges 13184 -> 38400) does not help. What differs between 50 and 100 steps
-is neighbour-list rebuilds, so the repack path after reneighbouring is the
-suspect. The plugin also does not validate capacity at runtime — an overflow
-would present as this same illegal-address abort rather than a clean error.
-
-Consequence: LAMMPS numbers here are 20-step runs with XLA compilation *inside*
-the timed loop, so they are lower bounds and the 216-atom point reads slower
-than the 64-atom one. Steady-state throughput needs this fixed.
+The benchmark therefore uses `timestep 0.0`: the configuration is frozen and
+`run N` becomes N repeated single-point evaluations. That measures the pair
+style and the model without touching the instability, at the cost of excluding
+reneighbouring, which is stated in `bench/results.md` and in the deck.
 
 ## What the numbers do support
 

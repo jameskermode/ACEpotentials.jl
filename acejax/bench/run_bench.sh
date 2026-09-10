@@ -16,9 +16,9 @@ for reps in $REPS; do
   n=$((8*reps*reps*reps))
   for style in "$@"; do
     case $style in
-      jax)  extra="-var bundle $PWD/bundles/si_r${reps}_n${n}.lammps-jax.json -var pjrt $PJRT" ;;
+      jax)  extra="-var bundle $PWD/${BUNDLEDIR:-bundles}/si_r${reps}_n${n}.lammps-jax.json -var pjrt $PJRT" ;;
       pace) extra="-var yace $PWD/${YACE:-si_v06.yace}" ;;
-      eam)  extra="-var eamfile $PWD/${EAMFILE:-Si.eam.alloy}" ;;
+      sw)   extra="-var swfile ${SWFILE:-/storage/eng/essswb/lammps-jax-build/lammps/potentials/Si.sw}" ;;
     esac
     log=/tmp/bench_${style}_${reps}.log
     $LMP $KK -var reps $reps -var steps $STEPS -var style $style $extra \
