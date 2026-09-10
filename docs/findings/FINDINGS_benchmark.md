@@ -128,6 +128,61 @@ reneighbouring, which is stated in `bench/results.md` and in the deck.
 - Plugin overhead looks like ~25% at 1728 atoms (1.91e5 vs 2.55e5), but with
   compilation still in the loop that is indicative only.
 
+## The model shape was wrong, and it changed the conclusions
+
+The scaling series reached its basis size through **high lmax at low
+correlation order** — the largest model was lmax 10, order 3. That is not how
+production ACE potentials get to thousands of functions; they use **lmax 3-6 at
+correlation order 4-5**. The exemplar LAMMPS ships, `Cu-PBE-core-rep.ace`, is
+rank 6 / lmax 6 / 742 functions: high body order, moderate lmax. Ours was the
+opposite shape, and two headline findings were artefacts of it.
+
+Rebuilt at **order 4, lmax 5** throughout (69 vs 78, 710 vs 693, 2849 vs 2874 —
+the last 0.9% apart and larger than the Cu exemplar):
+
+| stage | lmax 10 / order 3 | lmax 5 / order 4 |
+|---|---|---|
+| angular (Ylm) | **51.7%** | **18.9%** |
+| AA products | **3.8%** | **37.6%** |
+| radial | 20.7% | 28.0% |
+| A2B (sparse) | 16.4% | 54.1% |
+
+**The 51.7% angular figure was a property of the model we built, not of ACE.**
+It followed from 121 Ylm channels at lmax 10 against 36 at lmax 5.
+
+**The recursive-evaluator hypothesis is therefore revived.** It was dismissed
+on "AA is only 3.8%" — but that was measured on a shape with almost no
+high-rank terms. At order 4 the rank-3 and rank-4 blocks hold 7134 and 16292
+terms, `AA` is ~38%, and `ace_recursive.cpp` exists precisely to share
+subproducts across them. The dismissal was conditioned on our model choice and
+should not have been generalised.
+
+Throughput changes too. The reported monotonic narrowing (pace/acejax f64
+5.8x -> 4.2x -> 2.7x) does not survive: at a realistic shape it is
+**3.0x -> 2.1x -> 2.6x** — narrower overall, and roughly flat rather than
+steadily converging. The clean trend came partly from lmax varying with size.
+
+Construction at the large shape took 0.1-0.5 s, so `_auto_nnllmm_spec` is not
+the bottleneck its own comment warns of at these sizes.
+
+## Isolated stage timings mislead here: sphericart
+
+Our hand-written harmonics exist to avoid an FFI custom-call target in the
+exported StableHLO. Measured against sphericart on GPU, 1728 atoms, f64:
+
+| lmax | isolated | end-to-end (`site_basis`) |
+|---|---|---|
+| 4 | sphericart **3.06x faster** | **ours 1.25x faster** |
+| 10 | ours 1.5x faster | **ours 1.13x faster** |
+
+Ours wins end-to-end at both sizes despite losing 3x in isolation at lmax 4:
+XLA fuses our recursion into the surrounding computation, while sphericart's
+FFI call is an opaque barrier that forces intermediates to be materialised. The
+isolated lmax-4 harmonic call (2.209 ms) is slower than the entire `site_basis`
+containing it (1.315 ms), which only fusion can explain. There is no fork to
+make — no second backend, no FFI machinery — and the constraint turned out to
+cost nothing.
+
 ## Sizing capacities per point mattered
 
 Phase 6's bundle has `max_edges` 163840 against 9880 used. Sized per point, the
