@@ -88,6 +88,10 @@ jobs:
           key: ${{ runner.os }}-lammps-install-${{ env.LAMMPS_VERSION }}
       - name: Clone LAMMPS
         if: steps.lammps-src-cache.outputs.cache-hit != 'true'
+        # Must run at the workspace root, not the acejax/ default: the cache
+        # paths are workspace-relative and the repo already has acejax/lammps/
+        # (our export tooling), which git clone refuses to write into.
+        working-directory: .
         run: git clone --depth 1 -b stable https://github.com/lammps/lammps.git lammps
       - name: Build LAMMPS
         if: steps.lammps-install-cache.outputs.cache-hit != 'true'
