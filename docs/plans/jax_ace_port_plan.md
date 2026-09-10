@@ -1129,10 +1129,41 @@ Stage 1, not new work.
 kept live rather than folded into the spec precisely so the radial basis is
 trainable here — that decision now pays off.
 
-Note the loss gradient is a gradient of a gradient (forces are already
-`jax.grad`), so a training step costs more than a forward pass by a larger factor
-than an MD step does. Measure that early; it is the one number that could make 2A
-more expensive than it looks.
+**AD structure — this needs the right mode, not just `grad` of `grad`.** For the
+force term of the loss, `L_F = ‖F - F_ref‖²`, what is needed is
+
+```
+∂L_F/∂θ = v · ∂F/∂θ,   v = 2(F - F_ref) held constant
+```
+
+and since `F = -∇_r E` that is the mixed second derivative `∂²E/∂θ∂r` contracted
+with `v` on the `r` side. The efficient composition is **reverse-over-forward**:
+`v·∇_r E` is a directional derivative, so one forward-mode JVP in `r` gives it as
+a scalar, and one reverse pass in `θ` then gives the gradient —
+
+```python
+jax.grad(lambda p: jax.jvp(lambda r: E(p, r), (r,), (v,))[1])(θ)
+```
+
+Reverse in `θ` because `n_θ >> 1` and the loss is scalar; forward in `r` because
+only the single direction `v` is wanted, not all `3N`. Naive
+reverse-over-reverse (build `F`, then backprop the loss through that tape) is
+correct but tapes the backward pass, costing materially more memory. Forward in
+`θ` is the one combination that is plainly wrong: `O(n_θ)` passes. `F` is still
+computed once per batch by reverse mode, since both the loss value and `v` need
+it, so a step is two passes — the second with a small tape.
+
+**Gate 3's Jacobian cost does not apply here.** That is the point of the
+asymmetry: 2B needs *all* `n_B` columns of `∂B/∂r` (hence 43–238× forward on CPU,
+9–20× on GPU), whereas 2A needs only the single contraction `v · ∂F/∂θ` per
+batch — roughly 4–6× forward, and **independent of `n_B`**. The energy term is
+plain reverse mode and nearly free beside it. These factors are analytic, not
+measured; confirm them in phase 15 before the loop design is fixed.
+
+**Caveat:** for a model *linear* in its parameters, `∂F/∂c` **is** the design
+matrix, so a gradient-based fit buys nothing over the normal equations. 2A pays
+off only once `Wnlq` and friends are genuinely trainable — which is the case it
+exists for.
 
 #### Stage 2B — linear fit in JAX (separately justified)
 
