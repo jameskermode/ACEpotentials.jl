@@ -7,6 +7,12 @@ The reference chart in `docs/plans/lammps_jax_benchmark_reference.md` is an
 RTX 4070 Laptop at 70 W. Absolute numbers do not transfer between the two;
 shape and same-host ratios do.
 
+> **Read the CORRECTION section at the end before using anything below it.**
+> The scaling series was built at an unrealistic model shape (high lmax, low
+> correlation order). Two conclusions below — "angular is 51.7% of runtime" and
+> "the pace/acejax ratio narrows monotonically" — are artefacts of that choice
+> and are superseded there. The absolute throughputs stand.
+
 ## Scaling
 
 ![ACE throughput vs atom count](scaling.png)
