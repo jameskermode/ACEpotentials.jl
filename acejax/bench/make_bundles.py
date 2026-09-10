@@ -35,6 +35,7 @@ def main():
     p.add_argument("--python", default=sys.executable)
     p.add_argument("--precision", choices=["float64", "float32"], default="float64")
     p.add_argument("--edge-margin", type=float, default=2.0)
+    p.add_argument("--a2b-sparse", action="store_true")
     a = p.parse_args()
     a.outdir.mkdir(parents=True, exist_ok=True)
     meta = json.loads(bytes(__import__("numpy").load(a.npz)["meta_json"]).decode())
@@ -47,7 +48,8 @@ def main():
                         "--npz", str(a.npz), "--out", str(out),
                         "--max-atoms", str(ma),
                         "--edges-per-atom", str(max(1, -(-me // ma))),
-                        "--precision", a.precision],
+                        "--precision", a.precision]
+                       + (["--a2b-sparse"] if a.a2b_sparse else []),
                        check=True, stdout=subprocess.DEVNULL)
 
 

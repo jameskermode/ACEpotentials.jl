@@ -14,6 +14,7 @@
 
 using ACEpotentials, NPZ, JSON, StaticArrays, LinearAlgebra, Random, Printf
 using AtomsCalculators, ACEfit
+using SparseArrays
 using Lux
 using LazyArtifacts, ExtXYZ, AtomsBase, Unitful
 M = ACEpotentials.Models
@@ -49,12 +50,26 @@ else
     model = M.ACEPotential(raw, ps0, st0)
 end
 
-@info "fitting on Si_tiny with acefit!"
-data = ACEpotentials.example_dataset("Si_tiny").train
-acefit!(data, model;
-        energy_key = "dft_energy", force_key = "dft_force",
-        virial_key = "dft_virial", solver = ACEfit.BLR(), verbose = false)
-@info "fit done"
+# For a throughput benchmark the coefficients are irrelevant -- cost depends on
+# the basis, not its weights -- and at a few thousand functions a fit to Si_tiny
+# would be wildly underdetermined as well as slow.  ACE_NOFIT=1 keeps the random
+# initialisation.  Do not use such a model for anything but timing.
+if get(ENV, "ACE_NOFIT", "0") == "1"
+    # ace1_model initialises WB to ZERO.  Left that way, XLA can fold the
+    # readout to a constant and eliminate the descriptor entirely, so the
+    # benchmark would measure nothing.  Randomise explicitly.
+    Random.seed!(11)
+    model.ps.WB .= 0.02 .* randn(size(model.ps.WB))
+    model.ps.Wpair .= 0.02 .* randn(size(model.ps.Wpair))
+    @info "ACE_NOFIT=1: RANDOM weights, NOT fitted -- timing only"
+else
+    data = ACEpotentials.example_dataset("Si_tiny").train
+    @info "fitting on Si_tiny with acefit!"
+    acefit!(data, model;
+            energy_key = "dft_energy", force_key = "dft_force",
+            virial_key = "dft_virial", solver = ACEfit.BLR(), verbose = false)
+    @info "fit done"
+end
 
 m = model.model; ps = model.ps; st = model.st
 NZ = length(m.rbasis._i2z)
@@ -281,7 +296,12 @@ D = Dict{String, Any}(
   "pair_envelope" => pair_env,
   "rcuts" => rcuts, "pair_rcuts" => pair_rcuts,
   "aspec_r" => aspec_r, "aspec_y" => aspec_y,
-  "A2B" => A2B,                                        # (n_B, n_AA) dense
+  # A2B is stored as triplets: at n_B = 1429 the dense form is 125 MB with
+  # 11474 nonzeros (0.009% occupied).  The loader densifies.
+  "A2B_rows" => Int32.(findnz(sparse(A2B))[1] .- 1),
+  "A2B_cols" => Int32.(findnz(sparse(A2B))[2] .- 1),
+  "A2B_vals" => findnz(sparse(A2B))[3],
+  "A2B_shape" => Int32[size(A2B, 1), size(A2B, 2)],
   "WB" => WB, "Wpair" => Wpair, "E0" => E0,
   "elements" => Int32.(i2z),
   # probes

@@ -976,7 +976,16 @@ export branch.
    `real_solidharmonics(L; normalisation = :L2)` to 4.8e-15 with no normalisation
    argument — the defaults already agree. `sphericart-jax` pins jax 0.10.1, which is
    also what lammps-jax recommends.
-2. Dense `neighbour_matrix` or sparse edge list as the CPU default? Not yet measured;
+2. ~~`BCOO` versus dense for `A2B`?~~ **CLOSED.** Dense is fine at 110 basis
+   functions (0.9% occupied) but not at scale: at 1429 functions `A2B` is
+   1429 x 11474 with one nonzero per column, 0.070% occupied and 131 MB in f64.
+   Timed on GPU it was **99.9% of `site_basis`**, and replacing the matmul with a
+   gather plus segment-sum gave an **8.1x** end-to-end speedup in f64. Not BCOO:
+   one nonzero per column makes an explicit gather simpler and faster. Exact, not
+   approximate. Off by default (`load(..., a2b_sparse=True)`) because dense wins
+   at small basis. A2B is also stored as triplets now — the 1429 npz went from
+   132 MB to 1.3 MB.
+3. Dense `neighbour_matrix` or sparse edge list as the CPU default? Not yet measured;
    the swappable pooling function makes this reversible.
 3. Should the exporter live in ACEpotentials.jl (as a `scripts/` entry point) or in
    the new Python repo as a Julia sidecar? Former is easier to keep in sync.

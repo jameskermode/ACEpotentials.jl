@@ -26,6 +26,7 @@ def main():
     p.add_argument("--npz", type=pathlib.Path, required=True)
     p.add_argument("--reps", type=int, nargs="+", default=[2,3,4,5,6,8])
     p.add_argument("--f32", action="store_true")
+    p.add_argument("--a2b-sparse", action="store_true")
     p.add_argument("--repeats", type=int, default=10)
     a = p.parse_args()
     if not a.f32:
@@ -49,10 +50,11 @@ def main():
         o = np.argsort(ii, kind="stable")
         return ii[o].astype(np.int32), jj[o].astype(np.int32), rr[o]
 
-    model, meta, _ = load(a.npz, dtype=jnp.float32 if a.f32 else jnp.float64)
+    model, meta, _ = load(a.npz, dtype=jnp.float32 if a.f32 else jnp.float64,
+                          a2b_sparse=a.a2b_sparse)
     rcut = float(meta["rcut"])
     print(f"# acejax {'f32' if a.f32 else 'f64'} on {jax.default_backend()}  "
-          f"n_B={meta['n_B']} rcut={rcut}")
+          f"n_B={meta['n_B']} rcut={rcut} a2b={'sparse' if a.a2b_sparse else 'dense'}")
     print(f"# {'atoms':>8} {'edges':>9} {'ms/step':>10} {'atom-steps/s':>14}")
     for reps in a.reps:
         pos, cell = diamond(reps)

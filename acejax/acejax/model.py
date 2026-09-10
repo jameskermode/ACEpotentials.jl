@@ -76,7 +76,14 @@ class ACEModel(eqx.Module):
     pair_transform: jax.Array     # (NZ, NZ, 7)
     rnl_envelope: jax.Array       # (NZ, NZ, 5)
     pair_envelope: jax.Array      # (NZ, NZ, 3)
-    A2B: jax.Array                # (n_B, n_AA)
+    A2B: jax.Array                # (n_B, n_AA) dense
+    # A2B is extremely sparse -- typically one nonzero per column, 0.07%
+    # occupied at 1429 basis functions -- so the dense contraction does
+    # n_B * n_AA multiply-adds per node where nnz would do.  These triplets
+    # drive the sparse path; see `a2b_sparse`.
+    a2b_rows: jax.Array
+    a2b_cols: jax.Array
+    a2b_vals: jax.Array
     WB: jax.Array                 # (n_B, NZ)
     Wpair: jax.Array              # (n_pair, NZ)
     E0: jax.Array                 # (NZ,)
@@ -88,6 +95,7 @@ class ACEModel(eqx.Module):
     aa_specs: tuple                               # per-order (n_v, order) int arrays
     lmax: int = eqx.field(static=True)
     ysolid: bool = eqx.field(static=True)
+    a2b_sparse: bool = eqx.field(static=True)
     radial_kind: str = eqx.field(static=True)        # "spline" | "analytic"
     pair_radial_kind: str = eqx.field(static=True)
     pair_envelope_kind: str = eqx.field(static=True)  # "ace1_poly1sr" | "poly1sr"
@@ -149,7 +157,16 @@ class ACEModel(eqx.Module):
 
     def _from_pooled(self, A, Apair):
         AA = jnp.concatenate([jnp.prod(A[:, g], axis=-1) for g in self.aa_specs], axis=-1)
-        return AA @ self.A2B.T, Apair
+        if self.a2b_sparse:
+            # gather the nnz contributing columns and scatter into basis rows.
+            # There is usually exactly one nonzero per column, so this replaces
+            # an (n_B x n_AA) matmul with an nnz-length gather.
+            contrib = AA[:, self.a2b_cols] * self.a2b_vals          # (n_nodes, nnz)
+            B = jax.ops.segment_sum(contrib.T, self.a2b_rows,
+                                    num_segments=self.A2B.shape[0]).T
+        else:
+            B = AA @ self.A2B.T
+        return B, Apair
 
     def site_basis(self, rij, zi, zj, segment_ids, n_nodes, mask=None):
         """Sparse (edge-list) pooling -- the layout lammps-jax exports."""

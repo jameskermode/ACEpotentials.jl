@@ -30,6 +30,13 @@ lmax = int(sys.argv[3]) if len(sys.argv) > 3 else 4
 rcut = float(sys.argv[4]) if len(sys.argv) > 4 else 6.0
 out = sys.argv[5] if len(sys.argv) > 5 else "/tmp/si_pace.ace"
 
+# NRADMAX_BY_ORDERS lets the count be tuned finely; the uniform scan below is
+# too coarse near a few thousand functions.
+EXPLICIT = None
+if len(sys.argv) > 6:
+    EXPLICIT = [int(x) for x in sys.argv[6].split(",")]
+
+
 def build(nradmax, nradbase, ndens=1):
     cfg = {
         "deltaSplineBins": 0.001,
@@ -39,16 +46,20 @@ def build(nradmax, nradbase, ndens=1):
                                "rho_core_cut": 100000, "drho_core_cut": 250}},
         "bonds": {"ALL": {"radbase": "ChebExpCos", "radparameters": [5.25],
                           "rcut": rcut, "dcut": 0.01, "NameOfCutoffFunction": "cos"}},
-        "functions": {"ALL": {"nradmax_by_orders": [nradmax] * order,
+        "functions": {"ALL": {"nradmax_by_orders": EXPLICIT or [nradmax] * order,
                               "lmax_by_orders": [0] + [lmax] * (order - 1)}},
     }
     bc = create_multispecies_basis_config(cfg)
     n = sum(len(b.funcspecs) for b in bc.funcspecs_blocks)
     return bc, n
 
-# scan nradmax for the closest function count to the target
-best = None
-for nradmax in range(1, 20):
+if EXPLICIT is not None:
+    bc, n = build(max(EXPLICIT), max(EXPLICIT))
+    best = (bc, max(EXPLICIT), n)
+else:
+  # scan nradmax for the closest function count to the target
+  best = None
+  for nradmax in range(1, 20):
     try:
         bc, n = build(nradmax, max(nradmax, 8))
     except Exception:

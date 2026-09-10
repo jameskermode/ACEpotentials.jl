@@ -58,6 +58,16 @@ size**, which is the reassuring answer. The exported yace reports 210 ctilde
 functions and `lmax: 2`; those are pacemaker's own counting over ms-combinations
 and its radial-angular block, not comparable term-for-term with `n_B`.
 
+### A likely retrospective explanation
+
+Building the pace comparator later turned up a format trap that may explain this
+whole episode: `to_ACECTildeBasisSet().save()` writes the **`.ace` text**
+format, and giving that file a `.yace` extension makes yaml-cpp reject it with
+exactly `Exception: bad conversion`. The v0.6 exporter writes `.yace` by name.
+If its content is likewise not YAML, the parser mismatch below may be a
+filename/format confusion rather than a missing feature. Not retested, since the
+throughput comparison no longer needs the v0.6 file.
+
 ### Why it will not load
 
 The v0.6 exporter emits a radial basis as **tabulated spline nodal values**:

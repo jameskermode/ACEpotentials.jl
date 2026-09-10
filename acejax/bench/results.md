@@ -200,6 +200,110 @@ points, not an established scaling law: **both models here are small** (110 and
 couple of thousand. Whether the trend continues, flattens or reverses at that
 scale is untested.
 
+## Third size, and a large-basis finding that changes the reading
+
+A third matched pair at production-ish scale: **ours 1429 functions vs pace
+1551** (8.5% apart), order 3 and lmax 10 on both sides, rcut 6.0. This is the
+closest matched pair available — pace's function count moves in coarse jumps, so
+1809-vs-1725 would have matched the count to 4.9% but with lmax 12 against 5,
+and shape matters more than count. ~2000 with both shapes matched was not
+reachable; 1429/1551 is the documented ceiling.
+
+The 1429 model uses **random, unfitted weights** (`ACE_NOFIT=1`). Coefficients do
+not affect cost, and a fit of 1429 functions to Si_tiny would be badly
+underdetermined. Note `ace1_model` initialises `WB` to *zero*, which would let
+XLA fold the readout away and eliminate the descriptor entirely, so the exporter
+randomises explicitly.
+
+### The dense `A2B` contraction dominates at large basis
+
+`A2B` is extremely sparse — usually exactly one nonzero per column. At 1429
+functions it is 1429 x 11474 with 11474 nonzeros: **0.070% occupied, 131 MB
+dense in f64**. Per-stage timing at 216 atoms, f64, on the GPU:
+
+| stage | dense `A2B` | sparse `A2B` |
+|---|---|---|
+| A2B contraction | **19.658 ms (99.9%)** | 0.10 ms |
+| everything else | ~0.78 ms | ~0.69 ms |
+| `site_basis` total | 19.684 ms | 0.80 ms |
+
+Replacing the matmul with a gather and segment-sum (one nonzero per column makes
+this straightforward) gives, at 1728 atoms:
+
+| | dense | sparse | speedup |
+|---|---|---|---|
+| f64 | 2672 atom-steps/s | 21550 | **8.1x** |
+| f32 | 27960 | 35280 | 1.26x |
+
+The sparse path is exact, not an approximation — it agrees with the dense one to
+0.000e+00 (`tests/test_efv.py::test_sparse_a2b_matches_dense`). It is off by
+default because dense is faster at small basis; pass `a2b_sparse=True` to
+`load()`.
+
+**Any large-basis number taken with the dense contraction measures our
+implementation, not the architecture.** The figures below use the sparse path
+for the 1429 point and dense for 110 and 211, where it is the faster of the two.
+
+### The three-point trend
+
+pace / acejax throughput at 1728 atoms, f64 (like-for-like; pace is
+double-precision):
+
+| basis (ours vs pace) | pace / jax f64 |
+|---|---|
+| 110 vs 99 | **5.8x** |
+| 211 vs 211 | **4.2x** |
+| 1429 vs 1551 | **2.7x** |
+
+**The narrowing holds across all three points and continues.** With the dense
+contraction the third point would have read 21.6x and inverted the trend
+entirely — which is why measuring both mattered.
+
+## Where the remaining gap is: per-stage breakdown
+
+Stages timed in isolation, 1728 atoms, f64, GPU, n_B = 110:
+
+| stage | ms | share of `site_basis` |
+|---|---|---|
+| **angular (Ylm)** | 1.135 | **51.7%** |
+| radial | 0.454 | 20.7% |
+| A2B contraction | 0.359 | 16.4% |
+| edge_A product | 0.157 | 7.2% |
+| A pooling | 0.139 | 6.3% |
+| AA products | 0.083 | 3.8% |
+| readout | 0.062 | 2.8% |
+| sum of stages | 2.389 | 108.8% |
+| `site_basis` whole | 2.196 | |
+
+**Method caveat, and it is a real limit.** Timing stages in isolation *over*
+counts, because XLA fuses them in the full computation and avoids materialising
+intermediates. At n_B = 110 and 1728 atoms the sum is 8.8% over the whole, which
+is tolerable. At n_B = 211 it is 105% over, and at 216 atoms it is 55-176% over,
+because the individual kernels are too small for the isolated timing to mean
+anything. Only the 110-at-1728 column above is quoted for that reason; the
+others are recorded in the commit history but not presented as attributions.
+
+So on the one decomposition that is trustworthy:
+
+- **The spherical harmonics are the single largest stage at ~52%.** That is our
+  pure-JAX recursion; pace uses hand-optimised C++. This is a larger lever at
+  small basis than `A2B`, and it is the concrete place to look next.
+- `AA` products are only 3.8%, so the recursive-evaluator hypothesis
+  (`ace_recursive.cpp` sharing subproducts) cannot account for much at this
+  basis size. It may matter more at large basis, untested.
+- **Edge padding**: at the 1.35x capacity margin used, roughly 26% of evaluated
+  edges are padding, so this is a ~1.3x effect on the edge-wise stages
+  (radial, angular, edge_A) — about 80% of the work at n_B = 110. Real, but not
+  the dominant term.
+- **Precision is neutral**, as expected: the f64 column is compared against
+  pace's double precision throughout.
+
+**Residual.** Padding (~1.3x on edge-wise stages) does not close a 5.8x gap, and
+the harmonics being half our time points at implementation quality rather than
+architecture. A substantial fraction of the small-basis gap remains
+unattributed. That is the honest state: the measurement says where to look
+next — the harmonics — not what the answer is.
+
 ## Not obtained
 
 **A `pace` comparison of two *fitted* potentials.** The comparison above matches
@@ -211,4 +315,5 @@ versions), but upstream ICAMS libpace rejects it (`bad conversion` — it wants
 `Exception: map::at`. For a *throughput* comparison this does not matter, since
 coefficients do not affect cost. See `docs/findings/FINDINGS_benchmark.md`.
 
-**Production-scale basis sizes.** The largest tested is 211 functions.
+**A fully matched pair at ~2000 functions.** pace's achievable function counts
+jump coarsely at fixed lmax, so the largest matched pair is 1429 vs 1551.

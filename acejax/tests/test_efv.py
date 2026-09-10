@@ -177,3 +177,26 @@ def test_dense_from_sparse_matches_neighbour_matrix(case):
         set_s = sorted(zip(idx_s[a, :n].tolist(),
                            [tuple(np.round(v, 9)) for v in dist_s[a, :n]]))
         assert set_n == set_s, f"atom {a} differs"
+
+
+def test_sparse_a2b_matches_dense(case, npz):
+    """A2B has ~one nonzero per column, so the dense contraction does n_B * n_AA
+    multiply-adds where nnz would do.  The sparse path must give the same answer
+    -- it is an optimisation, not an approximation."""
+    from acejax import load
+    model_d, meta, z = load(npz, a2b_sparse=False)
+    model_s, _, _ = load(npz, a2b_sparse=True)
+    n = int(z["test_pos"].shape[1])
+    send = jnp.asarray(z["test_edge_i"], jnp.int32)
+    recv = jnp.asarray(z["test_edge_j"], jnp.int32)
+    rij = jnp.asarray(z["test_edge_rij"].T)
+    nz = jnp.zeros(n, jnp.int32)
+    with highest_precision():
+        ed = model_d.site_energies(rij, nz[send], nz[recv], send, n, nz)
+        es = model_s.site_energies(rij, nz[send], nz[recv], send, n, nz)
+    err = float(np.max(np.abs(np.asarray(ed) - np.asarray(es))))
+    nnz = int(model_d.a2b_vals.shape[0])
+    dense = int(model_d.A2B.shape[0]) * int(model_d.A2B.shape[1])
+    print(f"\n  {npz.stem}: A2B {model_d.A2B.shape} nnz={nnz} "
+          f"({100*nnz/dense:.3f}% occupied)  sparse-vs-dense max|d| = {err:.3e}")
+    assert err < 1e-10

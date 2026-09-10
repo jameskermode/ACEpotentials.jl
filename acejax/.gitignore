@@ -2,3 +2,8 @@
 __pycache__/
 .pytest_cache/
 dist/
+bench/bundles*/
+bench/b2_*/
+bench/bp_*/
+bench/bg_*/
+bench/capt/

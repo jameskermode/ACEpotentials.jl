@@ -36,10 +36,11 @@ sys.path.insert(0, str(HERE.parent))        # so `import acejax` works from anyw
 from acejax import load
 
 
-def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64"):
+def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
+          a2b_sparse=False):
     """Return (energy_fn, model, meta, rcut, max_atoms, max_edges)."""
     dtype = jnp.float64 if precision == "float64" else jnp.float32
-    model, meta, _ = load(npz, dtype=dtype)
+    model, meta, _ = load(npz, dtype=dtype, a2b_sparse=a2b_sparse)
     rcut = float(meta["rcut"])
     n_species = len(meta["elements"])
     max_edges = max_atoms * edges_per_atom
@@ -69,6 +70,9 @@ def main():
                    default=HERE / "si_ace.lammps-jax.json")
     p.add_argument("--max-atoms", type=int, default=2560)
     p.add_argument("--edges-per-atom", type=int, default=64)
+    p.add_argument("--a2b-sparse", action="store_true",
+                   help="gather/segment-sum A2B contraction instead of a dense "
+                        "matmul; A2B is ~0.07%% occupied at large basis")
     p.add_argument("--precision", choices=["float64", "float32"], default="float64",
                    help="bundle precision; f32 is ~2.5x faster here because the "
                         "descriptor is memory-bound, not FLOP-bound")
@@ -77,7 +81,7 @@ def main():
         p.error(f"npz not found: {a.npz}")
 
     energy_fn, model, meta, rcut, max_atoms, max_edges = build(
-        a.npz, a.max_atoms, a.edges_per_atom, a.precision)
+        a.npz, a.max_atoms, a.edges_per_atom, a.precision, a.a2b_sparse)
     print("model:", a.npz, "| elements", meta["elements"], "rcut", rcut,
           "n_B", meta["n_B"], "lmax", meta["lmax"],
           "| radial", meta["radial_kind"], "| Y", meta["ybasis_kind"])

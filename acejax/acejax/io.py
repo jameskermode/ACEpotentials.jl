@@ -24,9 +24,41 @@ import numpy as np
 from .model import ACEModel
 
 
-def load(path, dtype=jnp.float64):
+def _a2b(z, dtype):
+    """A2B, from sparse triplets when present.
+
+    It is extremely sparse -- one nonzero per column -- so at a few thousand
+    basis functions the dense form is hundreds of MB while the triplets are a
+    fraction of one.  It is densified here because the contraction is a single
+    matmul and dense is faster at these sizes; if it ever stops fitting, this is
+    the place to switch to `jax.experimental.sparse.BCOO`.
+    """
+    if "A2B" in z.files:
+        return jnp.asarray(z["A2B"], dtype=dtype)      # older exports
+    shape = tuple(int(v) for v in z["A2B_shape"])
+    dense = np.zeros(shape, dtype=np.float64)
+    dense[z["A2B_rows"], z["A2B_cols"]] = z["A2B_vals"]
+    return jnp.asarray(dense, dtype=dtype)
+
+
+def _a2b_triplets(z, n_B, n_AA):
+    if "A2B" in z.files:
+        d = np.asarray(z["A2B"])
+        r, c = np.nonzero(d)
+        return r.astype(np.int32), c.astype(np.int32), d[r, c]
+    return (np.asarray(z["A2B_rows"], np.int32), np.asarray(z["A2B_cols"], np.int32),
+            np.asarray(z["A2B_vals"]))
+
+
+def load(path, dtype=jnp.float64, a2b_sparse=False):
     """Load a model.  Caller controls dtype; nothing here touches jax.config, so
-    f64 requires the caller to have enabled x64 first."""
+    f64 requires the caller to have enabled x64 first.
+
+    `a2b_sparse` selects a gather/segment-sum contraction instead of a dense
+    matmul against A2B.  A2B is ~0.07% occupied at 1429 basis functions, so the
+    dense form does far more arithmetic than needed at large basis; it is
+    retained as the default because it is faster at small basis.
+    """
     z = np.load(path)
     meta = json.loads(bytes(z["meta_json"]).decode())
     if meta["schema_version"] != 1:
@@ -45,6 +77,7 @@ def load(path, dtype=jnp.float64):
         if k not in ("spline", "analytic"):
             raise NotImplementedError(f"unknown radial_kind {k!r}")
 
+    _tr = _a2b_triplets(z, meta["n_B"], meta["n_AA"])
     rs = meta.get("rnl_spline") or {"x0": 0.0, "h": 1.0, "n": 2}
     ps_ = meta.get("pair_spline") or {"x0": 0.0, "h": 1.0, "n": 2}
     n_orders = len(meta["aa_lens"])
@@ -61,7 +94,11 @@ def load(path, dtype=jnp.float64):
         pair_transform=A("pair_transform"),
         rnl_envelope=A("rnl_envelope"),
         pair_envelope=A("pair_envelope"),
-        A2B=A("A2B"), WB=A("WB"), Wpair=A("Wpair"), E0=A("E0"),
+        A2B=_a2b(z, dtype),
+        a2b_rows=jnp.asarray(_tr[0]), a2b_cols=jnp.asarray(_tr[1]),
+        a2b_vals=jnp.asarray(_tr[2], dtype=dtype),
+        a2b_sparse=bool(a2b_sparse),
+        WB=A("WB"), Wpair=A("Wpair"), E0=A("E0"),
         aspec_r=jnp.asarray(z["aspec_r"], jnp.int32),
         aspec_y=jnp.asarray(z["aspec_y"], jnp.int32),
         aa_specs=tuple(jnp.asarray(z[f"aa_spec_{k+1}"], jnp.int32) for k in range(n_orders)),
