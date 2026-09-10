@@ -809,7 +809,14 @@ than they are today. Stopping there is a good outcome, not a failure.
 
 Two bugs, both bounding what Stage 1 can currently claim.
 
-**1. `jax/kk` aborts beyond ~50 MD steps** with `cudaErrorIllegalAddress`.
+**1. ~~`jax/kk` aborts beyond ~50 MD steps~~ — RESOLVED, not a code defect.**
+`compute-sanitizer` put the fault in LAMMPS's own `NBinKokkos::bin_atoms()`, and
+the root cause is that the `Si_tiny` test potential has **no repulsive core**:
+the dimer curve turns over at ~1.5 Å and diverges attractively, so atoms
+collapse. Reproduced in pure ASE NVE with no LAMMPS involved. The pipeline is
+vindicated end to end; refit with `acefit!(..., repulsion_restraint = true)`
+before re-testing energy conservation. See `docs/findings/FINDINGS_lammps.md`.
+Original symptom, for reference:
 216 atoms: 20 steps OK, 50 OK, **100 / 200 / 300 abort**. Not capacity — tripling
 `max_atoms` and `max_edges` does not help; what changes between 50 and 100 steps
 is neighbour-list rebuilds, so the repack path after reneighbouring is the
@@ -846,7 +853,7 @@ vintage and the fork's `main`.
 | ~~Convention mismatches (indexing, `lm2idx`, `𝔸spec` sort)~~ | 1 | Resolved | Phase 0: all intermediates clean to 1.4e-15 (GPU) / 5.1e-15 (CPU) |
 | ~~Splined radial export branch~~ | 1 | Resolved | Phase 1: 102 B-spline coeffs, 76 LOC, bit-for-bit with Julia |
 | Silent basis-convention drift (spherical vs solid) | 1 | Medium | Export `ybasis_kind`; keep per-stage probe values |
-| `jax/kk` aborts beyond ~50 MD steps | 1 | **High** | See Open issues; blocks production MD and energy-conservation checks |
+| ~~`jax/kk` aborts beyond ~50 MD steps~~ | 1 | **Resolved — not a code defect** | The Si_tiny test potential has no repulsive core; reproduced in pure ASE with no LAMMPS. Refit with `repulsion_restraint=true` |
 | TF32 silently degrades f32 descriptor to 1.2e-3 | 1 | Medium | Pin matmul precision; verify it survives `jax.export` |
 | XLA autotuning miscompiles the Jacobian einsum (f32) | **2** | Medium | f64 assembly; or `--xla_gpu_autotune_level=0`; report upstream |
 | ~~LAMMPS build/run host mismatch~~ | 1 | Resolved | Run host is `moriarty` (Xeon 4216 + A4500), not lestrade; `/home` and `/storage` shared, `/tmp` not |

@@ -174,3 +174,76 @@ so they are ordered with respect to each other. `exec.fence()` at
 That is three static hypotheses refuted (stale edges, capacity, missing fence).
 Static reading has reached its limit here; `compute-sanitizer --tool memcheck`
 is the next step, to name the faulting kernel rather than infer it.
+
+
+## RESOLVED: the crash is the test potential, not any of our code (2026-09-10)
+
+`compute-sanitizer` named the faulting kernel, and it is not ours:
+
+```
+Invalid __global__ atomic of size 4 bytes
+  at NPairKokkosBinAtomsFunctor<Kokkos::Cuda>
+  Access ... 93 bytes after the nearest allocation of size 176 bytes
+  LAMMPS_NS::NBinKokkos<Kokkos::Cuda>::bin_atoms()
+  LAMMPS_NS::NeighborKokkos::build_kokkos<Kokkos::Cuda>(int)
+```
+
+No `pair_jax_kokkos` frame. That is LAMMPS's own neighbour binning, which is why
+it only fires on reneighbour steps and why our bundle capacities were irrelevant.
+
+**But LAMMPS is not at fault either.** LAMMPS `develop` (2026-09-09) carries
+`49dc8dc687` "KOKKOS: stop binning an atom that has left the bins", which adds
+
+```cpp
+if ((ibin < 0) || (ibin >= mbins))
+  Kokkos::abort("Atom outside of neighbor bin range - simulation unstable");
+```
+
+That converts the cryptic illegal address into a clear message. It is a better
+diagnostic, **not a cure** — the underlying condition is atoms leaving the box.
+(We are on `patch_4Jul2026`, two months behind develop.)
+
+### The potential has no repulsive core
+
+Reproduced with **no LAMMPS at all**, in pure ASE NVE with the `acejax`
+calculator, 216 atoms, 1 fs:
+
+| step | energy drift (meV/atom) | min interatomic distance |
+|---|---|---|
+| 20 | 0.21 | 1.88 Å |
+| 25 | 0.77 | 1.49 Å |
+| 30 | 88.8 | 0.56 Å |
+| 35 | 5.0e7 | — |
+
+Atoms collapse into each other while the energy **falls**. The dimer curve shows
+why:
+
+| r (Å) | 3.00 | 2.35 | 2.00 | **1.50** | 1.00 | 0.70 | 0.50 |
+|---|---|---|---|---|---|---|---|
+| E (eV) | -52.25 | -43.42 | -30.33 | **-17.13** | -26.24 | -54.23 | -107.87 |
+
+Repulsive down to ~1.5 Å, then it turns over and diverges attractively. This is
+the textbook ACE extrapolation failure below the shortest distance present in
+the training data: `Si_tiny` is a small near-equilibrium dataset and
+`acefit!` defaults to `repulsion_restraint = false`.
+
+**So the pipeline is vindicated end to end** — `acejax`, the bundle, the pair
+style and LAMMPS all faithfully evaluated a potential that is simply not
+MD-stable. It was fitted to pass a numerical-agreement gate, not to run dynamics.
+
+### What this changes
+
+- The **High risk** "jax/kk aborts beyond ~50 MD steps" is not a code defect.
+- Energy conservation should be re-tested with a potential refitted using
+  `acefit!(..., repulsion_restraint = true)`. That is a fitting option, not a
+  code change.
+- Worth updating LAMMPS to develop regardless: the clear abort message would
+  have saved this entire investigation.
+
+**Not verified:** whether the port matches Julia *below* ~2 Å specifically. All
+prior agreement (1e-13 on energies, forces, virial, descriptors) was measured on
+near-equilibrium structures with minimum separations around 2.2 Å. A Julia dimer
+comparison was attempted and blocked by an unrelated expired TLS certificate
+breaking Julia's HTTP precompilation on the dev machine. The turnover itself is
+a property of the fitted basis, so this does not affect the conclusion, but the
+short-range fidelity check remains open.
