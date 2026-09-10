@@ -66,7 +66,11 @@ committed as `spike/reactant_phase0/reactant_bug_repro.jl`, which is what to
 run rather than retyping the snippet.
 
 Two distinct elementwise products are deduplicated into one. See
-`reactant_bug_repro.jl`. Worth filing upstream.
+`reactant_bug_repro.jl`.
+
+**Filed upstream as
+[EnzymeAD/Reactant.jl#3267](https://github.com/EnzymeAD/Reactant.jl/issues/3267)**,
+"Correctness issue when compiling elementwise operations" (2026-09-10, open).
 
 ### Localised to an optimisation pass
 
@@ -234,12 +238,15 @@ because lammps-jax consumes StableHLO, which Reactant also emits, potentially
 the same LAMMPS pair style too.
 
 Two things worth doing regardless of the port:
-1. File the miscompilation bug upstream (`reactant_bug_repro.jl`). Searched
+1. ~~File the miscompilation bug upstream~~ -- **done**, filed as
+   [#3267](https://github.com/EnzymeAD/Reactant.jl/issues/3267). Searched
    EnzymeAD/Reactant.jl first: there is a cluster of "silent wrong result"
-   reports (#3038, #3039, #2981, #3046, all closed; #2969 open) but none matches
+   reports (#3038, #3039, #2981, #3046, all closed; #2969 open) but none matched
    -- those are KA-kernel raising or complex-array gather, whereas this is plain
    broadcast plus `hcat` on Float64. #2846 ("Correctness and performance issue
    with Reactant + KA kernel code", open) is relevant to blocker 2, not to this.
+   Watch #3267: if the offending pass is fixed, the Julia export route becomes
+   worth re-timing.
 2. Try the `SelectLinL` rewrite. It is small, already wanted for other reasons
    (it would drop a hand-written rrule), and the array-op formulation is
    *measured* to trace exactly (4.44e-16). But first check whether KA kernels
