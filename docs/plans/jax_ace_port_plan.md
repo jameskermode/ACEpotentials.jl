@@ -626,8 +626,9 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 8. Throughput benchmark vs Kokkos ⚠️ partly blocked (`59f56d90`) | 1 |
 | ~~9. Usable ASE calculator + descriptor access~~ ✅ `18ff57bd` | 1.5 |
 | 10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI | 2.5–3 |
+| 11. LAMMPS ML-IAP route: CPU support, and a CI-testable path | 2–3 |
 
-**≈ 23–26 working days ≈ 4.5–5 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
+**≈ 25–29 working days ≈ 5–6 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
 blocked on two open bugs; Phase 10 remains, ~3 days).
 
 #### Phase 7 — `ace_model` and solid harmonics
@@ -779,6 +780,51 @@ or vendor the neighbour-list adapter.
 
 Gate: `pip install` from a clean environment, then run the README's usage example
 and the test suite, both green.
+
+#### Phase 11 — a CPU route into LAMMPS, via ML-IAP
+
+**The problem.** `pair_style jax/kk` is CUDA-only — `scripts/build_lammps_jax.sh`
+hard-errors without a GPU, and the pair style has no CPU path. Since `acejax` is
+currently the **only** working export route from an ACEpotentials v0.10 model
+into LAMMPS (`export2lammps` was retired with the ACE1 backend, see Phase 8),
+GPU-only is an availability gap, not just a performance one.
+
+**The route.** LAMMPS's ML-IAP interface calls a Python class implementing
+`MLIAPUnified` (`lammps.mliap.mliap_unified_abc`). `mace-jax` already does
+exactly this for a JAX model in `mace_jax/calculators/lammps_mliap_mace.py`
+(~440 lines), **including runtime device selection with explicit CPU support**
+(`MACE_ALLOW_CPU` / `MACE_FORCE_CPU`). The pattern is proven in this ecosystem,
+and porting it to `acejax` is Python work — no C++, no PJRT, no Kokkos.
+
+**What it costs.** The model is called through the Python interpreter each
+timestep rather than staying resident on device, so it will be slower than
+`pair_style jax/kk` on a GPU. That is the right trade for a fallback: this route
+buys *availability and portability*, and `jax/kk` remains the fast path where a
+GPU exists.
+
+**A second benefit, which may matter more.** Phase 10 had to document the LAMMPS
+integration gate as a **manual step**, because `jax/kk` is CUDA-only and GitHub
+runners have no GPU. A CPU LAMMPS built with `-D PKG_ML-IAP=yes -D PKG_PYTHON=yes
+-D MLIAP_ENABLE_PYTHON=yes` builds fine on a runner — so this route makes the
+LAMMPS integration **testable in CI** for the first time, with the build cached
+exactly as Phase 10 already sets up. That closes the one hole in the CI story.
+
+The current moriarty build has only `KOKKOS MANYBODY ML-PACE PLUGIN`, so it needs
+ML-IAP and PYTHON added — build into a new directory, as with the ML-PACE
+rebuild, and leave the working build alone.
+
+**Gate:** the ML-IAP route reproduces `acejax`'s own energies and forces on the
+same configuration to the tolerances Phases 3–4 achieved, **running on CPU**, and
+agrees with `pair_style jax/kk` where a GPU is available.
+
+**Not in scope:** a CPU backend in `pair_style jax/kk` itself. That is ~1–1.5
+weeks and lands mostly in the buffer layer — `CUdeviceptr` appears 13 times, and
+host pointers would go through `PJRT_Client_BufferFromHostBuffer` instead; the
+Kokkos functors are already backend-agnostic behind `#ifdef KOKKOS_ENABLE_CUDA`,
+the plugin path is configurable, and the stream handoff
+(`client_session.cpp:69`, "PJRT CUDA stream extension is required") needs a
+simpler synchronous CPU branch. Worth raising with the `lammps-jax` maintainer,
+since it benefits every model using the plugin rather than only ours.
 
 ### Stage 2 — fit in JAX (incremental)
 
