@@ -1,4 +1,4 @@
-# Why the JAX MD path degrades with system size on Apple Silicon
+# Why the JAX MD path degrades with system size (worst on Apple Silicon)
 
 Follow-up to `acejax/bench/molly/RESULTS.md`, which measured the JAX MD spike
 (`acejax/spike_distmd/ace_md.py`) against ACEpotentials.jl + Molly.jl on two CPUs
@@ -212,6 +212,35 @@ Three things follow, and they are the whole finding:
 3. **It is not streaming.** The matmul form moves the same `(E,37)`, `(E,25)` and
    `(E,43)` arrays and is flat. Only the scatter kernel degrades.
 
+### Xeon control — measured after the fact
+
+`gather_probe.py`, same command, same jax 0.11.1, on `moriarty` (Xeon Silver
+4216), pinned with `taskset -c 0`:
+
+| edge slots | gather ns/slot | matmul ns/slot | ratio |
+|---|---|---|---|
+| 17057  | 27.3 | 64.0 | 0.43 |
+| 31013  | 33.8 | 58.8 | 0.58 |
+| 62027  | 39.9 | 48.6 | 0.82 |
+| 124054 | 42.6 | 46.8 | 0.91 |
+| 248112 | 53.2 | 44.3 | 1.20 |
+| 496224 | 53.5 | 39.8 | 1.35 |
+
+**This corrects the framing of this document.** The scatter degrades on x86 too —
+1.96x over the same buffer range — so "Apple Silicon" is the wrong label for the
+*mechanism*. What is Apple-specific is the *severity*: 4.3x versus 1.96x, and in
+absolute terms the M3 Pro scatter is 4.3x slower than the Xeon's at 17k slots and
+9.4x slower at 496k. On the Xeon the effect is mild enough that it never becomes
+a large share of an MD step, which is why that host looked flat.
+
+**Consequence for adopting the fix: it is platform-dependent, and on x86 at
+typical MD sizes it is a pessimisation.** On the Xeon the gather form is *faster*
+than the one-hot matmul below ~200k edge slots (0.43x at 17k) and only loses
+above it. Swapping in the matmul unconditionally would slow down the very sizes
+most runs use on x86. Any upstreaming of this into `acejax/` must therefore be
+conditional — on measured cost at the actual buffer length, not on a compile-time
+choice — or the two forms must be selected per platform. It is not a free win.
+
 **Not a jax-version artefact.** `bench/molly/RESULTS.md` ran jax 0.10.1 on the Mac
 and jax 0.11.1 on the Xeon, so the flat-versus-degrading contrast had a version
 confound in it. Installing jax 0.11.1 on this Mac and re-running `gather_probe.py`
@@ -292,18 +321,12 @@ silently. All ten ran at the default capacity. They are kept, relabelled, in
 `logs/A_BROKEN_override_noop.jsonl` and appear in no table here. (As replicates of
 the default at 216 atoms they give a useful noise figure: 11.53-12.56 ms, ±4%.)
 
-**Not measured: a Xeon control under this harness.** `moriarty` and `lestrade`
-require keyboard-interactive authentication, which a non-interactive session
-cannot satisfy; every attempt returned `Permission denied (keyboard-interactive)`.
-The Xeon contrast in this document is therefore **inherited from
-`bench/molly/logs/xeon_collected.json`**, not reproduced. The claim "the scatter
-path does not degrade on x86" is an *inference* from that host being flat under
-the identical unmodified script over the identical buffer range — it has not been
-measured directly, and `gather_probe.py` has never been run on x86. **That is the
-single most valuable missing datapoint**: it is one command
-(`python gather_probe.py --edges 17057 31013 62027 124054 248112 496224`) and it
-would settle whether "Apple Silicon" is the right label or whether the Xeon merely
-hides the effect behind a 4x wider vector unit.
+**~~Not measured: a Xeon control under this harness.~~ Now measured** — see
+"Xeon control" above. It was run from a session that could authenticate, and it
+changed the conclusion: the scatter degrades on x86 as well (1.96x), so the
+mechanism is not Apple-specific, only its severity is. The end-to-end MD
+measurements in this document remain Mac-only; only the microbenchmark has an
+x86 control.
 
 **Not determined: the microarchitectural cause of the scatter degradation.** No
 performance counters were read (Instruments' CPU-counter templates need GUI/root;
