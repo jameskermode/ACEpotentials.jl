@@ -139,3 +139,38 @@ does the abort track reneighbour *count* or step count
 (`nevery`/`ncheck` in `bench/in.si_bench`, script at `/tmp/nbr_test.sh` on
 moriarty)? Run that first; `compute-sanitizer` on a short run would localise the
 access directly.
+
+
+## Reneighbouring confirmed as the trigger (2026-09-10)
+
+The staged experiment ran. 216 atoms, 300 steps, both plugin builds:
+
+| plugin | `nevery` | `check` | result |
+|---|---|---|---|
+| old (`build-plugin-shared-cudart`) | 1 | yes | abort, `cudaErrorIllegalAddress` |
+| old | 1 | no | abort |
+| **old** | **1000000** | **no** | **rc=0, completed 300 steps** |
+| new (upstream `main`, `a4304a2`) | 1 | yes | abort |
+| new | 1 | no | abort |
+| **new** | **1000000** | **no** | **rc=0, completed 300 steps** |
+
+Symmetric across both builds. **With reneighbouring disabled the run completes;
+with it enabled — forced or checked — it aborts.** The correlation with step
+count is now a cause: the abort tracks neighbour-list rebuilds.
+
+**Updating to latest upstream does not fix it.** Expected once the `fp64 support`
+commit's C++ changes turned out to be confined to the comm path
+(`model_comm.cpp/h`, the `PackComm*` functors), which a single-rank `n_hops = 1`
+bundle never touches — but worth establishing rather than assuming.
+
+### A third hypothesis weakened
+
+A missing fence between the async pack and LAMMPS's neighbour rebuild looked
+likely, but the packs and the model all run on the **same** stream
+(`stream = exec.cuda_stream()`, and `pack_atoms` / `pack_edges` launch on `exec`),
+so they are ordered with respect to each other. `exec.fence()` at
+`pair_jax_kokkos.cpp:946` comes after execution, only to read the edge count.
+
+That is three static hypotheses refuted (stale edges, capacity, missing fence).
+Static reading has reached its limit here; `compute-sanitizer --tool memcheck`
+is the next step, to name the faulting kernel rather than infer it.
