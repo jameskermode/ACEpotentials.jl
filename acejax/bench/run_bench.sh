@@ -5,7 +5,11 @@ V=/storage/eng/essswb/venvs/lammps-jax
 export PJRT=$V/lib/python3.12/site-packages/jax_plugins/xla_cuda12/xla_cuda_plugin.so
 export LAMMPS_PLUGIN_PATH=/storage/eng/essswb/lammps-jax-build/build-plugin-shared-cudart
 LMP=${LMP:-/storage/eng/essswb/lammps-jax-build/lammps/build-SKX-AMPERE86-mlpace/lmp}
-export LD_LIBRARY_PATH=$V/lib:/software/easybuild/software/CUDA/12.9.1/lib64:/software/easybuild/software/OpenMPI/4.1.6-GCC-13.2.0/lib:${LD_LIBRARY_PATH:-}
+# The build directory MUST precede $V/lib.  BUILD_SHARED_LIBS=ON means every
+# style lives in liblammps.so, so with $V/lib first a new lmp silently loads the
+# OLD library and pair styles from newer packages vanish.  This has bitten three
+# times; do not reorder.
+export LD_LIBRARY_PATH=$(dirname $LMP):$V/lib:/software/easybuild/software/CUDA/12.9.1/lib64:/software/easybuild/software/OpenMPI/4.1.6-GCC-13.2.0/lib:${LD_LIBRARY_PATH:-}
 cd "$(dirname "$0")"
 KK="-k on g 1 -sf kk -pk kokkos newton on neigh half gpu/aware off"
 STEPS=${STEPS:-20}
@@ -17,7 +21,7 @@ for reps in $REPS; do
   for style in "$@"; do
     case $style in
       jax)  extra="-var bundle $PWD/${BUNDLEDIR:-bundles}/si_r${reps}_n${n}.lammps-jax.json -var pjrt $PJRT" ;;
-      pace) extra="-var yace $PWD/${YACE:-si_v06.yace}" ;;
+      pace) extra="-var yace ${YACE:-si_v06.yace}" ;;
       sw)   extra="-var swfile ${SWFILE:-/storage/eng/essswb/lammps-jax-build/lammps/potentials/Si.sw}" ;;
     esac
     log=/tmp/bench_${style}_${reps}.log

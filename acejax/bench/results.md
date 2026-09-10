@@ -134,14 +134,81 @@ SW keeps near-constant wall time as the system grows over this range (0.023 to
 0.032 s for 100 steps), so its throughput scales almost linearly with atom count
 while the ACE model is already GPU-saturated by ~500 atoms.
 
+## Comparison with `pair_style pace` (ML-PACE), at matched basis size
+
+**This is a cost comparison at matched basis size, not a comparison of two
+fits.** `pace/kk` evaluates every basis function regardless of coefficient
+values, so a basis of the right *structure* is all that is needed; the pace
+potentials here carry random coefficients. That is safe because `timestep 0.0`
+means atoms never move, so a physically meaningless potential cannot
+destabilise anything. Neither side's energies are meaningful and none are
+quoted.
+
+Built with `pyace` (`python-ace` 0.2.8, cp39 wheels only). Note
+`BBasisConfiguration.save()` writes the B-basis; `pair_style pace` reads the
+C-tilde basis, so the config must go through
+`ACEBBasisSet(bc).to_ACECTildeBasisSet()`, and that writes the `.ace` *text*
+format — giving it a `.yace` extension makes yaml-cpp reject it.
+
+### What was matched
+
+| | acejax | pace | |
+|---|---|---|---|
+| **small** basis functions | 110 | **99** | 10% low |
+| **large** basis functions | 211 | **211** | exact |
+| correlation order | 3 | 3 | matched |
+| lmax (small) | 4 | 4 | matched |
+| lmax (large) | 6 | 6 | matched |
+| cutoff | 6.0 Å | 6.0 Å | matched |
+| elements | 1 (Si) | 1 (Si) | matched |
+
+Same Si diamond supercells for both, so neighbour counts match too. pace is
+double precision; our f64 column is the like-for-like comparison and f32 is an
+option pace does not offer.
+
+### Throughput, atom-steps/s
+
+| atoms | 110: jax f64 | jax f32 | pace (99) | 211: jax f64 | jax f32 | pace (211) |
+|---|---|---|---|---|---|---|
+| 64 | 5.34e4 | 1.02e5 | 1.77e5 | 2.55e4 | 7.21e4 | 1.36e5 |
+| 216 | 3.03e4 | 2.00e5 | 4.61e5 | 1.95e4 | 1.09e5 | 2.55e5 |
+| 512 | 1.50e5 | 3.05e5 | 7.18e5 | 6.76e4 | 1.82e5 | 3.42e5 |
+| 1000 | 1.85e5 | 3.29e5 | 8.85e5 | 7.57e4 | 1.83e5 | 3.77e5 |
+| 1728 | 2.14e5 | 3.89e5 | 1.08e6 | 8.45e4 | 2.06e5 | 3.94e5 |
+| 4096 | 1.98e5 | 3.51e5 | 1.14e6 | 9.60e4 | 1.62e5 | 4.01e5 |
+
+### The ratio is size-dependent, and it narrows
+
+At 4096 atoms, where both are saturated:
+
+| | 110 vs 99 | 211 vs 211 |
+|---|---|---|
+| pace / jax f64 | **5.8x** | **4.2x** |
+| pace / jax f32 | 3.2x | 2.5x |
+
+**pace's advantage shrinks as the basis grows.** Doubling the basis costs pace
+2.84x (1.14e6 -> 4.01e5) but costs acejax only 2.06x in f64 (1.98e5 -> 9.60e4)
+and 2.16x in f32. So pace degrades super-linearly in basis size over this range
+while acejax is close to linear.
+
+A plausible reading is that the small case is dominated by fixed overheads and
+neighbour handling, where a mature C++/Kokkos kernel wins comfortably, while the
+tensor contraction — which grows with the basis — is where the JAX
+implementation is relatively stronger. That is a hypothesis consistent with two
+points, not an established scaling law: **both models here are small** (110 and
+211 functions), and production ACE potentials are often several hundred to a
+couple of thousand. Whether the trend continues, flattens or reverses at that
+scale is untested.
+
 ## Not obtained
 
-**`pair_style pace` comparator.** An ACEpotentials v0.6.12 fit of the same data
-exports a `.yace` cleanly and has a matching basis size (110 both versions), but
-it will not load: upstream ICAMS libpace rejects it (`bad conversion`, it wants
-`ChebPow`/`radcoefficients` rather than v0.6's `ACE.jl` spline nodal values), and
-the `wcwitt` fork, which does carry `acejl_radial.cpp`, gets further and fails
-with `Exception: map::at`. See `docs/findings/FINDINGS_benchmark.md`.
+**A `pace` comparison of two *fitted* potentials.** The comparison above matches
+basis size only. Exporting our own fitted model to `.yace` remains blocked: an
+ACEpotentials v0.6.12 fit exports cleanly and matches on basis size (110 both
+versions), but upstream ICAMS libpace rejects it (`bad conversion` — it wants
+`ChebPow`/`radcoefficients`, not v0.6's `ACE.jl` spline nodal values) and the
+`wcwitt` fork, which does carry `acejl_radial.cpp`, fails with
+`Exception: map::at`. For a *throughput* comparison this does not matter, since
+coefficients do not affect cost. See `docs/findings/FINDINGS_benchmark.md`.
 
-No substitute potential is presented in its place: a different-complexity ACE
-model timed under `pace` would not be the comparison this section is missing.
+**Production-scale basis sizes.** The largest tested is 211 functions.
