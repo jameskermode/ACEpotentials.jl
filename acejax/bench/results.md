@@ -40,7 +40,9 @@ Four things the shape shows that the tables do not:
   and kernel shape — not to the model.
 - **The plugin gap narrows with system size rather than sitting at a constant
   offset.** The shaded f64 band is at its widest at the left-hand end
-  (64-216 atoms) of every panel and at its narrowest at 1728.
+  (64-216 atoms) of every panel and at its narrowest at 1728. Its *cause* is not
+  the same in every panel — see "Padding is the cause at one end of the plot and
+  not the other".
 - **The f32 pair narrows the same way**, so this is not a precision effect.
 - **At n_B = 2849 the dashed blue line crosses above the green one**: the model
   in Python is slightly faster in f64 than `pair pace/kk` at a matched basis
@@ -371,19 +373,27 @@ Same measurement, GPU, 1728 atoms, f64, sparse `A2B`:
 | stage | lmax 10 / order 3 (n_B=1429) | **lmax 5 / order 4 (n_B=2849)** |
 |---|---|---|
 | angular (Ylm) | **51.7%** | **18.9%** |
-| AA products | **3.8%** | **37.6%** |
+| AA products † | **3.8%** | ~~37.6%~~ **18.3%** |
 | radial | 20.7% | 28.0% |
 | A2B contraction | 16.4% | 54.1% |
 
-**The 51.7% angular figure was a property of the model we built, not of ACE.**
-At a realistic shape the harmonics are ~19% and the `AA` products are ~38%.
+† **The 37.6% was an over-count; the measured figure is 18.3%.** See
+"Isolated stage timings have now over-counted three times" below. Every other
+number in this table is an isolated-stage timing and carries the same bias; only
+the `AA` row has been remeasured.
 
-**And the recursive-evaluator hypothesis is back.** It was dismissed on
-"AA is 3.8%, so it cannot explain much" — but that was measured on a shape with
-almost no high-rank terms. At order 4 the rank-3 and rank-4 blocks hold 7134 and
-16292 terms, `AA` is ~38% of the time, and `ace_recursive.cpp` exists precisely
-to share subproducts across those. That dismissal was conditioned on our model
-choice and should not have been generalised.
+**The 51.7% angular figure was a property of the model we built, not of ACE.**
+At a realistic shape the harmonics are ~19%.
+
+**And the recursive-evaluator hypothesis is back, though weaker than this table
+first suggested.** It was dismissed on "AA is 3.8%, so it cannot explain much" —
+but that was measured on a shape with almost no high-rank terms. At order 4 the
+rank-3 and rank-4 blocks hold 7134 and 16292 terms and `ace_recursive.cpp`
+exists precisely to share subproducts across those. At the corrected 18.3%, `AA`
+is still the second-largest stage and still worth attacking; a perfect recursive
+evaluator would be bounded by that 18.3%, not by 38%. The original dismissal was
+conditioned on our model choice and should not have been generalised — but nor
+should the 38% that replaced it.
 
 `A2B` remains the single largest stage even sparse. Dense is not an option at
 this size at all: 2849 x 24116 is 550 MB in f64 and takes **679 ms/step**
@@ -516,13 +526,13 @@ the two smaller bases. That is where the per-atom stages dominate (`A2B` 54%,
 `AA` 38% of `site_basis` at this shape), so the 3.7x atom-slot padding lands on
 most of the work rather than a minority of it.
 
-**What is not separated here.** This measurement gives the *total* cost of the
-plugin path; it does not decompose it. Padding, LAMMPS's own neighbour list,
-MPI-layer bookkeeping, integration and the PJRT call boundary are all inside
-these ratios. The padding factors above are exact counts and the code path is
-verified, but no experiment here attributes a share of the lost throughput to
-each. Re-running one point with capacities cut to the actual counts would do
-that, and has not been done.
+**What is not separated here** — *settled below.* This measurement gives the
+*total* cost of the plugin path and does not decompose it: padding, LAMMPS's own
+neighbour list, MPI-layer bookkeeping, integration and the PJRT call boundary
+are all inside these ratios. The padding factors above are exact counts and the
+code path is verified, but the ratios alone cannot say what share each cause
+owns. "Padding is the cause at one end of the plot and not the other" below is
+the experiment that separates them.
 
 ## What that says about the pace comparison
 
@@ -548,6 +558,165 @@ basis size, it is smaller than the plugin path's contribution.
 the large-basis stages being bandwidth- and index-bound rather than
 arithmetic-bound.
 
+## Padding is the cause at one end of the plot and not the other
+
+![atom-axis padding](padding.png)
+
+The retention table above falls 0.63 -> 0.60 -> 0.34 as n_B goes 69 -> 710 ->
+2849. A *fixed* overhead would amortise away as the model grows; this one does
+not, which points at a cost scaling with per-atom work. That was an inference
+from three points. This is the measurement.
+
+**Design.** Vary the atom axis alone at 1728 atoms, f64, sparse `A2B`, in two
+independent harnesses:
+
+- **pure JAX** — `bench_acejax.py --pad-nodes` sweeps `n_nodes` with the edge
+  list held at its exact 76920 entries. No LAMMPS, no neighbour list, no call
+  boundary. This measures the mechanism.
+- **`pair jax/kk`** — `run_capacity_sweep.sh` sweeps the bundle's `max_atoms`
+  over `sweep_capacity.py`'s ladder with **`max_edges` pinned at exactly
+  110880** on every rung, because the edge axis has its own U-shape that would
+  otherwise confound the reading. This measures whether the same axis moves the
+  pair style end to end.
+
+```bash
+# bundles: CPU-only, JAX_PLATFORMS=cpu -- jax.export lowers for CUDA anyway, and
+# a probe export came out byte-identical to the GPU-side one
+python bench/sweep_capacity.py --npz fixtures/si_l2849.npz --outdir bench/cap_l2849
+python bench/bench_acejax.py --npz fixtures/si_l2849.npz --reps 6 --a2b-sparse \
+       --pad-nodes 1728 3456 5373 5544 6160 6313 6930 7920 9240 11088 13860 18480 22176
+DIR=$PWD/bench/cap_l2849 OUT=$PWD/bench/padding_lammps_l2849.txt ./bench/run_capacity_sweep.sh
+```
+
+Both are end-to-end energy+forces numbers. **No isolated stage timing enters
+this attribution**, for the reason given above; the repeat of the whole n_B=2849
+Python sweep agrees to **1.22% at every rung**, so the structure below is not
+run-to-run drift.
+
+**Why the atom axis is the suspect.** `export_bundle.py` passes
+`positions.shape[0]` — i.e. `max_atoms` — as the node count to `site_energies`,
+and `lammps_jax/export.py:wrap_energy_fn` applies `local_mask`/`valid_mask`
+*after* computing every row. So site energies are evaluated for every ghost and
+pad row and then discarded.
+
+### The measurement
+
+ms per force evaluation at 1728 atoms, f64. `-` is not measured.
+
+| atom rows | x nlocal | n_B=2849 Python | n_B=2849 LAMMPS | n_B=69 Python | n_B=69 LAMMPS |
+|---|---|---|---|---|---|
+| 1728 (local) | 1.00 | **46.688** | – | **3.538** | – |
+| 3456 | 2.00 | 68.735 | – | 3.448 | – |
+| 5040 | 2.92 | – | *aborts* | – | *aborts* |
+| 5373 (nall) | 3.11 | 102.029 | – | 3.647 | – |
+| 5544 | 3.21 | 122.713 | 115.994 | 3.656 | 6.293 |
+| 6160 | 3.56 | 150.827 | 135.512 | 3.670 | 6.379 |
+| 6313 (shipped) | 3.65 | **140.559** | – | **3.728** | – |
+| 6930 | 4.01 | 175.116 | 158.267 | 3.778 | 6.232 |
+| 7920 | 4.58 | 252.744 | 206.788 | 3.862 | 6.332 |
+| 9240 | 5.35 | 350.239 | 272.524 | 3.801 | 6.427 |
+| 11088 | 6.42 | 511.955 | 379.176 | 3.888 | 6.476 |
+| 12320 | 7.13 | – | 454.344 | – | 6.549 |
+| 13860 | 8.02 | 781.427 | 548.738 | 4.063 | 6.758 |
+| 15840 | 9.17 | – | 678.312 | – | 6.908 |
+| 18480 | 10.69 | 1257.249 | 862.452 | 4.762 | 7.192 |
+| 22176 | 12.83 | 1625.142 | *OOM* | 5.253 | 7.528 |
+
+**The floor is observed, not assumed.** The k=22 rung (`max_atoms` 5040) was
+included deliberately below `nall`; both models abort with `LAMMPS-JAX atom
+capacity exceeded: global max 5373 atoms, capacity 5040`, which pins
+nall = nlocal 1728 + nghost 3645 by observation.
+
+### The answer, and it is different at the two ends
+
+| | n_B = 2849 | n_B = 69 |
+|---|---|---|
+| measured plugin slowdown (from the retention table) | **2.91x** | **1.58x** |
+| padding 1728 -> 6313, measured in pure JAX | **3.01x** | **1.05x** |
+| residual once padding is removed | **0.97x** | **1.50x** |
+| share of the log-gap padding accounts for | **~100%** | **~11%** |
+
+**At n_B = 2849 padding is the whole thing.** The independently measured cost of
+padding the atom axis to the shipped capacity (3.01x) slightly *exceeds* the
+entire plugin slowdown (2.91x). There is no residual left to attribute — the
+neighbour list, the PJRT call boundary and LAMMPS's integration are, at this
+basis size, too small to measure against a 3x effect.
+
+**At n_B = 69 padding is almost none of it.** The same padding costs 1.05x
+against a 1.58x slowdown, leaving 1.50x unexplained by the atom axis. The LAMMPS
+sweep says the same thing from the other side: over the 5544 -> 18480 rungs, a
+**3.3x** span of capacity, the pair style loses only **1.14x** at n_B = 69
+against **7.44x** at n_B = 2849 (and 1.20x over the full 4.0x span to 22176,
+which n_B = 2849 cannot reach at all). What the small-basis column
+shows instead is a **near-constant additive gap of ~2.6 ms/step** between the two
+harnesses (2.64 ms at 5544 rows, 2.70 at 13860, 2.28 at 22176) — a fixed
+per-step cost that does not move with capacity, which is what a call boundary
+plus neighbour-list handling should look like.
+
+**So the shaded band in `scaling.png` has two different causes at its two ends,
+and describing it with one explanation was wrong.** At small basis it is fixed
+overhead; at large basis it is padded per-atom work. They cross somewhere
+between n_B = 69 and 2849; n_B = 710 was not swept.
+
+### Ghosts are not all waste, and the split is measurable
+
+Of the 6313 rows the shipped bundle evaluates at 1728 atoms: **1728 local**
+(27%), **3645 ghost** (58%), **940 pad** (15%). The pure-JAX sweep prices the
+two halves separately:
+
+| step | rows | n_B=2849 cost | recoverable by |
+|---|---|---|---|
+| 1728 -> 5373 | ghost rows | **2.19x** | evaluating site energies on local rows only — a code change |
+| 5373 -> 6313 | pad rows | **1.38x** | tightening `max_atoms` toward `nall` — tuning only |
+| 1728 -> 6313 | both | **3.01x** | |
+
+**Ghost rows are physically necessary; their *site energies* are not** — in this
+configuration. The contract carries `pair_sum: false`, `n_hops: 1` and
+`edge_pairing: "full"`, so in `pair_jax_kokkos.cpp` `duplicate_reverse_edges` is
+false and `num_rows = klist->inum`: **senders are local atoms only**, every local
+atom has its complete neighbourhood, `has_ghost_sender` is false and the energy
+taken is `local_energy`. Ghost rows are needed as edge *endpoints* and for force
+accumulation, not as *nodes* of the site-energy computation.
+
+**That conditionality is the whole caveat.** With MPI communication enabled or
+`n_hops > 1`, ghost features do feed owned energies — the code says so at the
+`multi_hop` branch — and the 2.19x is then not recoverable at all. The 1.38x
+from pad rows is recoverable in every configuration, by tuning alone.
+
+### Two more things the sweep shows
+
+**The cost grows faster than the row count.** At n_B = 2849, 12.83x the rows
+costs 34.8x the time in pure JAX (46.7 -> 1625.1 ms). Padding is not merely
+proportional waste at this basis size; it degrades. `AA` is 24116 wide per node,
+so 22176 rows is a 4.3 GB f64 intermediate before autodiff keeps its copies.
+
+**A 4x capacity margin is not usable at production basis size.** The 22176 rung
+**ran out of memory inside LAMMPS** at n_B = 2849 and is reported as not
+measured rather than estimated. Pure JAX survived the same shape at 1625 ms/step;
+LAMMPS additionally holds the 110880-edge buffers. At n_B = 69 the same rung is
+fine. So the guidance in "Bundle capacity is a tuning parameter" needs a
+stronger form at large basis: too loose is not just slow, it fails to run.
+
+### What this does not settle
+
+- **The two harnesses differ systematically**, and not by a constant. At matched
+  rows and n_B = 2849 LAMMPS is *faster* than the Python sweep by 5-30% (rising
+  with capacity); at n_B = 69 it is slower by a near-constant 2.6 ms. The
+  n_B = 2849 attribution is therefore "padding accounts for all of it, with a
+  residual of -4% that is smaller than the cross-harness systematic", not a
+  claim that the residual is exactly zero.
+- **n_B = 710 was not swept**, so where the crossover between the two causes
+  lies is unmeasured.
+- **Only f64 was swept**, at one atom count (1728).
+- The 6313 rung was measured in Python but not in this LAMMPS ladder; the
+  LAMMPS value at that capacity comes from the earlier series (135.6 ms/step),
+  which sits consistently between this ladder's 6160 (135.5) and 6930 (158.3).
+
+**GPU exclusivity.** Both halves ran with `nvidia-smi --query-compute-apps`
+verified empty beforehand — `run_capacity_sweep.sh` refuses to start otherwise —
+and with a 3-second sampler running throughout. No second PID appears in any of
+the three contention logs.
+
 ## Our spherical harmonics against sphericart
 
 The harmonics are hand-written because sphericart lowers to an FFI custom call,
@@ -571,6 +740,41 @@ on avoiding the FFI machinery, and no second backend is needed. Folding
 
 This is also the clearest demonstration of why isolated stage timings mislead
 here, and why the end-to-end delta was the right thing to insist on.
+
+**Noise floor, added later.** These two end-to-end figures are `site_basis`
+deltas, and `site_basis` on this GPU reproduces only to **10.5% run to run**
+(against <=1% for energy+forces; measured in
+`acejax/spike_recursive/FINDINGS.md`). So **the lmax-10 result, ours 1.13x
+faster, does not clear its own noise floor** and should be read as "no
+measurable difference". The lmax-4 result (1.25x) clears it, but not by much.
+The qualitative conclusion — no FFI backend is needed — rests on the lmax-4
+point and on the isolated/end-to-end inversion, which is far too large to be
+noise, rather than on either ratio individually.
+
+## Isolated stage timings have now over-counted three times
+
+Three separate conclusions in this file came from timing a stage on its own and
+attributing its cost to that stage. All three were wrong in the same direction,
+and by large factors:
+
+| # | claim | from | corrected to |
+|---|---|---|---|
+| 1 | per-stage shares of `site_basis` | isolated timings | sums came out **55-176% over** the whole they were shares of |
+| 2 | sphericart is 3.06x faster at lmax 4 | isolated timing | **ours is faster end-to-end**; the isolated harmonic call was slower than the entire `site_basis` containing it |
+| 3 | `AA` products are 37.6% of `site_basis` | isolated timing | **18.3%**, measured as a difference against a zero-multiply oracle (`acejax/spike_recursive/FINDINGS.md`) |
+
+**The mechanism is the same each time: XLA fuses.** In the full computation a
+stage's intermediates are never materialised; timed alone they must be, so the
+isolated number contains work the real pipeline does not do. The error is
+one-directional — isolated timing over-counts — so a stage that looks dominant
+may not be, and an attribution built from isolated timings will point at the
+wrong place.
+
+**The rule this file should follow, and now does:** attribute by *difference* —
+change one thing, measure the whole computation twice, subtract. The `AA` figure
+above was remeasured that way against an oracle; the padding attribution below
+was built that way from the start, which is why it can be quoted at face value.
+Where an isolated timing is all that exists, it is labelled as such.
 
 ## Not obtained
 

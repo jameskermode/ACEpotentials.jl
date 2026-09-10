@@ -82,9 +82,11 @@ for i, (ax, (key, d)) in enumerate(zip(axes, DATA.items())):
                  f"plugin keeps {keep:.0%} of raw f64",
                  color=INK, fontsize=10, pad=8)
 
-axes[0].text(72, 16, "shaded band = what going through LAMMPS costs, at f64.\n"
-             "It narrows as the system grows: the plugin's static shapes\n"
-             "pad the atom axis 15x at 64 atoms but only 3.7x at 1728.",
+axes[0].text(72, 13, "shaded band = what going through LAMMPS costs, at f64.\n"
+             "Its cause differs across the panels (measured, see results.md):\n"
+             "here it is a fixed per-step cost, ~2.6 ms at 1728 atoms, which\n"
+             "amortises as the system grows.  At n_B = 2849 it is instead\n"
+             "padded per-atom work, which accounts for ~all of that panel's gap.",
              fontsize=8.5, color=BLUE, va="bottom", linespacing=1.5)
 
 axes[0].set_ylabel("Throughput [timesteps/s]", color=INK2, fontsize=11)

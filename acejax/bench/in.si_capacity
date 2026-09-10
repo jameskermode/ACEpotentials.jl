@@ -1,0 +1,42 @@
+# max_atoms capacity sweep: identical to in.si_bench except that the timed run
+# is the SECOND run, so XLA compilation and the first neighbour-list build are
+# outside the measurement.
+#
+# in.si_bench times a single `run`, which carries the one-off compile inside the
+# loop time -- tolerable when comparing sizes, not when the whole question is a
+# few-percent slope against max_atoms, and compile cost may itself move with
+# capacity.  Here `run ${warm}` pays for both, then `run ${steps}` is timed.
+#   -var reps N     cells per side (6 -> 1728 atoms)
+#   -var bundle     path to the .lammps-jax.json under test
+#   -var pjrt       PJRT plugin .so
+variable reps  index 6
+variable warm  index 5
+variable steps index 50
+
+units metal
+atom_style atomic
+boundary p p p
+newton on
+
+lattice diamond 5.43
+region box block 0 ${reps} 0 ${reps} 0 ${reps}
+create_box 1 box
+create_atoms 1 box
+mass 1 28.0855
+displace_atoms all random 0.05 0.05 0.05 12345 units box
+
+neighbor 1.0 bin
+neigh_modify every 1 delay 0 check yes one 2000 page 2000000
+
+pair_style jax/kk ${pjrt}
+pair_coeff * * ${bundle}
+
+velocity all create 300.0 87287 loop geom
+fix 1 all nve
+timestep 0.0
+thermo 1000
+thermo_style custom step atoms pe
+thermo_modify norm no format float %.10g
+run_style verlet/kk
+run ${warm}
+run ${steps}
