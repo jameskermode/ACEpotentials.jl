@@ -627,8 +627,9 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | ~~9. Usable ASE calculator + descriptor access~~ ✅ `18ff57bd` | 1.5 |
 | 10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI | 2.5–3 |
 | 11. LAMMPS ML-IAP route: CPU support, and a CI-testable path | 2–3 |
+| 12. MACE comparison via `symmetrix` on GPU | 2 |
 
-**≈ 25–29 working days ≈ 5–6 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
+**≈ 27–31 working days ≈ 5.5–6.5 weeks** (Phases 0/1/3/4/6/7/9 done; Phase 8 partly
 blocked on two open bugs; Phase 10 remains, ~3 days).
 
 #### Phase 7 — `ace_model` and solid harmonics
@@ -825,6 +826,56 @@ the plugin path is configurable, and the stream handoff
 (`client_session.cpp:69`, "PJRT CUDA stream extension is required") needs a
 simpler synchronous CPU branch. Worth raising with the `lammps-jax` maintainer,
 since it benefits every model using the plugin rather than only ours.
+
+#### Phase 12 — how does this compare with MACE?
+
+The question people will actually ask. Phase 8 answers "ACE in JAX versus ACE in
+C++"; this answers "ACE versus the foundation models most users reach for".
+
+**Route: `symmetrix`** (`wcwitt/symmetrix`) — a Kokkos implementation of MACE
+with a LAMMPS pair style, `pair_style symmetrix/mace`, models loaded from
+`.json`:
+
+```
+pair_style    symmetrix/mace
+pair_coeff    * * my-mace-1-8.json Si
+```
+
+Two things make it a clean peer to `jax/kk`. It needs **LAMMPS 10 September 2025
+or newer** — the same requirement `pair_jax_kokkos.h` enforces, so our existing
+build qualifies — and it is Kokkos-based, so both sit on the same LAMMPS
+infrastructure rather than one being advantaged by a different integration path.
+Build needs CMake >= 3.27, C++20, `PKG_KOKKOS=ON`, and `Kokkos_ENABLE_CUDA=ON`
+for GPU. Into a new build directory, as always.
+
+**Framing, which matters more here than in Phase 8.** Basis size **cannot** be
+matched: MACE is a message-passing network with a fundamentally different cost
+structure — layers, channels, message dimension — where ACE is a fixed
+one-shot basis contraction. So this is **not** a cost-at-matched-complexity
+comparison like Phase 8. It answers the practical question: *on the same host and
+the same structures, what throughput does a user get?*
+
+Report enough for a reader to interpret the gap rather than just read a ratio:
+parameter count, cutoff, number of message-passing layers, and channel width for
+each MACE model, against basis size and cutoff for ours. Two or three foundation
+model sizes (e.g. MACE-MP-0 small and medium) give a size trend on their side,
+mirroring what Phase 8 did on ours.
+
+Same Si diamond supercells at the same sizes, same `timestep 0.0` single-point
+method, same exclusions restated. MACE foundation models are universal, so Si is
+in scope for them.
+
+**Expect to lose on raw throughput at these sizes, and say so plainly.** A
+foundation model carries far more parameters than a 110- or 2000-function ACE
+basis, and buys generality with them. The useful output is a number a reader can
+weigh against that generality, not a favourable ratio.
+
+**One incidental finding worth noting:** `symmetrix` ships **both CPU (OpenMP)
+and GPU (CUDA)** Kokkos paths for its pair style. That is direct evidence that a
+Kokkos ML pair style can support CPU, reinforcing Phase 11's point that
+`jax/kk` being CUDA-only is a code-structure choice rather than an inherent
+constraint. Worth citing if the CPU backend is ever raised with the `lammps-jax`
+maintainer.
 
 ### Stage 2 — fit in JAX (incremental)
 
