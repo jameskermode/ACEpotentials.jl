@@ -79,9 +79,23 @@ Roughly **15–18 days**, against 22–27 for the full scope.
 
 ### Stage 2 — fit in JAX
 
-Adds design-matrix assembly, priors, solvers and data loading. Justified when you
-want GPU-accelerated fit assembly over large datasets, or as the platform for
-non-linear fits.
+Adds fitting. **Revised after Stage 1** (see "Stage 2 — revised" below for the
+reasoning and the costed plan): Stage 2 now splits in two, and the recommended
+order is the reverse of the original.
+
+- **Stage 2A — non-linear / gradient-based fitting.** Batched loss over
+  configurations, `optax`, checkpointing. Builds directly on Stage 1's validated
+  energy-and-forces path and needs *no* design matrix, so it avoids the entire
+  Jacobian problem. It is also the thing the Julia pipeline cannot currently do
+  at all.
+- **Stage 2B — linear fit in JAX.** Design-matrix assembly with the committed
+  hybrid JVP, priors, solvers, data loading. GPU-only to be worth doing, and
+  exposed to the XLA autotuning miscompile.
+
+2A was previously filed as an optional afterthought to 2B. Stage 1's
+measurements invert that: 2A is cheaper, lower-risk, and delivers a capability
+that does not exist today, whereas 2B reimplements something Julia already does
+correctly and only pays off on a GPU with large datasets.
 
 ### Does Stage 1 foreclose anything?
 
@@ -1056,30 +1070,115 @@ not an artefact of the backend.
 differentiable-simulation work, and worth doing when that work is actually
 wanted rather than speculatively.
 
-### Stage 2 — fit in JAX (incremental)
+### Stage 2 — revised after Stage 1
+
+Stage 1 changed four things that bear on Stage 2. Taking them in order of how
+much they move the plan:
+
+**1. The non-linear path is now much cheaper than the linear one — reverse the
+order.** As originally written, Stage 2 ported the linear fit (7–9 days) and
+non-linear fitting was an optional 5–8 days *on top*. But Stage 1 delivered a
+validated energy-and-forces path (1.4e-15 vs Julia) with `jax.grad`, and that is
+essentially all a gradient-based fit needs. Non-linear fitting requires no design
+matrix, so **the Jacobian problem — the single largest cost and risk in Stage 2 —
+does not arise for it at all.** It is also the capability the Julia pipeline
+lacks, whereas the linear fit is something `acefit!` already does correctly and
+is trusted for. Recommendation: do 2A first, and treat 2B as separately
+justified.
+
+**2. Fit assembly is GPU-only, and that is now firmer than at Phase 0.** Gate 3
+already showed the JAX CPU hybrid Jacobian is 1.5× *slower* than Julia's
+`ET._jacobian_X` at 512 atoms. The Molly benchmark (`acejax/bench/molly/`) adds
+that JAX's CPU standing is architecture-dependent: 9–11× faster per thread than
+Julia on a Xeon, but **slower than single-threaded Julia at every size tested on
+an M3 Pro**, where JAX throughput falls 2.3× across 216→1728 atoms while
+ACEpotentials stays flat. Whatever that turns out to be
+(`docs/findings/FINDINGS_apple_scaling.md`), it means CPU fit assembly in JAX has
+no reliable advantage anywhere and a real disadvantage on some hardware. **If
+there is no GPU, assemble in Julia.**
+
+**3. There is now a plausible route that removes the need for 2B entirely.**
+Reactant.jl compiles Julia to the same StableHLO that lammps-jax consumes. Stage
+1 established that the standard ETACE path is two specific stopgaps from tracing
+(`SelectLinL`'s KA kernel, and `ka_with_reactant` dispatch), that SpheriCart
+traces fine, and that the array-op formulation of `SelectLinL` traces exactly
+(4.44e-16). Two blockers have since moved: the WignerD dependency that capped
+Reactant at 0.2.222 is fixed in EquivariantTensors.jl#143, and the
+miscompilation is filed as Reactant.jl#3267 with the offending pass bracketed. If
+those land, **Julia gets GPU fit assembly without a Python design-matrix port**,
+and 2B's justification largely evaporates. This is cheap to check and should gate
+2B rather than being discovered halfway through it.
+
+**4. Padding is the dominant overhead, and Stage 1 measured its shape.** At
+n_B=2849 padding accounts for essentially all of the LAMMPS plugin gap; ghost
+rows cost 2.19× and pad rows 1.38×. Stage 2's bucketing is the same mechanism
+applied to training batches, so **bucket boundaries should be chosen from that
+measured curve**, not picked for convenience. This is a free inheritance from
+Stage 1, not new work.
+
+#### Stage 2A — non-linear / gradient-based fitting
 
 | Phase | Days |
 |---|---|
-| 7. E/F/V design-matrix assembly + custom JVP (**committed**, gate 3) | 3 |
-| 8. Bucketed batching for training-shaped workloads | 1 |
-| 9. Priors + solvers (lineax / optimistix) | 2–3 |
-| 10. Data loading, weights, key matching | 1 |
-| 11. Validation harness (milestones 5–6) | 1 |
+| 15. Batched loss over configurations (E, F, optionally V) with per-config weights | 1–2 |
+| 16. Bucketed batching, boundaries set from Stage 1's padding curve | 1 |
+| 17. `optax` training loop, schedules, checkpointing | 1–2 |
+| 18. Validation: refit `Si_tiny`, compare against the Julia linear fit's RMSE | 1 |
 
-**≈ 7–9 further days.** Full scope ≈ 22–27 days ≈ 4.5–5.5 weeks.
+**≈ 4–6 days.** Prerequisite: nothing beyond Stage 1. `Wnlq` was deliberately
+kept live rather than folded into the spec precisely so the radial basis is
+trainable here — that decision now pays off.
 
-### Non-linear fits (further, optional)
+Note the loss gradient is a gradient of a gradient (forces are already
+`jax.grad`), so a training step costs more than a forward pass by a larger factor
+than an MD step does. Measure that early; it is the one number that could make 2A
+more expensive than it looks.
 
-**≈ 5–8 days** on top of Stage 2: optax loop, schedules, checkpointing.
+#### Stage 2B — linear fit in JAX (separately justified)
+
+| Phase | Days |
+|---|---|
+| 19. **Gate: re-test Reactant** on a CUDA host with ET#143 applied. If the standard ETACE path traces, stop and reconsider 2B entirely | 0.5 |
+| 20. E/F/V design-matrix assembly + custom hybrid JVP (**committed**, gate 3) | 3 |
+| 21. Priors + solvers (lineax / optimistix) | 2–3 |
+| 22. Data loading, weights, key matching | 1 |
+| 23. Validation harness (milestones 5–6) | 1 |
+
+**≈ 7.5–8.5 days**, and only worth spending if phase 19 says Reactant is still
+blocked *and* there is a GPU *and* the datasets are large enough for assembly
+time to matter.
+
+Hard requirements inherited from Stage 1, all three from measurement rather than
+caution:
+
+- **Assemble in f64.** Not for accuracy alone: the XLA autotuning miscompile that
+  produces a structurally wrong Jacobian element is confined to f32 and the
+  Jacobian einsum, and f64 was clean 10/10.
+- **Pin matmul precision explicitly** and verify the setting survives
+  `jax.export`. TF32-by-default costs 400× accuracy in the forward descriptor.
+- **Set `--xla_gpu_autotune_level=0`** for assembly, or verify per-process that
+  the Jacobian is stable. `precision=highest` alone does not fix it (2/10 still
+  wrong).
+
+For phase 22, prefer exporting `AtomsData` from Julia over reimplementing
+ACEpotentials' fuzzy key matching and per-configuration weights. That logic is
+fiddly, well-tested, and has no business being written twice.
+
+#### Sequencing
+
+Recommended: **2A now**, then reassess. Run phase 19 (the Reactant gate) at any
+point — it is half a day and its result changes whether 2B is worth starting.
 
 Sequence: spike → exporter → descriptor on CPU against matscipy-neighbours → GPU →
 LAMMPS export. Once the descriptor is trusted, validating the export is one
 comparison; doing it while the descriptor is still moving means debugging two
 unknowns through a C++ plugin boundary.
 
-**Review point at the end of Stage 1.** By then the descriptor is validated, LAMMPS
-works, and the marginal cost and value of Stage 2 are both much better understood
-than they are today. Stopping there is a good outcome, not a failure.
+**Review point at the end of Stage 1 — now reached.** The descriptor is validated
+(1.4e-15), the LAMMPS path works for single points and short runs, and the
+benchmarks against Kokkos, ML-PACE and Molly.jl exist. The Stage 2 section above
+has been rewritten against those results rather than against the original
+estimates. Stopping at Stage 1 remains a good outcome, not a failure.
 
 ## Open issues found in Phase 8
 
@@ -1140,6 +1239,9 @@ vintage and the fork's `main`.
 | matscipy-neighbours not on PyPI | 1 | Low | `pip install git+...`; in-house to fix |
 | ~~Design-matrix assembly too slow via generic AD~~ | **2** | Resolved | Confirmed on CPU and GPU: hybrid JVP required, now committed |
 | ~~f64 GPU throughput on non-datacenter cards~~ | **2** | Resolved | Measured 3–5.4× f32 on a 1/64-rate card; memory-bound, not FLOP-bound |
+| JAX CPU throughput degrades 2.3× with size on Apple Silicon | **2** | Medium | Under investigation (`FINDINGS_apple_scaling.md`). Bounds CPU fallback for fit assembly; GPU path unaffected |
+| Training-step cost (grad of grad) larger than expected | **2A** | Medium | Measure in phase 15 before committing to the loop design |
+| 2B duplicates work Reactant may soon do in Julia | **2B** | Medium | Phase 19 gate: re-test tracing with ET#143 before starting 2B |
 
 Phase 0 retired all three highest-severity items: convention-matching is confirmed
 clean to 1.4e-15 on GPU, the design-matrix Jacobian question is settled (the hybrid
