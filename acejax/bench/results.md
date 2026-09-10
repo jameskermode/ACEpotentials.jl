@@ -650,8 +650,18 @@ against **7.44x** at n_B = 2849 (and 1.20x over the full 4.0x span to 22176,
 which n_B = 2849 cannot reach at all). What the small-basis column
 shows instead is a **near-constant additive gap of ~2.6 ms/step** between the two
 harnesses (2.64 ms at 5544 rows, 2.70 at 13860, 2.28 at 22176) — a fixed
-per-step cost that does not move with capacity, which is what a call boundary
-plus neighbour-list handling should look like.
+per-step cost that does not move with capacity.
+
+What that ~2.6 ms is made of is *not* decomposed here, and one guess has already
+been wrong: it is **not** a host-side integrator round-trip, because Kokkos
+integrates on device (`fix nve/kk`, `run_style verlet/kk`). The per-step host
+work is inside the pair style — two `MPI_Allreduce` calls
+(`pair_jax_kokkos.cpp:919` for the atom-capacity check before every launch, and
+`:949` for the edge count and overflow flag) around an `exec.fence()` (`:946`) —
+plus per-step device kernels the Python path never runs: `pack_atoms` over
+`nall`, the neighbour pack over `nlocal x maxneighs`, the `deep_copy` fills over
+`max_edges`, and force accumulation over `nall`. Which of those dominates is
+untested; the 2.6 ms is measured, its composition is not.
 
 **So the shaded band in `scaling.png` has two different causes at its two ends,
 and describing it with one explanation was wrong.** At small basis it is fixed
@@ -716,6 +726,64 @@ stronger form at large basis: too loose is not just slow, it fails to run.
 verified empty beforehand — `run_capacity_sweep.sh` refuses to start otherwise —
 and with a 3-second sampler running throughout. No second PID appears in any of
 the three contention logs.
+
+## The Kokkos invocation: our flags are the only legal ones
+
+Every benchmark in this file since Phase 6 has run
+`-pk kokkos newton on neigh half gpu/aware off`, inherited from
+`test_eam_bundle.sh`, while the lammps-jax README documents
+`-pk kokkos newton off neigh full`. That is a real discrepancy and it was worth
+checking, because a flag that changes the neighbour list changes what the model
+sees. **It turns out the documented invocation cannot be used with our bundles
+at all**, and the one we use is forced.
+
+| axis | result |
+|---|---|
+| `newton off` | **rejected by the pair style.** `init_style` (`pair_jax_kokkos.cpp:569`): *"LAMMPS-JAX bundle was exported for newton pair on; this run uses newton off"*. Our contract declares `newton: "on"` because energy exports get forces by autodiff. |
+| `neigh full` | **rejected by LAMMPS Kokkos itself** while newton is on: *"Must use 'newton off' with KOKKOS package option 'neigh full'"* (`src/KOKKOS/kokkos.cpp:850`). With `newton off` unavailable, `neigh half` is the only choice. |
+| `gpu/aware on` | permitted, and **costs nothing to leave off** on one rank (below). |
+
+So `newton on neigh half` is not a setting we chose carelessly; it is the only
+legal combination for an energy-export bundle. The README's
+`newton off neigh full` describes *force*-export bundles, which is what
+`test_eam_bundle.sh` exercises.
+
+**And `neigh half` is inert for this pair style anyway.** `init_style` sets
+`half_list_ok = edge_force_enabled() || contract.pair_sum`, both false for our
+bundles, so it calls `add_request(this, NeighConst::REQ_FULL)` and builds a full
+list whatever the Kokkos package says. Every run in the table below reports the
+same `FullNghs: 123894`.
+
+### Measured, 1728 atoms, f64, single rank
+
+| model | max_atoms | gpu/aware off | gpu/aware on | delta | FullNghs |
+|---|---|---|---|---|---|
+| n_B=69 | 5544 | 6.292 ms | 6.356 ms | +1.0% | 123894 |
+| n_B=69 | 6930 | 6.193 ms | 6.253 ms | +1.0% | 123894 |
+| n_B=2849 | 5544 | 115.026 ms | 115.179 ms | +0.1% | 123894 |
+| n_B=2849 | 6930 | 157.713 ms | 157.777 ms | +0.04% | 123894 |
+
+`gpu/aware on` is *slightly slower* everywhere it was measured, so the
+`gpu/aware off` kept for the two-rank PSM3 abort costs nothing on one rank.
+
+**Energies are identical across all of it** — `-2889.209895` at n_B=69 and
+`-5820772.583` at n_B=2849, to every digit printed, across both `gpu/aware`
+settings and both capacities. That also independently confirms something the
+padding study needs: **changing `max_atoms` does not change what the model
+computes**, so the 3.01x is pure overhead and not a different calculation.
+(Both potentials carry unfitted weights, so the values themselves are
+meaningless; only their invariance is being used.)
+
+### Effect on the two numbers this file reports: none
+
+| quantity | as reported | re-measured here |
+|---|---|---|
+| fixed per-step cost, n_B=69 at 5544 rows | 6.293 ms | **6.292 ms** |
+| n_B=2849 at 5544 rows | 115.994 ms | **115.026 ms** (0.8%) |
+| n_B=2849 at 6930 rows | 158.267 ms | **157.713 ms** (0.35%) |
+| capacity slope 5544 -> 6930, n_B=2849 | 1.364x | **1.371x** |
+
+The padding attribution and the fixed-cost figure both stand as reported.
 
 ## Our spherical harmonics against sphericart
 

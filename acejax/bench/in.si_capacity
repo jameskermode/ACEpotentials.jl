@@ -9,14 +9,18 @@
 #   -var reps N     cells per side (6 -> 1728 atoms)
 #   -var bundle     path to the .lammps-jax.json under test
 #   -var pjrt       PJRT plugin .so
+#   -var newt       on | off -- the `newton` command AND the -pk kokkos setting
+#                   must agree, so both are driven from this one variable.
+#                   pair jax/kk rejects a mismatch against the bundle contract.
 variable reps  index 6
 variable warm  index 5
 variable steps index 50
+variable newt  index on
 
 units metal
 atom_style atomic
 boundary p p p
-newton on
+newton ${newt}
 
 lattice diamond 5.43
 region box block 0 ${reps} 0 ${reps} 0 ${reps}

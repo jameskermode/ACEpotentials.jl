@@ -11,6 +11,13 @@ LMP=${LMP:-/storage/eng/essswb/lammps-jax-build/lammps/build-SKX-AMPERE86-mlpace
 # times; do not reorder.
 export LD_LIBRARY_PATH=$(dirname $LMP):$V/lib:/software/easybuild/software/CUDA/12.9.1/lib64:/software/easybuild/software/OpenMPI/4.1.6-GCC-13.2.0/lib:${LD_LIBRARY_PATH:-}
 cd "$(dirname "$0")"
+# `newton on neigh half` is NOT a leftover from test_eam_bundle.sh to be "fixed"
+# to the README's `newton off neigh full`: for an energy-export bundle the pair
+# style rejects newton off (contract says newton on; forces come from autodiff),
+# and Kokkos rejects neigh full while newton is on.  It is the only legal
+# combination, and neigh half is inert here anyway -- init_style requests
+# REQ_FULL itself.  gpu/aware off costs nothing on one rank (measured).
+# See results.md, "The Kokkos invocation: our flags are the only legal ones".
 KK="-k on g 1 -sf kk -pk kokkos newton on neigh half gpu/aware off"
 STEPS=${STEPS:-20}
 REPS=${REPS:-"2 3 4 5 6 8"}
