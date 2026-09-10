@@ -5,14 +5,20 @@ Julia 1.12.6, CPU (Apple Silicon). SPIKE CODE.
 
 **Version note:** the miscompilation reproduces on **both Reactant 0.2.222 and
 0.2.285** (the latest as of 2026-09-09), so it is not fixed by upgrading.
-Re-confirmed on Reactant 0.2.285 / Reactant_jll 0.0.407 in clean
-single-dependency environments across every Julia version Reactant tests:
+Re-confirmed on Reactant 0.2.285 in clean single-dependency environments across
+both platforms and every Julia version Reactant tests:
 
-| Julia | in Reactant CI? | result |
-|---|---|---|
-| 1.11.9 | yes (version sweep) | MISMATCH |
-| 1.12.7 | yes (version sweep) | MISMATCH |
-| 1.13.0 | **no** | MISMATCH |
+| platform | Julia | in Reactant CI? | result |
+|---|---|---|---|
+| macOS aarch64 (Apple Silicon) | 1.11.9 | yes (version sweep) | MISMATCH |
+| macOS aarch64 | 1.12.7 | yes (version sweep) | MISMATCH |
+| macOS aarch64 | 1.13.0 | **no** | MISMATCH |
+| Linux x86_64 (alderlake) | 1.11.7 | yes (version sweep) | MISMATCH |
+| Linux x86_64 (alderlake) | 1.12.2 | yes (version sweep) | MISMATCH |
+
+Identical wrong output in all five: `[9.0 9.0; 36.0 36.0]` for an expected
+`[9.0 6.0; 36.0 30.0]`. So it is neither platform- nor architecture-specific,
+and not an artefact of the Apple Silicon build.
 
 Reactant's `Project.toml` says `julia = "1.10"`, an open upper bound, so the
 resolver installs happily on 1.13 -- but its CI matrix is 1.10 (primary) plus a
