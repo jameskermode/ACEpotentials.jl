@@ -345,6 +345,17 @@ is offered because attributing it would need difference measurements against
 varied static capacities, and `ace_md.py`'s are hardcoded — changing them means
 modifying the spike, which was out of scope here.
 
+> **Since answered** — see `docs/findings/FINDINGS_apple_scaling.md`. It is not
+> a padding effect (the padding fraction is a constant 0.491 at every size);
+> the step cost depends only on the padded edge-buffer length, and the per-slot
+> cost climbs because reverse mode turns `Rnl[:, aspec_r] * Ylm[:, aspec_y]`
+> (`acejax/model.py:156`) into an inner-axis scatter that costs 4.6x more per
+> row at 500k rows than at 17k on this Mac. Rewriting it as an equivalent
+> one-hot matmul flattens the series outright; with a tighter edge capacity as
+> well the M3 Pro reaches 4.1-4.5e4 atom-steps/s at every size, **5.1x** the
+> figure in the table above at 1728 atoms, which reverses the single-thread
+> half of the Mac conclusion. Only the JAX side was tuned in that work.
+
 **A second Mac pass of the 12-thread points at usable precision.** Two passes
 were run; they disagree by up to 45% at the smaller sizes. Reported as
 indicative rather than dropped, with the per-pass minima available.

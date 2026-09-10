@@ -1,0 +1,10 @@
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 216 --max-edges 31013 --tag C_nodebuf
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 270 --max-edges 31013 --tag C_nodebuf
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 324 --max-edges 31013 --tag C_nodebuf
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 648 --max-edges 31013 --tag C_nodebuf
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 1296 --max-edges 31013 --tag C_nodebuf
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 1728 --max-edges 248112 --tag C_nodebuf
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 2160 --max-edges 248112 --tag C_nodebuf
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 2592 --max-edges 248112 --tag C_nodebuf
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 5184 --max-edges 248112 --tag C_nodebuf
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-owned 10368 --max-edges 248112 --tag C_nodebuf

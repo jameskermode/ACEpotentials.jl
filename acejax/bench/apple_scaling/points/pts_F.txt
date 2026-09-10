@@ -1,0 +1,32 @@
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 17057 --tag F_tight_stock
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 17057 --tag F_tight_stock
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 17057 --gather-fix --tag F_tight_fix
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 17057 --gather-fix --tag F_tight_fix
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 40432 --tag F_tight_stock
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 40432 --tag F_tight_stock
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 40432 --gather-fix --tag F_tight_fix
+--rep 4 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 40432 --gather-fix --tag F_tight_fix
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 78969 --tag F_tight_stock
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 78969 --tag F_tight_stock
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 78969 --gather-fix --tag F_tight_fix
+--rep 5 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 78969 --gather-fix --tag F_tight_fix
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --tag F_default_stock
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --gather-fix --tag F_default_fix
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 136458 --tag F_tight_stock
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 136458 --tag F_tight_stock
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 136458 --gather-fix --tag F_tight_fix
+--rep 6 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 136458 --gather-fix --tag F_tight_fix

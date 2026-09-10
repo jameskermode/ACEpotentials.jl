@@ -1,0 +1,6 @@
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 17057 --f32 --tag E_f32
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 31013 --f32 --tag E_f32
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 62027 --f32 --tag E_f32
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 124054 --f32 --tag E_f32
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 248112 --f32 --tag E_f32
+--rep 3 --ranks 1 --dt 0.25 --outer 7 --inner 10 --max-edges 496224 --f32 --tag E_f32
