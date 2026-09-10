@@ -7,6 +7,26 @@ The reference chart in `docs/plans/lammps_jax_benchmark_reference.md` is an
 RTX 4070 Laptop at 70 W. Absolute numbers do not transfer between the two;
 shape and same-host ratios do.
 
+## Scaling
+
+![ACE throughput vs atom count](scaling.png)
+
+Throughput in timesteps/s against atom count, log-log, one panel per precision,
+in the shape of the upstream chart in
+`docs/plans/lammps_jax_benchmark_reference.md` so the two can be read side by
+side. Regenerate with `uv run --with matplotlib python make_plot.py`.
+
+Three things the shape shows that the tables do not:
+
+- **The f64 dip at 216 atoms is visible as a V**, not a smooth curve. It is the
+  capacity effect below, and it reproduces to under 1%.
+- **f32 and f64 share a y-axis**, so the ~2.2x gap between them is a vertical
+  offset rather than a number to compare across two scales.
+- **Stillinger-Weber is near-flat** while the ACE curves fall roughly as 1/N —
+  SW keeps near-constant wall time over this range, so the visible gap widens
+  with system size. That is a scale reference, not a like-for-like comparison:
+  it is a classical 3-body potential, different physics entirely.
+
 ## Method, and what it excludes
 
 `timestep 0.0` freezes the configuration, so `run 100` is 100 repeated
