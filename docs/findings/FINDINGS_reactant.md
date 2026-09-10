@@ -68,6 +68,35 @@ run rather than retyping the snippet.
 Two distinct elementwise products are deduplicated into one. See
 `reactant_bug_repro.jl`. Worth filing upstream.
 
+### Localised to an optimisation pass
+
+The traced IR is **correct**; an optimisation pass corrupts it.
+`@code_hlo optimize=false` contains two distinct `enzyme.batch` multiplies --
+`z*z` from `slice [2:3]` twice, and `y*z` from `slice [1:2]` and `slice [2:3]`
+-- concatenated. After the default pipeline the whole thing has collapsed to:
+
+```mlir
+%0 = stablehlo.slice %arg0 [2:3, 0:2] : (tensor<3x2xf64>) -> tensor<1x2xf64>
+%1 = stablehlo.multiply %0, %0 : tensor<1x2xf64>
+%2 = stablehlo.broadcast_in_dim %1, dims = [0, 1] : (tensor<1x2xf64>) -> tensor<2x2xf64>
+return %2 : tensor<2x2xf64>
+```
+
+One multiply, then a broadcast filling both columns: the concatenate of two
+different columns has become a broadcast of one. Bracketing by `optimize=`
+level pins which passes are responsible:
+
+| `optimize=` | result |
+|---|---|
+| `:just_batch` | `[9.0 6.0; 36.0 30.0]` **correct** |
+| `:before_kernel` | `[9.0 9.0; 36.0 36.0]` wrong |
+| `:all` (default) | `[9.0 9.0; 36.0 36.0]` wrong |
+| `:canonicalize`, `:none` | fail to compile (`enzyme.batch` never lowered) |
+
+So the corruption is introduced **after `:just_batch` and at or before
+`:before_kernel`**. `@compile optimize=:just_batch f(ru)` is a working
+workaround for anyone hitting this, at the cost of the rest of the pipeline.
+
 ## How it surfaces in ACE
 
 `ace_export.jl` cannot trace SpheriCart, so it rebuilds Ylm as monomials of the
