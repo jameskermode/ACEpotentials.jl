@@ -653,7 +653,70 @@ feature that does not require giving it away.
      128) should be measured early -- it may be most of the benefit for a
      fraction of the cost.
 
-   **The honest cost: this model class would exist only in JAX.** It is a
+   **But the Julia route is probably better, and is not what it first looks
+   like.** Folding the channel into the radial index makes the change far
+   smaller than "a new architecture":
+
+   ```
+   R'[(k,n), l](r_ij, z_j)  =  emb[z_j, k] * R[n, l](r_ij)
+   ```
+
+   i.e. a radial basis widened from `n_rnl` to `d * n_rnl` whose values depend on
+   the neighbour species through a frozen linear map. `abasis`, `aabasis` and
+   `A2B` need no changes at all — they see a wider radial basis and nothing else.
+
+   And that operation already exists in EquivariantTensors. `SelectLinL` computes
+
+   ```
+   B[i, j] = sum_k P[i, k] * W[j, k, selector(x_i)]        # selectlinl.jl
+   ```
+
+   a per-species-category linear map chosen by a hard index. The embedding
+   version is the *same tensor* `W` contracted against a soft weight vector
+   instead of a one-hot selection:
+
+   ```
+   B[i, j] = sum_c emb[z_j, c] * sum_k P[i, k] * W[j, k, c]
+   ```
+
+   So this is a **generalisation of an existing layer**, not a new one — and
+   notably the soft form is array-expressible, which is exactly the rewrite the
+   Reactant spike wanted for other reasons (`selectlinl.jl`'s own comments ask
+   for it). The two efforts point the same way.
+
+   **What the Julia route buys, and it is a lot:**
+
+   - **The entire fitting stack applies unchanged.** With `emb` frozen the basis
+     is fixed, so the model stays linear and `acefit!`, BLR, committees, the
+     smoothness priors and the QR/LSQR solvers all work as they are. The JAX
+     route would have to reach Stage 2A before it could fit anything at all.
+   - **Single source of truth is preserved**, and the divergence guard covers the
+     feature — which the JAX-only version cannot be.
+   - **It decouples from Stage 2 entirely.** Fit in Julia, evaluate in JAX: this
+     becomes a Stage-1-shaped feature, not a Stage-2 one.
+   - **`acejax` gets it nearly for free**, because structurally it is just a
+     different radial basis. The exporter carries `emb` and the composite index;
+     the evaluator's existing machinery applies.
+
+   **Getting the embedding: a number, not a dependency.** `PythonCall.jl` would
+   work, but it is more coupling than the problem needs — the table is a frozen
+   `(S, d)` matrix extracted **once, offline**. Pulling `torch` or `mace-jax` into
+   ACEpotentials' runtime dependencies to fetch a constant would recreate exactly
+   the cross-codebase fragility that ruled out the `yace` route. Prefer a one-off
+   extraction script writing an `.npz`/artifact that Julia reads — ACEpotentials
+   already consumes artifacts via `LazyArtifacts`. Keep a `PythonCall`-based
+   helper for *regenerating* that artifact if convenient, but not on the load
+   path. Record which checkpoint and which layer it came from.
+
+   **Unverified, and worth a spike before committing:** whether ET can express
+   the channel-diagonal restriction of the AA spec cleanly (only terms where all
+   nu factors share `k`), and what it costs to build a spec over `d * n_rnl`
+   radial functions. Those are the two places this could turn out harder than the
+   sketch above. Rough effort if they are clean: **1–2 weeks in Julia**, mostly
+   in EquivariantTensors, plus upstream coordination.
+
+   **The honest cost of the JAX-only route, for contrast: that model class would
+   exist only in JAX.** It is a
    deliberate departure from single source of truth -- ACEpotentials.jl could not
    fit or evaluate it, and the divergence guard cannot cover it because there is
    nothing on the Julia side to compare against. That is a real price and should
@@ -1420,7 +1483,7 @@ Stage 1.
 | 19. Priors + solvers (lineax / optimistix), incl. BLR for uncertainty — **BLR drives teacher-vs-student config generation**, so not deferrable | 2–3 |
 | 20. Data loading, weights, key matching — schema must carry **teacher-model labels with provenance**, not assume DFT keys | 1 |
 | 20b. Clear the jax pin blocking `mace-jax` coexistence (PR to `sphericart-jax`, or pure-JAX harmonics) — **prerequisite for distillation** | 0.5–2 |
-| *20c. Frozen MACE element embeddings, JAX-side: import via `mace-jax`, channel-diagonal AA, fit in this parameterisation* — **optional, many-element only** | 3–5 |
+| *20c. Frozen MACE element embeddings, JAX-side* — **fallback only**; prefer the Julia route (see (a)), which keeps the feature linear, fits with `acefit!` and stays inside the divergence guard | 3–5 |
 | 21. Validation harness (milestones 5–6): coefficients and RMSE against `acefit!` | 1 |
 
 **≈ 9–12.5 days**, plus 3–5 optional for the embedding phase. Several of those
