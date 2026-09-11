@@ -3,6 +3,17 @@
 Model: fitted `ace1_model(Si, order=3, totaldegree=10)`, n_B = 110, rcut 6.0.
 Si diamond supercells, single MPI rank, `gpu/aware off`.
 
+**Phase 13 — how this compares with MACE — is in
+[`results_phase13.md`](results_phase13.md)**: our ACE model, MACE via
+`symmetrix`, and the *same* MACE via `pair_style jax/kk`, on the same host and
+the same structures. Two results there bear on this file. Our 2849-function
+model is **1.7x slower** than MACE-MP-0 small through the same pair style, so
+ACE's throughput advantage is an advantage of small models rather than of the
+architecture. And `jax/kk` is **1.04-1.43x faster than hand-written Kokkos
+`symmetrix`** on an identical MACE checkpoint, which retracts the gloss (not the
+measurements) that the plugin path's retention figures below make the route
+uncompetitive.
+
 The reference chart in `docs/plans/lammps_jax_benchmark_reference.md` is an
 RTX 4070 Laptop at 70 W. Absolute numbers do not transfer between the two;
 shape and same-host ratios do.

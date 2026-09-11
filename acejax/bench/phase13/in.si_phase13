@@ -1,0 +1,79 @@
+# Phase 13 three-way deck.  UNTESTED -- written without host access.
+#
+# Same Si diamond supercells, same `timestep 0.0` single-point method and the
+# same two exclusions as Phase 8 (../results.md, "Method, and what it
+# excludes"): no reneighbouring, and -- here -- compilation is OUTSIDE the
+# measurement, because the timed run is the SECOND run.
+#
+# That last point is a DELIBERATE difference from ../in.si_bench, which times a
+# single `run` with the one-off XLA compile inside it.  MACE-MP-0 is a far
+# larger graph than a 110-function ACE basis and its compile is not a small
+# share of 100 steps, so leaving compile in would have measured the compiler.
+# Route 1 must therefore be RE-RUN under this deck rather than quoted from the
+# Phase 8 table -- the configurations are not identical.  Say which in the
+# writeup.
+#
+#   -var reps N     cells per side (2 -> 64 atoms, 8 -> 4096)
+#   -var style      jax | sym64 | sym32
+#   -var bundle     .lammps-jax.json      (style jax: route 1 ACE or route 3 MACE)
+#   -var pjrt       PJRT plugin .so       (style jax)
+#   -var macejson   symmetrix .json       (style sym64/sym32)
+#   -var symmode    no_domain_decomposition | no_mpi_message_passing
+#                   | mpi_message_passing
+#   -var warm/steps warm-up and timed step counts
+#   -var dodump 1 -var dumpfile <path>    write per-atom forces for the gate
+variable reps     index 6
+variable warm     index 5
+variable steps    index 50
+variable style    index jax
+variable symmode  index no_domain_decomposition
+variable dodump   index 0
+variable dumpfile index /tmp/phase13.dump
+
+units metal
+atom_style atomic
+boundary p p p
+newton on
+# symmetrix/mace/kk requires a global->local atom map.  Set for EVERY style,
+# not just symmetrix, so the three routes run identical decks -- the map costs
+# the same on all of them and a deck difference would confound the comparison.
+atom_modify map yes
+
+# pair_jax_kokkos rejects an n_hops > 1 bundle unless special_bonds is 1 1 1.
+# Inert for an unbonded system; required for the MACE ghost-mode bundles.
+special_bonds lj/coul 1.0 1.0 1.0
+
+lattice diamond 5.43
+region box block 0 ${reps} 0 ${reps} 0 ${reps}
+create_box 1 box
+create_atoms 1 box
+mass 1 28.0855
+displace_atoms all random 0.05 0.05 0.05 12345 units box
+
+neighbor 1.0 bin
+neigh_modify every 1 delay 0 check yes one 4000 page 4000000
+
+if "${style} == jax" then &
+  "pair_style jax/kk ${pjrt}" &
+  "pair_coeff * * ${bundle}"
+if "${style} == sym64" then &
+  "pair_style symmetrix/mace/kk ${symmode}" &
+  "pair_coeff * * ${macejson} Si"
+if "${style} == sym32" then &
+  "pair_style symmetrix/mace/float32/kk ${symmode}" &
+  "pair_coeff * * ${macejson} Si"
+
+velocity all create 300.0 87287 loop geom
+fix 1 all nve
+timestep 0.0
+thermo 1000
+thermo_style custom step atoms pe
+thermo_modify norm no format float %.12g
+run_style verlet/kk
+
+if "${dodump} == 1" then &
+  "dump d1 all custom 1000000 ${dumpfile} id x y z fx fy fz" &
+  "dump_modify d1 format float %.17g sort id"
+
+run ${warm}
+run ${steps}
