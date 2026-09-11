@@ -596,6 +596,7 @@ in the ACE coefficients, so the normal linear solve, the smoothness priors and
 the BLR/committee uncertainty story all survive intact. Only *jointly training*
 the embedding breaks convexity. So the default must be frozen-embedding, with
 training it an opt-in that explicitly moves the user to the non-linear backend.
+**Confirmed as the intended design.**
 Getting this the wrong way round would give away the differentiator to buy a
 feature that does not require giving it away.
 
@@ -622,9 +623,11 @@ feature that does not require giving it away.
    Julia side has to be able to build such a model before there is anything to
    export -- which sharpens the single-source-of-truth argument rather than
    weakening it.
-5. **The divergence matrix must grow an embedding row** when this lands, and
-   should grow a three-element row before then: everything is currently verified
-   at one and two species.
+5. **The divergence matrix must grow an embedding row** when this lands. The
+   three-element precursor row is **done** (`Si-C-O order 3`, both model
+   families, 66/66) -- and it exercises the problem this feature exists to fix:
+   at order 3 / degree 8 the `ace1` basis goes 648 -> 2823 functions per site
+   going from two species to three.
 
 ### (b) Distil MACE models into smaller, faster ACE ones
 
@@ -643,12 +646,15 @@ it does not have to.
    2A phase 18 is therefore load-bearing for this feature, not a scaling nicety.
 2. **`acejax` and `mace-jax` must coexist in one process.** Label generation and
    fit assembly in the same JAX session is the obvious implementation, and it is
-   also how Phase 13 route 3 already runs MACE. **This raises the priority of
-   removing the `sphericart-jax` dependency**, already on the risk register as
-   "emits a custom call" and pinning jax 0.10.1. A hard jax pin from our side is
-   exactly what would make coexistence impossible, and a pure-JAX spherical
-   harmonics implementation removes it. Treat that as a prerequisite rather than
-   a cleanup.
+   also how Phase 13 route 3 already runs MACE. What must go is the **jax 0.10.1
+   pin** that `sphericart-jax` currently imposes -- a hard pin from our side is
+   exactly what makes coexistence impossible. Dropping the dependency for a
+   pure-JAX implementation is *one* way to achieve that; **upstreaming a PR to
+   `sphericart-jax` to widen its jax compat is another, and probably the better
+   one** -- it is a well-optimised library, our own harmonics were measured
+   against it, and the fix benefits every downstream user rather than routing us
+   around the problem. Either way the *pin* is the prerequisite, not the
+   dependency.
 3. **The data pipeline must carry arbitrary labels, not just DFT keys.** The
    Stage 2A decision to export `AtomsData` from Julia rather than reimplement its
    fuzzy key matching still holds, but the exported schema must not assume the
@@ -1352,7 +1358,7 @@ established that the standard ETACE path is two specific stopgaps from tracing
 (`SelectLinL`'s KA kernel, and `ka_with_reactant` dispatch), that SpheriCart
 traces fine, and that the array-op formulation of `SelectLinL` traces exactly
 (4.44e-16). Two blockers have since moved: the WignerD dependency that capped
-Reactant at 0.2.222 is fixed in EquivariantTensors.jl#143, and the
+Reactant at 0.2.222 is fixed in EquivariantTensors.jl#143 (**merged**), and the
 miscompilation is filed as Reactant.jl#3267 with the offending pass bracketed. If
 those land, **Julia gets GPU-accelerated linear fit assembly without a Python
 port at all** — the same outcome, reached more cheaply and staying in one
@@ -1370,14 +1376,19 @@ Stage 1.
 
 | Phase | Days |
 |---|---|
-| 16. **Gate: re-test Reactant** on a CUDA host with ET#143 applied. If the standard ETACE path traces, build this in Julia instead and stop here | 0.5 |
+| 16. **Gate: re-test Reactant** on a CUDA host (ET#143 is **merged**, so current Reactant installs alongside ET). If the standard ETACE path traces, build this in Julia instead and stop here | 0.5 |
 | 17. E/F/V design-matrix assembly + custom hybrid JVP (**committed**, gate 3) | 3 |
-| 18. Blocked / streaming assembly so the full design matrix need not be resident | 1–2 |
-| 19. Priors + solvers (lineax / optimistix), incl. BLR for uncertainty | 2–3 |
-| 20. Data loading, weights, key matching | 1 |
+| 18. Blocked / streaming assembly so the full design matrix need not be resident — **load-bearing for distillation**, not just scaling | 1–2 |
+| 19. Priors + solvers (lineax / optimistix), incl. BLR for uncertainty — **BLR drives teacher-vs-student config generation**, so not deferrable | 2–3 |
+| 20. Data loading, weights, key matching — schema must carry **teacher-model labels with provenance**, not assume DFT keys | 1 |
+| 20b. Clear the jax pin blocking `mace-jax` coexistence (PR to `sphericart-jax`, or pure-JAX harmonics) — **prerequisite for distillation** | 0.5–2 |
 | 21. Validation harness (milestones 5–6): coefficients and RMSE against `acefit!` | 1 |
 
-**≈ 8.5–10.5 days.**
+**≈ 9–12.5 days.** Three of those phases are shaped by the long-term
+directions above rather than by the linear fit alone; see "Long-term directions,
+and what they constrain now". The frozen-embedding species interface is *not*
+costed here because it is blocked on ACEpotentials.jl being able to build such a
+model — it is a dependency to track, not a phase to schedule.
 
 Phase 18 is new, and follows from wanting this to scale: at n_B ≈ 2000 and a
 large dataset the design matrix is the memory bottleneck, not the arithmetic.

@@ -93,6 +93,17 @@ jobs:
             totaldegree: '8'
             maxl: '4'
             nofit: '1'
+          # Three species: two can hide a convention that is really "centre vs
+          # other" rather than a genuine per-pair lookup, and this is also the
+          # precursor to the embedding work (see "Long-term directions" in the
+          # plan).  Note the O(S^nu) blowup it exercises: at order 3 / degree 8
+          # the ace1 basis goes 648 -> 2823 per site from two species to three.
+          - name: Si-C-O order 3
+            elements: Si,C,O
+            order: '3'
+            totaldegree: '8'
+            maxl: '4'
+            nofit: '1'
     env:
       ACE_ELEMENTS: ${{ matrix.elements }}
       ACE_ORDER: ${{ matrix.order }}
