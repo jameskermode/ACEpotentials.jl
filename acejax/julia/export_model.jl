@@ -19,10 +19,15 @@ using Lux
 using LazyArtifacts, ExtXYZ, AtomsBase, Unitful
 M = ACEpotentials.Models
 
-# usage: export_model.jl [out.npz] [ace1|ace]
+# usage: export_model.jl [out.npz] [ace1|ace|embedding]
+#
+# `embedding` builds a frozen-element-embedding model (ACE_EMBEDDING must point
+# at the artefact; ACE_DMAX optionally caps the channel width).  Nothing on the
+# JAX side needs to know: the embedding is baked into the radial splines, so the
+# export is an ordinary splined model with a wider radial basis.
 const OUT  = length(ARGS) >= 1 ? ARGS[1] : joinpath(@__DIR__, "si_fitted.npz")
 const KIND = length(ARGS) >= 2 ? ARGS[2] : "ace1"
-@assert KIND in ("ace1", "ace") "model kind must be ace1 or ace"
+@assert KIND in ("ace1", "ace", "embedding") "model kind must be ace1, ace or embedding"
 
 # ---------------------------------------------------------------- fit
 # overridable, so a benchmark can match a reference potential
@@ -39,7 +44,7 @@ if KIND == "ace1"
     model = rcut_kw === nothing ?
         ace1_model(elements = elements, order = order, totaldegree = totaldegree) :
         ace1_model(elements = elements, order = order, totaldegree = totaldegree, rcut = rcut_kw)
-else
+elseif KIND == "ace"
     # ace_model: LEARNABLE (analytic) rbasis, solid harmonics.  Its pair basis is
     # still splined (ace_heuristics.jl:213), so the branches are per-basis.
     @info "building ace_model(elements=$elements, order=$order, max_level=$totaldegree, Ytype=:solid)"
@@ -52,6 +57,18 @@ else
                       init_WB = :glorot_normal, init_Wpair = :glorot_normal)
     ps0, st0 = Lux.setup(MersenneTwister(1234), raw)
     model = M.ACEPotential(raw, ps0, st0)
+end
+
+if KIND == "embedding"
+    haskey(ENV, "ACE_EMBEDDING") ||
+        error("KIND=embedding needs ACE_EMBEDDING pointing at the artefact")
+    emb = M.read_mace_embedding(ENV["ACE_EMBEDDING"])
+    d_max = haskey(ENV, "ACE_DMAX") ? parse(Int, ENV["ACE_DMAX"]) : nothing
+    @info "building ace_embedding_model(elements=$elements, order=$order, " *
+          "totaldegree=$totaldegree, d_max=$(d_max === nothing ? "lossless" : d_max))"
+    model = M.ace_embedding_model(elements = tuple(elements...), order = order,
+                                  totaldegree = totaldegree, embedding = emb,
+                                  d_max = d_max, maxl = maxl_kw)
 end
 
 # For a throughput benchmark the coefficients are irrelevant -- cost depends on
@@ -282,7 +299,9 @@ pair_env, pair_env_kind = env1sr_params(m.pairbasis)
 # ---------------------------------------------------------------- meta
 meta = Dict(
   "schema_version" => 1,
-  "source" => "ACEpotentials.jl ace1_model + acefit!(Si_tiny, BLR)",
+  "source" => "ACEpotentials.jl $(KIND) + acefit!(Si_tiny, BLR)",
+  "embedding" => (KIND == "embedding" ?
+                  JSON.json(m.meta["embedding"]) : ""),
   "acepotentials_version" => string(pkgversion(ACEpotentials)),
   "julia_version" => string(VERSION),
   "elements" => i2z,

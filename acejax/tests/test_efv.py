@@ -91,8 +91,14 @@ def test_dense_and_sparse_pooling_agree(case):
     """The two neighbour-list layouts must give the same answer; neither is
     hard-wired, and lammps-jax needs sparse while dense avoids a scatter."""
     model, meta, z, atoms = case
+    # capacity from the real neighbour count, not a hardcoded 64: a denser
+    # system truncates silently and the comparison then fails for the wrong
+    # reason (TiAl at these cutoffs has ~86 neighbours per atom)
+    s0 = sparse_graph(atoms.get_positions(), atoms.get_cell().array,
+                      atoms.get_pbc(), meta["rcut"])
+    kmax = int(np.bincount(np.asarray(s0.senders)).max())
     d = dense_graph(atoms.get_positions(), atoms.get_cell().array,
-                    atoms.get_pbc(), meta["rcut"], 64)
+                    atoms.get_pbc(), meta["rcut"], kmax)
     n, K = d.idx.shape
     node_z = species_index(z)
     zi = jnp.broadcast_to(node_z[:, None], (n, K))        # centre species per row
@@ -166,7 +172,8 @@ def test_dense_from_sparse_matches_neighbour_matrix(case):
     model, meta, z, atoms = case
     pos, cell, pbc, rcut = (atoms.get_positions(), atoms.get_cell().array,
                             atoms.get_pbc(), float(meta["rcut"]))
-    K = 64
+    i0, _, _, _ = _neighbour_list(pos, cell, pbc, rcut)
+    K = int(np.bincount(i0).max())        # not a hardcoded 64: see above
     idx_n, dist_n, cnt_n = neighbour_matrix(positions=pos, cell=cell, pbc=tuple(pbc),
                                             cutoff=rcut, max_neighbours=K)
     i, j, D, _ = _neighbour_list(pos, cell, pbc, rcut)

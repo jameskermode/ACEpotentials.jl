@@ -104,6 +104,16 @@ jobs:
             totaldegree: '8'
             maxl: '4'
             nofit: '1'
+          # Frozen-element-embedding models export through the ORDINARY splined
+          # path -- the embedding is baked into the radial splines, so acejax
+          # needs no knowledge of it.  This row is what keeps that true.
+          - name: Ti-Al embedding
+            elements: Ti,Al
+            order: '3'
+            totaldegree: '6'
+            maxl: '4'
+            nofit: '1'
+            kind: embedding
     env:
       ACE_ELEMENTS: ${{ matrix.elements }}
       ACE_ORDER: ${{ matrix.order }}
@@ -133,12 +143,24 @@ jobs:
             Pkg.develop(path=".")     # the ACEpotentials under test, not the registry one
             Pkg.instantiate()
             Pkg.status()'
-      - name: Regenerate both fixtures from Julia
+      - name: Extract the frozen element embedding
+        if: matrix.kind == 'embedding'
         working-directory: .
         run: |
+          uv run --with torch --with numpy python scripts/extract_mace_embedding.py \
+            -o fresh_embedding.npz
+          ls -l fresh_embedding.json
+      - name: Regenerate both fixtures from Julia
+        working-directory: .
+        env:
+          # the embedding rows for this row's elements; ignored by the other rows
+          ACE_EMBEDDING: ${{ github.workspace }}/fresh_embedding.json
+        run: |
           mkdir -p fresh
-          julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_fitted.npz ace1
-          julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_ace_model.npz ace
+          KIND1=${{ matrix.kind || 'ace1' }}
+          KIND2=${{ matrix.kind || 'ace' }}
+          julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_fitted.npz $KIND1
+          julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_ace_model.npz $KIND2
           ls -l fresh/
       - name: Run the suite against the fresh exports
         env:

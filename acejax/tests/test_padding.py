@@ -98,8 +98,14 @@ def test_dense_padded_slots_are_parked_at_cutoff(case):
     model, meta, z = case
     from acejax import dense_graph
     rcut = float(meta["rcut"])
+    # This test is ABOUT the padded slots, so the capacity needs headroom above
+    # the real neighbour count -- enough that padding exists by construction.
+    # A hardcoded 64 gave neither guarantee: too small for a dense system (it
+    # truncates silently) and, where every atom has the same neighbour count,
+    # exactly-max leaves no padding at all and the vacuity guard below fires.
+    kmax = int(np.bincount(np.asarray(z["test_edge_i"])).max()) + 8
     g = dense_graph(np.asarray(z["test_pos"]).T, np.asarray(z["test_cell"]).T,
-                    np.asarray(z["test_pbc"]).astype(bool), rcut, 64)
+                    np.asarray(z["test_pbc"]).astype(bool), rcut, kmax)
     dead = ~g.mask
     assert dead.any(), "no padded slots in this fixture; test is vacuous"
     lengths = np.linalg.norm(g.rij[dead], axis=-1)

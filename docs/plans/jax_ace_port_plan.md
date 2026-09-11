@@ -916,10 +916,33 @@ Also fixed while finding this: `compute_errors` must be given the same keys as
 are `dft_*`) and returns **0.0 for every observable** — the first version of this
 gate asserted `isfinite(0.0)` and passed while measuring nothing.
 
-Still to build: multi-element accuracy (everything above is S = 1, which is the
-strongest available like-for-like but says nothing about whether the *embedding*
-carries species information usefully), and the export path so these models reach
-`acejax`.
+#### Export: done, and it needed no JAX-side change at all
+
+The embedding is baked into the **radial splines**, so an embedded model exports
+as an ordinary splined ACE model that happens to have a wider radial basis.
+`acejax` needs no knowledge of embeddings, and got none: a Ti-Al embedded model
+exported through `export_model.jl embedding` passes the existing suite unchanged,
+including every energy, force, virial and descriptor gate.
+
+`export_model.jl` gains an `embedding` kind (`ACE_EMBEDDING` points at the
+artefact, `ACE_DMAX` optionally caps the width) and records the embedding
+provenance in the exported metadata. A `Ti-Al embedding` row in the CI
+divergence matrix keeps it that way.
+
+**Three latent test bugs surfaced, all the same shape.** The dense-pooling tests
+hardcoded a neighbour capacity of 64. TiAl at these cutoffs has ~86 neighbours
+per atom, so `neighbour_matrix` truncated silently and three tests failed for a
+reason that had nothing to do with embeddings. Capacities are now derived from
+the actual neighbour counts. The padding test needed the opposite treatment —
+it is *about* padded slots, so it takes `max + 8`: with exactly-max and a system
+where every atom has the same neighbour count there is no padding left and its
+own vacuity guard fires. That guard earning its keep is the reason this was
+caught rather than silently weakened.
+
+Still to build: nothing on the export path. Open on the science side is whether
+the embedding pays off at the element counts it is meant for (S >= 6-7), which
+needs a many-element dataset that ACEpotentials' bundled examples do not
+provide.
 
 #### MEASURED: multi-element accuracy, and a RETRACTION
 
