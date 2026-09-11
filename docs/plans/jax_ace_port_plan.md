@@ -974,7 +974,34 @@ since it benefits every model using the plugin rather than only ours.
 The question people will actually ask. Phase 8 answers "ACE in JAX versus ACE in
 C++"; this answers "ACE versus the foundation models most users reach for".
 
-**Route: `symmetrix`** (`wcwitt/symmetrix`) — a Kokkos implementation of MACE
+**Three routes, not two — and the third is what makes this informative.**
+
+| # | what | pair style | isolates |
+|---|---|---|---|
+| 1 | ACE, ours | `jax/kk` | — (the Phase 8 baseline) |
+| 2 | MACE via `symmetrix` | `symmetrix/mace` | MACE at its best, hand-written Kokkos |
+| 3 | **MACE via `lammps-jax`** | `jax/kk` | **the model, with plumbing held constant** |
+
+`lammps-jax` ships a MACE exporter (`examples/export_mace.py`, MACE-MP-0 small,
+`mace_jax`-based, plus `python/lammps_jax/mace.py` and `tests/test_mace.py`), so
+MACE can be run through **the same plugin, the same StableHLO path, and the same
+padding and ghost overheads as our ACE model**. That makes two comparisons
+possible that a two-way study cannot give:
+
+- **1 vs 3** isolates *model cost* — identical plumbing on both sides, so the
+  difference is ACE versus MACE and nothing else. This is the cleanest number in
+  the whole phase.
+- **2 vs 3** isolates *the plugin* on an identical model — hand-written Kokkos
+  MACE against the same MACE through `jax/kk`. That is a direct measurement of
+  the integration tax we characterised in Phase 8 (ghost rows 2.19×, pad rows
+  1.38×), now on someone else's model rather than our own, which is a much
+  harder result to argue with when raising it upstream.
+
+Note the local `lammps-jax` checkout is at `a4304a2` ("fp64 support") and may be
+behind upstream; check before building, since the MACE path is newer than the
+ACE work we based Phase 6 on.
+
+**Route 2: `symmetrix`** (`wcwitt/symmetrix`) — a Kokkos implementation of MACE
 with a LAMMPS pair style, `pair_style symmetrix/mace`, models loaded from
 `.json`:
 
@@ -1006,6 +1033,11 @@ mirroring what Phase 8 did on ours.
 Same Si diamond supercells at the same sizes, same `timestep 0.0` single-point
 method, same exclusions restated. MACE foundation models are universal, so Si is
 in scope for them.
+
+**Use the same MACE model in routes 2 and 3** wherever the two exporters both
+support it, or the 2-vs-3 comparison measures two different things at once. If
+they cannot be matched, say so and drop that comparison rather than reporting it
+with a caveat nobody will read.
 
 **Expect to lose on raw throughput at these sizes, and say so plainly.** A
 foundation model carries far more parameters than a 110- or 2000-function ACE
