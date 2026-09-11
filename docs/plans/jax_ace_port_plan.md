@@ -817,6 +817,17 @@ and the test suite, both green.
 
 #### Phase 11 — a JAX-only distributed MD spike (no LAMMPS) ✅ COMPLETE
 
+**Scope guard, added after Phase 13.** This is a spike and should stay one. It
+has two legitimate futures — a benchmark harness (which it already is) and the
+vehicle for Phase 14's differentiable MD, which is a capability LAMMPS cannot
+offer at all. It should **not** grow into a general-purpose MD engine:
+thermostats, barostats, constraints, restart files, trajectory formats and
+analysis are a multi-month commitment that would duplicate LAMMPS, ASE and Molly
+badly. Its CPU performance story is also not yet solid — architecture-dependent
+per `bench/molly/`, and dependent on Phase 15 — so promoting it now would be
+premature on the merits as well as the scope.
+
+
 **Result: viable, worth pursuing, and the fastest of the three deployment routes
 at every size measured once capacities are tuned.**
 
@@ -925,6 +936,49 @@ would give Julia the same whole-step compilation, so "port without Reactant" and
 "fix ET's `SelectLinL` and KA paths" are alternative routes to the same property.
 
 #### Phase 12 — a CPU route into LAMMPS, via ML-IAP
+
+**Reviewed after Phases 11 and 13 — still justified, but for one reason only,
+and a cheaper alternative should be scoped first.**
+
+The question was whether Phase 11's JAX-only distributed MD makes this
+redundant. It does not, and it is worth being exact about why, because the two
+phases address different things:
+
+- **Availability is untouched by Phase 11.** `acejax` is the only working export
+  route from an ACEpotentials v0.10 model into LAMMPS, and it is GPU-only. A
+  standalone JAX MD driver is not LAMMPS: it has no fixes, thermostats,
+  barostats, constraints, minimisers, hybrid or multi-potential support, restart
+  files, or compatibility with the input decks users already have. Users with
+  LAMMPS workflows and no GPU are no better off for the spike existing.
+- **CI is only partly addressed by either.** A CPU ML-IAP route exercises
+  LAMMPS-supplied neighbour lists, ghost atoms, unit conventions and multi-rank
+  decomposition — real integration surface. But it does **not** test
+  `pair_style jax/kk` or the StableHLO bundle, which is what actually ships, so a
+  green ML-IAP gate is not proof the GPU path works. The Phase 11 spike tests
+  even less of it. **The honest fix for the CI hole is a self-hosted GPU
+  runner**, as `.github/workflows/acejax.yml` already notes; neither phase should
+  be sold as closing it.
+
+**Phase 13 strengthens the case for a CPU backend in `jax/kk` itself.** That was
+put out of scope above (~1–1.5 weeks, mostly the buffer layer) and left as
+something to raise upstream. Phase 13 gives that pitch real weight: `jax/kk` is
+**1.04–1.43× faster than hand-written Kokkos `symmetrix`** on an identical MACE
+checkpoint. A CPU backend would therefore extend a plugin that is measurably
+competitive, and benefits every model using it rather than only ours. Raise it
+with the maintainer before spending 2–3 days on an ML-IAP fallback that is slower
+by construction — it calls Python every timestep.
+
+**Cheaper alternative worth scoping first: fix the `yace` export.** Phase 8 found
+the `pace` comparator blocked at a *format* mismatch, not a capability one — v0.6
+emits `radbasename: "ACE.jl"` with `splinenodalvals`, while upstream ICAMS
+libpace expects `ChebPow`/`radcoefficients` plus `deltaSplineBins` and
+`nradbasemax`, and upstream does support splined radials. If that is a writer
+change rather than a basis conversion, it would give v0.10 models a mature, fast
+C++ route into LAMMPS on **both** CPU and GPU (ML-PACE has a Kokkos path), which
+is strictly more than ML-IAP delivers. This is ACEpotentials-side work, not
+`acejax` work, and its feasibility is **unverified** — scope it before committing
+to either route.
+
 
 **The problem.** `pair_style jax/kk` is CUDA-only — `scripts/build_lammps_jax.sh`
 hard-errors without a GPU, and the pair style has no CPU path. Since `acejax` is
