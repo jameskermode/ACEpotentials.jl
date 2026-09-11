@@ -869,31 +869,57 @@ and leaves the others untouched.
 | **losslessness, measured** | design matrix (1200 x 2400), numerical rank **1200 of 1200** — full rank, not merely predicted by the deficiency formula |
 | `acefit!` runs | yes, on Si_tiny |
 
-**But the accuracy gate is NOT met, and the first look is unfavourable.** At
-S = 1 (where the embedding model reduces to a single-channel model and both have
-`n_B = 54`), against `ace1_model` on the same 20 configurations:
+**The accuracy gate is now met too, but the diagnosis was not what it looked
+like.** At S = 1, where the embedding contributes a single scalar and both models
+have `n_B = 54`, against `ace1_model` on the same 20 configurations:
 
-| | n_B | E RMSE | F RMSE |
-|---|---|---|---|
-| `ace_embedding_model` | 54 | 35.47 | **23.88** |
-| `ace1_model` | 54 | 35.45 | **1.47** |
+| | E RMSE | F RMSE |
+|---|---|---|
+| before | 35.4745 | **24.04** |
+| after | 35.4537 | **1.4748** |
+| `ace1_model` | 35.4537 | 1.4682 |
 
-Energies agree; **forces are ~16x worse.** The most likely cause is not the
-embedding at all — at S=1 it contributes a single scalar factor — but that the
-constructor picks different radial heuristics from `ace1_model`: its own
-`agnesi_transform(...,2,2)` / `:poly2sx` envelope / `_default_rin0cuts`, and no
-splining, where `ace1_model` splines and uses the ACE1-compatible transform and
-envelope. So this is most likely a *like-for-like* problem rather than evidence
-against the construction. **It must be resolved before any accuracy claim**, and
-until it is, the cost results above say nothing about fit quality.
+Energies now agree to 4 dp and forces to 0.45%.
+
+Three hypotheses were wrong before the right one, and each was cheap to kill:
+
+- **ACE1 radial heuristics.** Real — `ace1_model` uses `(:agnesi, 2, 4)` not
+  `(2,2)`, Jacobi(4,4) rather than Legendre (it folds the envelope into the
+  orthogonality, `ace1_compat.jl:255-261`), and splines afterwards. Matching all
+  three is correct and is now done, but it did **not** move the forces.
+- **`Ytype`.** `ace1_model` uses `:spherical`, the constructor defaulted to
+  `:solid`. Changed nothing: F differed in the 4th digit.
+- **Broken gradients.** Ruled out directly: analytic forces match finite
+  differences to 6.6e-13.
+
+The actual cause: **the embedding must be normalised *after* truncation to `d`.**
+The raw MACE entries are O(0.1), so at correlation order ν the basis is scaled by
+~1e-3. A frozen scaling is absorbed by the linear coefficients — the bases were
+measured to be *exactly proportional*, ratio -74.7 componentwise — so the model
+spans the same space either way. But **BLR's prior on coefficient magnitude is
+not scale-invariant**, so the whole 16x was regularisation, not approximation.
+
+Normalising the full 128-channel row and *then* truncating is not enough: that
+leaves ~1/sqrt(128) per channel and reproduces the bug one step removed. That
+intermediate attempt cut `|WB|` from 296 to 63 and left F unchanged at 25.1,
+which is what made it clear the problem was not conditioning in the usual sense.
+`embedding_rows` now normalises the truncated rows by default.
+
+**Generalisable lesson:** a frozen linear reparameterisation is mathematically
+free but *not* free under a scale-sensitive regulariser. Anything that rescales
+the basis — this, per-order widths, a different `d` — must be normalised before
+it meets BLR or a smoothness prior, or the fit quality moves for reasons that
+have nothing to do with the model.
 
 Also fixed while finding this: `compute_errors` must be given the same keys as
 `acefit!`. With the defaults it finds no reference data in `Si_tiny` (whose keys
 are `dft_*`) and returns **0.0 for every observable** — the first version of this
 gate asserted `isfinite(0.0)` and passed while measuring nothing.
 
-Still to build: the splining path for `ace1`-style embedded models, and matching
-the radial heuristics so the accuracy comparison is like-for-like.
+Still to build: multi-element accuracy (everything above is S = 1, which is the
+strongest available like-for-like but says nothing about whether the *embedding*
+carries species information usefully), and the export path so these models reach
+`acejax`.
 
 #### Unverified
 

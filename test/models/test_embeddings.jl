@@ -37,7 +37,16 @@ println_slim(@test e.emb == emb)
 println_slim(@test e.meta["checkpoint"] == "synthetic-for-tests")
 
 # rows come back in the order asked for, truncated to d
-println_slim(@test M.embedding_rows(e, [6, 14]; d = 2) == [5.0 6.0; 1.0 2.0])
+println_slim(@test M.embedding_rows(e, [6, 14]; d = 2, normalise = false) ==
+                   [5.0 6.0; 1.0 2.0])
+
+# and normalised AFTER truncation by default: each returned row is a unit vector
+# in the d channels actually used, not in the full table width.  Normalising the
+# full row and then truncating leaves ~1/sqrt(d_full) per channel, which shows up
+# as a badly regularised fit rather than as an error.
+rn = M.embedding_rows(e, [6, 14]; d = 2)
+println_slim(@test all(isapprox(norm(rn[i, :]), 1.0; atol = 1e-14) for i = 1:2))
+println_slim(@test rn[1, :] ≈ [5.0, 6.0] ./ norm([5.0, 6.0]))
 println_slim(@test_throws Exception M.embedding_rows(e, [79]))      # Au absent
 println_slim(@test_throws Exception M.embedding_rows(e, [14]; d = 99))
 
@@ -168,4 +177,19 @@ else
    @info("  single-element embedding: n_B = $(size(m1.ps.WB,1)), " *
          "E = $(rmse["E"]), F = $(rmse["F"])")
    println_slim(@test all(isfinite(v) && v > 0 for v in values(rmse)))
+
+   # --- like-for-like: at S = 1 the embedding contributes a single scalar, so an
+   # embedded model must fit essentially as well as `ace1_model` at the same n_B.
+   # It does NOT unless the embedding is normalised after truncation: the raw
+   # MACE entries are O(0.1), so at order ν the basis is scaled by ~1e-3, and
+   # BLR's prior on coefficient magnitude is not scale-invariant.  With the raw
+   # table this gate reads F = 24.0 against ace1's 1.47, from bases that are
+   # exactly proportional -- a pure regularisation artefact.
+   mref = ace1_model(elements = [:Si], order = 3, totaldegree = 8)
+   acefit!(data, mref; kw..., solver = ACEfit.BLR(), verbose = false)
+   rref = ACEpotentials.compute_errors(data, mref; kw..., verbose = false)["rmse"]["set"]
+   @info("  vs ace1_model: E $(rmse["E"]) / $(rref["E"]), F $(rmse["F"]) / $(rref["F"])")
+   println_slim(@test size(m1.ps.WB, 1) == size(mref.ps.WB, 1))
+   println_slim(@test isapprox(rmse["E"], rref["E"]; rtol = 0.02))
+   println_slim(@test isapprox(rmse["F"], rref["F"]; rtol = 0.05))
 end

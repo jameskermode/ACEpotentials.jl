@@ -69,7 +69,8 @@ end
 The `(length(zlist), d)` block of rows for `zlist` (atomic numbers), in that
 order, truncated to the leading `d` channels.
 """
-function embedding_rows(e::ElementEmbedding, zlist; d = size(e.emb, 2))
+function embedding_rows(e::ElementEmbedding, zlist; d = size(e.emb, 2),
+                        normalise = true)
    1 <= d <= size(e.emb, 2) ||
       error("d = $d out of range for a width-$(size(e.emb, 2)) table")
    idx = map(zlist) do z
@@ -77,7 +78,24 @@ function embedding_rows(e::ElementEmbedding, zlist; d = size(e.emb, 2))
       i === nothing && error("element Z = $z is not in the embedding table")
       i
    end
-   return e.emb[idx, 1:d]
+   rows = e.emb[idx, 1:d]
+   if normalise
+      # Normalise AFTER truncation, and this matters far more than it looks.
+      # A frozen per-row scaling is absorbed by the linear coefficients, so the
+      # model spans the same space either way -- but the raw MACE entries are
+      # O(0.1), so at correlation order ν the basis is scaled by ~1e-3, and BLR's
+      # prior on coefficient magnitude is NOT scale-invariant.  Measured: the raw
+      # table fits forces ~16x worse than `ace1_model` at identical n_B, purely
+      # through the regularisation, with bases that are exactly proportional.
+      # Normalising the FULL row and then truncating is not enough -- that leaves
+      # ~1/sqrt(d_full) per channel, which was the same bug one step removed.
+      for i = 1:size(rows, 1)
+         nrm = norm(@view rows[i, :])
+         nrm > 0 || error("element $(zlist[i]) has a zero embedding row at d = $d")
+         rows[i, :] ./= nrm
+      end
+   end
+   return rows
 end
 
 """
@@ -157,13 +175,15 @@ function ace_embedding_model(; elements, order, totaldegree,
                                d_max = nothing,
                                wL = 1.5, maxl = nothing, Ytype = :solid,
                                rcut = nothing, E0s = nothing, ZBL = false,
-                               pair_maxn = nothing,
+                               pair_maxn = nothing, ace1_compat = true,
+                               normalise = true,
                                rng = Random.default_rng())
    zlist = _convert_zlist(elements)
    S = length(zlist)
    widths = embedding_widths(S, order; d_max = d_max)
    d = maximum(widths)
-   emb = embedding_rows(embedding, [Int(z) for z in zlist]; d = d)
+   emb = embedding_rows(embedding, [Int(z) for z in zlist]; d = d,
+                        normalise = normalise)
 
    # single-channel one-particle spec, then widened by d
    level1 = TotalDegree(1.0, 1 / wL)
@@ -175,8 +195,31 @@ function ace_embedding_model(; elements, order, totaldegree,
    rcut === nothing ||
       (rin0cuts = (x -> (rin = x.rin, r0 = x.r0, rcut = rcut)).(rin0cuts))
 
+   # Match `ace1_model`'s radial heuristics, not `ace_learnable_Rnlrzz`'s
+   # defaults.  They differ in three ways that matter, and using the defaults
+   # gave forces ~16x worse than ace1_model at identical n_B:
+   #   * the Agnesi transform is (p,q) = (2,4) in ACE1, (2,2) by default;
+   #   * ACE1 folds the envelope into the orthogonality, so the polynomials are
+   #     Jacobi(2*pin, 2*pcut) = Jacobi(4,4) for the (:x,2,2) envelope, not
+   #     Legendre (ace1_compat.jl:255-261);
+   #   * ACE1 splines the basis afterwards.
+   # `_default_rin0cuts`' rcutfactor = 2.5 already matches ACE1's
+   # rcut = (:bondlen, 2.5), so the cutoffs need no adjustment.
+   trans = ace1_compat ? agnesi_transform.(rin0cuts, 2, 4) :
+                         agnesi_transform.(rin0cuts, 2, 2)
+   polys = ace1_compat ? (:jacobi, 4.0, 4.0) : :legendre
    rbasis = ace_learnable_Rnlrzz(; elements = zlist, spec = rspec,
-                                   rin0cuts = rin0cuts, Winit = :glorot_normal)
+                                   maxq = maximum(b.n for b in rspec),
+                                   rin0cuts = rin0cuts, transforms = trans,
+                                   polys = polys, Winit = :glorot_normal)
+
+   # Freeze the embedding into the radial weights, then spline -- the same order
+   # `ace1_model` uses for its one-hot weights (ace1_compat.jl:281-285).  After
+   # splining the basis carries the embedding and has no Wnlq left to fit, which
+   # is what keeps the model linear in WB.
+   ps_r = initialparameters(rng, rbasis)
+   set_embedding_weights!(rbasis, ps_r, emb)
+   rbasis_eval = ace1_compat ? splinify(rbasis, ps_r) : rbasis
 
    # channel-diagonal many-body spec: every factor of a product shares one k,
    # and order ν only draws on its own d_ν channels
@@ -198,12 +241,13 @@ function ace_embedding_model(; elements, order, totaldegree,
 
    rcut_max = maximum([x.rcut for x in rin0cuts])
    Vref = _make_Vref(zlist, E0s, ZBL, rcut_max)
-   raw = ace_model(rbasis, Ytype, AA_spec, level1, pair_basis, Vref)
+   raw = ace_model(rbasis_eval, Ytype, AA_spec, level1, pair_basis, Vref)
    raw.meta["init_WB"] = "zeros"
    raw.meta["embedding"] = Dict("d_max" => d, "widths" => widths,
                                 "provenance" => embedding.meta)
 
    ps, st = LuxCore.setup(rng, raw)
-   set_embedding_weights!(rbasis, ps.rbasis, emb)      # frozen
+   # on the non-splined path the weights live in ps and must be frozen here
+   ace1_compat || set_embedding_weights!(rbasis, ps.rbasis, emb)
    return ACEPotential(raw, ps, st)
 end
