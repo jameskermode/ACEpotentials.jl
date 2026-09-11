@@ -31,7 +31,14 @@ def _case(npz, dtype, kind):
 
 @pytest.mark.parametrize("dtype", [jnp.float64, jnp.float32], ids=["f64", "f32"])
 def test_forms_agree_bitwise(npz, dtype):
-    """Values and gradients, both dtypes.  Bit-identity, not a tolerance."""
+    """Values and gradients agree; how tightly depends on the dtype.
+
+    Values are bit-identical in both dtypes.  GRADIENTS are bit-identical in f64
+    but only close in f32: the two forms' adjoints are a scatter and a matmul,
+    and XLA is free to accumulate them in different orders.  Measured 0.0 on
+    Apple Silicon and ~4e-6 on x86 -- so an exact assertion here passes on one
+    architecture and fails on the other, which is how this was found.
+    """
     mg, args, _ = _case(npz, dtype, "gather")
     mm, _, _ = _case(npz, dtype, "matmul")
     rij, zi, zj, send, n = args
@@ -42,7 +49,11 @@ def test_forms_agree_bitwise(npz, dtype):
     dg = np.max(np.abs(np.asarray(gr(mg) - gr(mm))))
     print(f"\n  {dtype.__name__}: values {dv:.1e}  grads {dg:.1e}")
     assert dv == 0.0, f"values differ by {dv}"
-    assert dg == 0.0, f"gradients differ by {dg}"
+    if dtype is jnp.float64:
+        assert dg == 0.0, f"f64 gradients differ by {dg}"
+    else:
+        scale = float(np.max(np.abs(np.asarray(gr(mg)))))
+        assert dg <= 1e-5 * scale, f"f32 gradients differ by {dg} (scale {scale})"
 
 
 def test_switching_preserves_results(npz):

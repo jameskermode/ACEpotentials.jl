@@ -137,7 +137,11 @@ jobs:
       - name: Instantiate the exporter against the working tree
         working-directory: .
         run: |
-          julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ACEsuit/ACEregistry"))'
+          # General first and explicitly: adding only a custom registry on a
+          # fresh depot leaves General absent, and every ordinary dependency
+          # (AtomsCalculators, ...) then fails to resolve.  A developer machine
+          # hides this because its depot already has General.
+          julia -e 'using Pkg; Pkg.Registry.add("General"); Pkg.Registry.add(RegistrySpec(url="https://github.com/ACEsuit/ACEregistry"))'
           julia --project=acejax/julia -e '
             using Pkg
             Pkg.develop(path=".")     # the ACEpotentials under test, not the registry one

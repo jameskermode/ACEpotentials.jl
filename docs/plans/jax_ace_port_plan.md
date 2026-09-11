@@ -1658,9 +1658,13 @@ gradient that matches a finite-difference check.
 ("gather" | "matmul") is a static field on `ACEModel`, selected by
 `load(..., edge_a_kind=...)`, with `with_edge_a_kind` to switch an existing model
 and `calibrate_edge_a` to time both forms at real shapes and return the faster.
-`export_bundle.py` takes `--edge-a-kind` and bakes it in. Ten tests in
-`tests/test_edge_a.py` demand **bit-identity**, not a tolerance: measured 0.0 on
-both values and gradients, f32 and f64. Suite 66 -> 76 tests.
+`export_bundle.py` takes `--edge-a-kind` and bakes it in. Ten tests in `tests/test_edge_a.py` check equivalence. **Values** are
+bit-identical in both dtypes, and **f64 gradients** are too. **f32 gradients are
+not**: the two adjoints are a scatter and a matmul and XLA may accumulate them in
+different orders — 0.0 on Apple Silicon, ~4e-6 on x86, so the f32 gradient check
+is a relative tolerance. An earlier version of this note claimed bit-identity for
+f32 gradients as well; that was measured on one architecture and generalised, and
+CI on x86 is what caught it. Suite 66 -> 76 tests.
 
 Two things deliberately not done:
 
