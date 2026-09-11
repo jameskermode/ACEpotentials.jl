@@ -706,6 +706,49 @@ lossless one needs no fit to justify — it is a *reparameterisation*, not an
 approximation. Everything beyond `d = dim` is the trade the degeneracy probe has
 to price.
 
+### MEASURED: per-order widths, and the lossless boundary
+
+Both predictions above were built and measured (`perorder.jl`, degree 8, channel
+`k` of radial `n` mapped to `n' = (n-1)*d_max + k` so the radial index space is
+shared and only the per-order channel *range* differs).
+
+`d_nu = min(d_max, C(S+nu-1, nu))`, with `d_max` the top order's dimension. Since
+`dim` increases with `nu`, every order receives exactly its own dimension, so the
+deficit `sum_nu n_B^(nu) * (d_nu - min(d_nu, dim_nu))` is **zero by
+construction** — lossless, by the formula the order-4 scan verified exact at
+every `d` it measured. (Derived from that validated formula; the ranks were not
+re-measured here.)
+
+| nu | S | n_B categorical | uniform `d` | **per-order** | `d_nu` | **saving vs categorical** | vs uniform |
+|---|---|---|---|---|---|---|---|
+| 2 | 3 | 233 | 186 | **162** | 3,6 | **1.44x** | 1.15x |
+| 2 | 5 | 621 | 465 | **385** | 5,15 | **1.61x** | 1.21x |
+| 2 | 10 | 2 405 | 1 705 | **1 345** | 10,55 | **1.79x** | 1.27x |
+| 3 | 3 | 917 | 540 | **392** | 3,6,10 | **2.34x** | 1.38x |
+| 3 | 5 | 3 824 | 1 890 | **1 190** | 5,15,35 | **3.21x** | 1.59x |
+| 3 | 10 | 28 217 | 11 880 | **6 405** | 10,55,220 | **4.41x** | 1.85x |
+| 4 | 3 | 2 106 | 1 035 | **617** | 3,6,10,15 | **3.41x** | 1.68x |
+| 4 | 5 | 12 899 | 4 830 | **2 240** | 5,15,35,70 | **5.76x** | 2.16x |
+| 4 | 10 | 171 961 | 49 335 | **17 130** | 10,55,220,715 | **10.04x** | 2.88x |
+
+Three things follow.
+
+1. **The lossless saving is much larger than the uniform-width bound suggested.**
+   That bound gave 1.3-3.5x; per-order widths give **1.4-10x**, and the gap widens
+   with both `S` and `nu`. The uniform column reproduces the bound exactly
+   (28 217/11 880 = 2.38x at nu=3, S=10), which validates the arithmetic.
+2. **Per-order is 1.15-2.88x smaller than uniform at identical losslessness** —
+   pure waste removed, no trade.
+3. **Construction is far cheaper too.** The nu=4, S=10 per-order spec built in
+   **7 s**; the categorical spec at nu=4 takes minutes and ran out of budget at
+   S=13 in the order scan. The embedding route is buildable where the categorical
+   route is not.
+
+**This changes the priority of the accuracy work.** A lossless 10x at nu=4, S=10
+is a reparameterisation, not an approximation, and needs no fit to justify. The
+lossy regime — `d_nu` below `dim_nu` — is now optional rather than the point of
+the feature, and the degeneracy probe prices an *extension*, not the core case.
+
 ### Correction: "d > S is wasted" holds only for the two-body block
 
 Q4 concluded the embedding table "has rank exactly S, so `d < S` destroys element
