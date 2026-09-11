@@ -674,6 +674,67 @@ actually for, and exactly the regime where an accuracy measurement is
 indispensable. Higher correlation order therefore makes the feature *more*
 attractive on cost and *less* safe on accuracy, at the same time.
 
+### Reading the two effects together differently: `d` is a free parameter
+
+The "window" table above fixes `d = 128` and concludes the safe region is narrow.
+That conclusion is an artefact of the constraint, not a property of the method.
+**128 is MACE-MP-0-small's neural channel width; it has no connection to how many
+channels ACE needs to resolve species.** The quantity that matters is
+`dim Sym^nu(R^S) = C(S+nu-1, nu)`, and `d` is ours to choose.
+
+Choosing `d = C(S+nu-1, nu)` makes the diagonal span **exactly full rank**
+(measured: rank is `min(d, dim)` throughout), i.e. **lossless** — and it is still
+cheaper than categorical whenever `C(S+nu-1,nu) < n_B(S)/n_B(1) = d*`. It always
+is, and by a margin that grows with `nu`:
+
+| nu | S | n_B categorical | `dim` = lossless `d` | `d*` break-even | lossless saving |
+|---|---|---|---|---|---|
+| 2 | 10 | 2 405 | 55 | 77.6 | **1.41x** |
+| 2 | 20 | 9 460 | 210 | 305.2 | **1.45x** |
+| 3 | 10 | 28 217 | 220 | 522.5 | **2.38x** |
+| 3 | 20 | 216 626 | 1 540 | 4 011.6 | **2.60x** |
+| 4 | 5 | 12 899 | 70 | 186.9 | **2.67x** |
+| 4 | 10 | 171 961 | 715 | 2 492.2 | **3.49x** |
+
+So there *is* a free lunch after all, just a modest one: **a guaranteed-lossless
+1.3-3.5x, no accuracy question to answer, growing with correlation order.**
+Derived from the measured `n_B` and the combinatorial `dim`; the saving with
+per-order widths (below) is larger still, and is not yet measured.
+
+This reframes the feature. The lossy regime is not the only regime, and the
+lossless one needs no fit to justify — it is a *reparameterisation*, not an
+approximation. Everything beyond `d = dim` is the trade the degeneracy probe has
+to price.
+
+### Correction: "d > S is wasted" holds only for the two-body block
+
+Q4 concluded the embedding table "has rank exactly S, so `d < S` destroys element
+resolution and `d > S` is provably wasted". The first half stands; **the second
+half is superseded by the order-scan result.** The order-4 deficiency formula,
+exact at every `d` measured, is
+
+```
+deficit = sum_nu  n_B^(nu) * ( d - min(d, C(S+nu-1, nu)) )
+```
+
+so each correlation order saturates at its *own* dimension. `d > S` is wasted
+only in the `nu = 1` block, where `dim = S`; the `nu >= 2` blocks keep absorbing
+channels up to `C(S+nu-1,nu)`, which is far larger. Q4 measured the two-body
+waste (`8` and `24` deficient functions at `d = 4, 6`, `S = 3`) and generalised
+it too far.
+
+**Consequence — use a different width per correlation order.** A single `d`
+either starves the high orders or pads the low ones: at `d = 16`, order 4,
+`S = 3`, a 1104-function basis carries only **617** independent functions, 44%
+redundant. Setting `d_nu = min(d_max, C(S+nu-1, nu))` removes that redundancy by
+construction.
+
+That is not cosmetic. The measured design matrix reaches **cond ~ 3e21**, and a
+rank-deficient design matrix is exactly what a convex linear solve must not be
+handed — it undermines QR/LSQR conditioning and the BLR posterior, which are the
+reasons for preferring the linear route in the first place. **Per-order widths
+should be treated as part of the construction, not an optimisation.**
+
 ### Rank deficiency of the real basis at order 4
 
 The Q4 measurement repeated at order 4, `[Si,C,O]` (S=3), real MACE-MP-0-small
