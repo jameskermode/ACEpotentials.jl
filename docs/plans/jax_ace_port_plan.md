@@ -583,6 +583,38 @@ priority in a way worth getting right the first time.
 
 ### (a) Import MACE element embeddings, to lift ACE's O(S^nu) species scaling
 
+> **Prior art: this is tensor reduction, and it is already published.** Darby,
+> Kovacs, Batatia, Caro, Hart, **Ortner**, Csanyi, *Tensor-reduced atomic density
+> representations*, Phys. Rev. Lett. **131**, 028001 (2023),
+> [arXiv:2210.01705](https://arxiv.org/abs/2210.01705). They recast per-element
+> densities and their tensor products as a tensor factorisation, giving
+> "representations whose size does not depend on the number of chemical
+> elements". The construction sketched below — folding the channel into the
+> radial index, equivalently a rank-d truncation of the species tensor — **is
+> that construction**. It was proposed here, and independently re-derived by the
+> spike, without the citation; read the paper before building anything.
+>
+> **Known limitation: the reduced descriptor is incomplete.** Ortner has since
+> established that this approach breaks the bijection from positions to
+> descriptors — distinct environments can map to identical descriptors. The
+> spike measured the mechanism without naming it: rank is
+> `min(d, dim Sym^nu(R^S))` **exactly**, so any `d` below break-even is provably
+> rank-deficient, and at `d` above it the representation is exact but saves
+> nothing. **The compression factor and the information loss are the same
+> quantity.** No choice of solver recovers it; it is structural.
+>
+> **Position taken: pragmatic acceptance.** MACE uses this construction and works
+> well, and ACE at finite correlation order is in any case already incomplete
+> (Pozdnyakov *et al.*). So incompleteness is not disqualifying — but it is a
+> real trade against one of ACE's distinguishing guarantees, in the same way
+> joint embedding training would trade away convexity, and it should be made
+> knowingly. Concretely: **choosing `d` is choosing how much of the species
+> tensor to discard.** Before this ships, run a degeneracy probe — construct
+> environments the reduced descriptor provably cannot separate and check whether
+> they are physically distinct with different energies. An RMSE comparison at
+> matched `n_B` is *not* that test: degeneracies will hide in the residual of an
+> ordinary dataset rather than showing up as a systematic failure.
+
 ACE's cost grows combinatorially in the number of species: species enters as a
 *categorical index*, so a correlation-order-nu basis carries O(S^nu) distinct
 channels and many-element models become impractical. MACE avoids this by
@@ -1483,7 +1515,7 @@ Stage 1.
 | 19. Priors + solvers (lineax / optimistix), incl. BLR for uncertainty — **BLR drives teacher-vs-student config generation**, so not deferrable | 2–3 |
 | 20. Data loading, weights, key matching — schema must carry **teacher-model labels with provenance**, not assume DFT keys | 1 |
 | 20b. Clear the jax pin blocking `mace-jax` coexistence (PR to `sphericart-jax`, or pure-JAX harmonics) — **prerequisite for distillation** | 0.5–2 |
-| *20c. Frozen MACE element embeddings, JAX-side* — **fallback only**; prefer the Julia route (see (a)), which keeps the feature linear, fits with `acefit!` and stays inside the divergence guard | 3–5 |
+| *20c. Frozen element embeddings (tensor reduction, PRL 131 028001), JAX-side* — **fallback only**; prefer the Julia route (see (a)). Known-incomplete; gate on a degeneracy probe, not an RMSE comparison | 3–5 |
 | 21. Validation harness (milestones 5–6): coefficients and RMSE against `acefit!` | 1 |
 
 **≈ 9–12.5 days**, plus 3–5 optional for the embedding phase. Several of those
