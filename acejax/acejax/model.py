@@ -102,6 +102,12 @@ class ACEModel(eqx.Module):
     rnl_grid: tuple = eqx.field(static=True)      # (x0, h, n)
     pair_grid: tuple = eqx.field(static=True)
     elements: tuple = eqx.field(static=True)
+    # Defaulted fields must come last (dataclass ordering).
+    edge_a_kind: str = eqx.field(static=True, default="gather")   # "gather" | "matmul"
+    # one-hot selectors for the "matmul" form; None on the gather path so models
+    # that never use it do not carry the arrays
+    a_sel_r: jax.Array = None                     # (n_rnl, n_A)
+    a_sel_y: jax.Array = None                     # (n_ylm, n_A)
 
     # -------------------------------------------------- edge embeddings
     def _radial_one(self, r, zi, zj, kind, trans, coefs, grid, Wnlq, ABC, env):
@@ -150,10 +156,29 @@ class ACEModel(eqx.Module):
     # -------------------------------------------------- many-body
     def edge_features(self, rij, zi, zj):
         """Per-edge (A-basis rows, pair rows).  Layout-agnostic: the caller
-        pools these however its neighbour-list layout dictates."""
+        pools these however its neighbour-list layout dictates.
+
+        Two algebraically identical forms of the A-basis product, selected by
+        `edge_a_kind`; they agree to bit-identity on values and gradients.
+
+          "gather"  A = Rnl[:, aspec_r] * Ylm[:, aspec_y]
+          "matmul"  A = (Rnl @ Sr) * (Ylm @ Sy),  Sr/Sy one-hot
+
+        They differ only in the reverse pass: the gather's adjoint is an axis-1
+        scatter whose cost per slot grows with buffer length, while the matmul's
+        adjoint is a matmul and is flat.  Neither wins everywhere -- on an M3 Pro
+        the matmul wins throughout and by up to 11x, on a Xeon the gather wins
+        below ~200k edge slots -- so this is a choice to calibrate, not a
+        constant to hardcode.  See docs/findings/FINDINGS_apple_scaling.md and
+        `calibrate_edge_a`.
+        """
         Rnl, Rpair = self.radial(rij, zi, zj)
         Ylm = self.angular(rij)
-        return Rnl[:, self.aspec_r] * Ylm[:, self.aspec_y], Rpair
+        if self.edge_a_kind == "matmul":
+            edge_A = (Rnl @ self.a_sel_r) * (Ylm @ self.a_sel_y)
+        else:
+            edge_A = Rnl[:, self.aspec_r] * Ylm[:, self.aspec_y]
+        return edge_A, Rpair
 
     def _from_pooled(self, A, Apair):
         AA = jnp.concatenate([jnp.prod(A[:, g], axis=-1) for g in self.aa_specs], axis=-1)
@@ -262,3 +287,52 @@ class ACEModel(eqx.Module):
             rij = jnp.where(edge_mask[:, None], rij, pad)
         zi, zj = node_z[senders], node_z[receivers]
         return self.site_energies(rij, zi, zj, senders, n_nodes, node_z, edge_mask)
+
+
+# ------------------------------------------------------------------ edge_A kind
+def with_edge_a_kind(model, kind):
+    """Return `model` using the other A-basis form.  Values and gradients are
+    unchanged (bit-identically, measured); only the reverse-pass cost differs."""
+    import dataclasses
+    if kind not in ("gather", "matmul"):
+        raise ValueError(f'kind must be "gather" or "matmul", got {kind!r}')
+    if kind == model.edge_a_kind:
+        return model
+    if kind == "gather":
+        return dataclasses.replace(model, edge_a_kind="gather", a_sel_r=None, a_sel_y=None)
+    n_rnl = (model.rnl_coefs.shape[-1] if model.radial_kind == "spline"
+             else model.rnl_Wnlq.shape[-2])
+    n_ylm = (model.lmax + 1) ** 2
+    dt = model.WB.dtype
+    sel = lambda idx, w: jnp.zeros((w, idx.shape[0]), dt).at[
+        idx, jnp.arange(idx.shape[0])].set(1)
+    return dataclasses.replace(model, edge_a_kind="matmul",
+                               a_sel_r=sel(model.aspec_r, n_rnl),
+                               a_sel_y=sel(model.aspec_y, n_ylm))
+
+
+def calibrate_edge_a(model, rij, zi, zj, segment_ids, n_nodes, node_z, mask=None, reps=5):
+    """Time both A-basis forms at THESE shapes and return (best_model, timings).
+
+    Calibrate; do not guess.  The crossover is a property of the XLA backend, the
+    dtype and the edge-buffer length, not of the platform name -- on an M3 Pro the
+    matmul form wins throughout, on a Xeon the gather wins below ~200k edge slots.
+    Timing the forward *and* reverse pass matters: the forward gather is cheap and
+    flat, and the entire difference is in the adjoint.
+    """
+    import time
+    out = {}
+    for kind in ("gather", "matmul"):
+        m = with_edge_a_kind(model, kind)
+        fn = jax.jit(lambda mm, r: jnp.sum(jax.grad(
+            lambda rr: jnp.sum(mm.site_energies(rr, zi, zj, segment_ids, n_nodes,
+                                                node_z, mask))
+        )(r)))
+        jax.block_until_ready(fn(m, rij))                      # warm up / compile
+        best = float("inf")
+        for _ in range(reps):
+            t0 = time.perf_counter()
+            jax.block_until_ready(fn(m, rij))
+            best = min(best, time.perf_counter() - t0)
+        out[kind] = best * 1e3                                 # ms
+    return with_edge_a_kind(model, min(out, key=out.get)), out

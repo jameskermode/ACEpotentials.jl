@@ -37,10 +37,17 @@ from acejax import load
 
 
 def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
-          a2b_sparse=False):
-    """Return (energy_fn, model, meta, rcut, max_atoms, max_edges)."""
+          a2b_sparse=False, edge_a_kind="gather"):
+    """Return (energy_fn, model, meta, rcut, max_atoms, max_edges).
+
+    `edge_a_kind` is baked into the exported program: the LAMMPS plugin has no
+    calibration step and cannot run one, so the choice is made here, for a known
+    target.  It does not change any value the bundle computes -- the two forms
+    agree bit-identically on values and gradients -- only the reverse-pass cost.
+    """
     dtype = jnp.float64 if precision == "float64" else jnp.float32
-    model, meta, _ = load(npz, dtype=dtype, a2b_sparse=a2b_sparse)
+    model, meta, _ = load(npz, dtype=dtype, a2b_sparse=a2b_sparse,
+                          edge_a_kind=edge_a_kind)
     rcut = float(meta["rcut"])
     n_species = len(meta["elements"])
     max_edges = max_atoms * edges_per_atom
@@ -73,6 +80,10 @@ def main():
     p.add_argument("--a2b-sparse", action="store_true",
                    help="gather/segment-sum A2B contraction instead of a dense "
                         "matmul; A2B is ~0.07%% occupied at large basis")
+    p.add_argument("--edge-a-kind", choices=["gather", "matmul"], default="gather",
+                   help="how to form the A-basis product; bit-identical results, "
+                        "different reverse-pass cost. Calibrate on the target "
+                        "device -- GPU behaviour is unmeasured.")
     p.add_argument("--precision", choices=["float64", "float32"], default="float64",
                    help="bundle precision; f32 is ~2.5x faster here because the "
                         "descriptor is memory-bound, not FLOP-bound")
@@ -81,10 +92,12 @@ def main():
         p.error(f"npz not found: {a.npz}")
 
     energy_fn, model, meta, rcut, max_atoms, max_edges = build(
-        a.npz, a.max_atoms, a.edges_per_atom, a.precision, a.a2b_sparse)
+        a.npz, a.max_atoms, a.edges_per_atom, a.precision, a.a2b_sparse,
+        a.edge_a_kind)
     print("model:", a.npz, "| elements", meta["elements"], "rcut", rcut,
           "n_B", meta["n_B"], "lmax", meta["lmax"],
-          "| radial", meta["radial_kind"], "| Y", meta["ybasis_kind"])
+          "| radial", meta["radial_kind"], "| Y", meta["ybasis_kind"],
+          "| edge_A", a.edge_a_kind)
     print("capacities: max_atoms", max_atoms, "max_edges", max_edges,
           "| precision", a.precision)
 

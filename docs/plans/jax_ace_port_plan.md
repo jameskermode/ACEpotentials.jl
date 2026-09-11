@@ -877,7 +877,7 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 12. LAMMPS ML-IAP route — **deprioritised by Phase 11; CI rationale stands** | 2–3 |
 | **13. MACE comparison via `symmetrix` on GPU** — not started | 2 |
 | *14. Traced neighbour list for end-to-end differentiability* — **optional** | 1–2 |
-| **15. Conditional gather/matmul swapover for `edge_A`** — not started | 1–1.5 |
+| **15. Conditional gather/matmul swapover for `edge_A`** — CPU side done; GPU calibration outstanding | 1–1.5 |
 
 **Remaining: phases 12–13 and 15, ~5–6.5 days**, plus optional phase 14. None is blocked; 12 and 13 each need a
 LAMMPS rebuild with extra packages (`ML-IAP`+`PYTHON`, and `symmetrix`
@@ -1380,6 +1380,28 @@ through it w.r.t. a model parameter or the initial positions, giving a finite
 gradient that matches a finite-difference check.
 
 #### Phase 15 — conditional gather/matmul swapover for `edge_A`
+
+**Status: implemented on CPU; the GPU half is outstanding.** `edge_a_kind`
+("gather" | "matmul") is a static field on `ACEModel`, selected by
+`load(..., edge_a_kind=...)`, with `with_edge_a_kind` to switch an existing model
+and `calibrate_edge_a` to time both forms at real shapes and return the faster.
+`export_bundle.py` takes `--edge-a-kind` and bakes it in. Ten tests in
+`tests/test_edge_a.py` demand **bit-identity**, not a tolerance: measured 0.0 on
+both values and gradients, f32 and f64. Suite 66 -> 76 tests.
+
+Two things deliberately not done:
+
+- **No `"auto"` at load time.** Calibration needs the real edge-buffer length,
+  which `load` does not know. `calibrate_edge_a` is explicit and takes the actual
+  arrays; an auto mode that guessed from shapes at load would be the heuristic
+  this phase exists to avoid.
+- **GPU is still unmeasured**, and still gates any default. The whole LAMMPS path
+  runs on GPU, where the scatter may behave differently; until that is measured,
+  "gather" remains the default everywhere and `--edge-a-kind` is opt-in.
+
+`export_bundle.py`'s change is **unexercised locally** -- `lammps_jax` is not
+installed on the dev Mac, so it is syntax-checked only and needs running once on
+a GPU host.
 
 `docs/findings/FINDINGS_apple_scaling.md` established that
 `edge_A = Rnl[:, aspec_r] * Ylm[:, aspec_y]` (`acejax/model.py:156`) is the

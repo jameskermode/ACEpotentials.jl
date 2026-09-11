@@ -50,7 +50,7 @@ def _a2b_triplets(z, n_B, n_AA):
             np.asarray(z["A2B_vals"]))
 
 
-def load(path, dtype=jnp.float64, a2b_sparse=False):
+def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather"):
     """Load a model.  Caller controls dtype; nothing here touches jax.config, so
     f64 requires the caller to have enabled x64 first.
 
@@ -58,7 +58,15 @@ def load(path, dtype=jnp.float64, a2b_sparse=False):
     matmul against A2B.  A2B is ~0.07% occupied at 1429 basis functions, so the
     dense form does far more arithmetic than needed at large basis; it is
     retained as the default because it is faster at small basis.
+
+    `edge_a_kind` selects how the A-basis product is formed: "gather" (default,
+    today's behaviour) or "matmul", an algebraically identical one-hot form whose
+    adjoint is a matmul rather than a scatter.  Which is faster depends on the
+    backend, the dtype and the edge-buffer length -- see `calibrate_edge_a`,
+    and do not guess from the platform.
     """
+    if edge_a_kind not in ("gather", "matmul"):
+        raise ValueError(f'edge_a_kind must be "gather" or "matmul", got {edge_a_kind!r}')
     z = np.load(path)
     meta = json.loads(bytes(z["meta_json"]).decode())
     if meta["schema_version"] != 1:
@@ -82,6 +90,22 @@ def load(path, dtype=jnp.float64, a2b_sparse=False):
     ps_ = meta.get("pair_spline") or {"x0": 0.0, "h": 1.0, "n": 2}
     n_orders = len(meta["aa_lens"])
     z0 = (1, 1, 1, 1)          # placeholder shape for the unused branch
+
+    _ar = jnp.asarray(z["aspec_r"], jnp.int32)
+    _ay = jnp.asarray(z["aspec_y"], jnp.int32)
+    # Widths of the two embeddings the A-basis gathers from.  Taken from the
+    # coefficient arrays rather than from max(aspec)+1, which would under-count
+    # whenever the last radial function happens to be unused by any A entry.
+    n_rnl = (int(z["rnl_spline_coefs"].shape[-1]) if kind == "spline"
+             else int(z["rnl_Wnlq"].shape[-2]))
+    n_ylm = (int(meta["lmax"]) + 1) ** 2
+    if int(_ar.max()) >= n_rnl or int(_ay.max()) >= n_ylm:
+        raise ValueError(f"aspec out of range: max r {int(_ar.max())} vs n_rnl {n_rnl}, "
+                         f"max y {int(_ay.max())} vs n_ylm {n_ylm}")
+
+    def _sel(idx, width, dt):
+        """One-hot (width, n_A) selector such that X @ _sel(idx, ...) == X[:, idx]."""
+        return jnp.zeros((width, idx.shape[0]), dt).at[idx, jnp.arange(idx.shape[0])].set(1)
     model = ACEModel(
         rnl_coefs=A("rnl_spline_coefs", z0),
         pair_coefs=A("pair_spline_coefs", z0),
@@ -99,8 +123,11 @@ def load(path, dtype=jnp.float64, a2b_sparse=False):
         a2b_vals=jnp.asarray(_tr[2], dtype=dtype),
         a2b_sparse=bool(a2b_sparse),
         WB=A("WB"), Wpair=A("Wpair"), E0=A("E0"),
-        aspec_r=jnp.asarray(z["aspec_r"], jnp.int32),
-        aspec_y=jnp.asarray(z["aspec_y"], jnp.int32),
+        aspec_r=_ar,
+        aspec_y=_ay,
+        edge_a_kind=edge_a_kind,
+        a_sel_r=_sel(_ar, n_rnl, dtype) if edge_a_kind == "matmul" else None,
+        a_sel_y=_sel(_ay, n_ylm, dtype) if edge_a_kind == "matmul" else None,
         aa_specs=tuple(jnp.asarray(z[f"aa_spec_{k+1}"], jnp.int32) for k in range(n_orders)),
         lmax=int(meta["lmax"]),
         ysolid=(meta["ybasis_kind"] == "real_solidharmonics"),
