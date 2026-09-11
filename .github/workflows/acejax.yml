@@ -1,11 +1,14 @@
 name: acejax
 
 # The Python evaluator in acejax/.  Independent of the Julia CI.
+# src/** and Project.toml are here deliberately: the divergence job below exists
+# to catch the Julia fitter and the Python evaluator drifting apart, and it can
+# only do that if a change to the Julia model actually triggers this workflow.
 on:
   push:
-    paths: ['acejax/**', '.github/workflows/acejax.yml']
+    paths: ['acejax/**', 'src/**', 'Project.toml', '.github/workflows/acejax.yml']
   pull_request:
-    paths: ['acejax/**', '.github/workflows/acejax.yml']
+    paths: ['acejax/**', 'src/**', 'Project.toml', '.github/workflows/acejax.yml']
   workflow_dispatch:
 
 defaults:
@@ -40,6 +43,61 @@ jobs:
         run: |
           uv pip install "matscipy-neighbours @ git+https://github.com/libAtoms/matscipy-neighbours"
           uv run pytest tests/ -q
+
+  # THE CROSS-LANGUAGE GUARD.  The `tests` job above compares acejax against
+  # reference values baked into the COMMITTED fixtures, which Julia wrote once
+  # when they were generated -- so it proves acejax still agrees with a snapshot
+  # of Julia, not with the Julia in this tree.  A convention change in
+  # src/models/ would leave those fixtures untouched and the job green while the
+  # two silently diverged.
+  #
+  # This job regenerates the exports from the working tree (note the
+  # Pkg.develop: without it the exporter would resolve ACEpotentials from the
+  # registry and test the released version, not this one) and re-runs the same
+  # suite against them, so every reference value is fresh.
+  divergence:
+    name: julia export vs python evaluator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.julia
+          key: ${{ runner.os }}-julia-1.11-${{ hashFiles('Project.toml', 'acejax/julia/Project.toml') }}
+          restore-keys: ${{ runner.os }}-julia-1.11-
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: acejax/uv.lock
+      - name: Instantiate the exporter against the working tree
+        working-directory: .
+        run: |
+          julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ACEsuit/ACEregistry"))'
+          julia --project=acejax/julia -e '
+            using Pkg
+            Pkg.develop(path=".")     # the ACEpotentials under test, not the registry one
+            Pkg.instantiate()
+            Pkg.status()'
+      - name: Regenerate both fixtures from Julia
+        working-directory: .
+        run: |
+          mkdir -p fresh
+          julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_fitted.npz ace1
+          julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_ace_model.npz ace
+          ls -l fresh/
+      - name: Run the suite against the fresh exports
+        env:
+          # absolute, since the suite runs with acejax/ as the working directory
+          ACEJAX_FIXTURE_DIR: ${{ github.workspace }}/fresh
+          # missing fixtures must fail, not skip -- a failed regeneration would
+          # otherwise produce a green run with everything skipped
+          ACEJAX_REQUIRE_FIXTURES: '1'
+        run: |
+          uv sync --group dev
+          uv run pytest tests/ -q -rs
 
   # Verifies the package builds and installs clean, and that the README example
   # runs from the installed wheel rather than the source tree.

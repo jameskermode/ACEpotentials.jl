@@ -8,22 +8,45 @@
 Note the pair basis is splined in both: `ace_model` splinifies it
 (ace_heuristics.jl:213), so the radial branches are per-basis, not per-model.
 """
+import os
 import pathlib
 
 import pytest
 
 ROOT = pathlib.Path(__file__).parent.parent
+
+# ACEJAX_FIXTURE_DIR points the whole suite at a different set of exports -- used
+# by the divergence job in CI, which regenerates them from the Julia in the
+# working tree so the reference values are fresh rather than committed.
+FIXTURE_DIR = pathlib.Path(os.environ.get("ACEJAX_FIXTURE_DIR", ROOT / "fixtures"))
+
+# Missing fixtures normally skip, so a developer without Julia can still run the
+# suite.  In CI that would be a silent pass: a regeneration that produced nothing
+# would look identical to a green run.  ACEJAX_REQUIRE_FIXTURES turns the skip
+# into a failure.
+REQUIRE = bool(os.environ.get("ACEJAX_REQUIRE_FIXTURES"))
+
 MODELS = {
-    "ace1_spline_spherical": ROOT / "fixtures" / "si_fitted.npz",
-    "ace_analytic_solid": ROOT / "fixtures" / "si_ace_model.npz",
+    "ace1_spline_spherical": "si_fitted.npz",
+    "ace_analytic_solid": "si_ace_model.npz",
 }
 
 
 def pytest_generate_tests(metafunc):
     if "npz" in metafunc.fixturenames:
         ids, paths = [], []
-        for name, p in MODELS.items():
+        for name, fname in MODELS.items():
+            p = FIXTURE_DIR / fname
             ids.append(name)
-            paths.append(pytest.param(p, marks=pytest.mark.skipif(
-                not p.exists(), reason=f"missing fixture {p.name}; see julia/export_model.jl")))
+            if p.exists():
+                paths.append(pytest.param(p))
+            elif REQUIRE:
+                # Abort collection outright.  An xfail or a skip would still be a
+                # green run, which is the failure mode this guard exists to stop.
+                raise FileNotFoundError(
+                    f"ACEJAX_REQUIRE_FIXTURES is set but {p} is missing -- the "
+                    f"Julia export did not produce it")
+            else:
+                paths.append(pytest.param(p, marks=pytest.mark.skip(
+                    reason=f"missing fixture {p.name}; see julia/export_model.jl")))
         metafunc.parametrize("npz", paths, ids=ids)

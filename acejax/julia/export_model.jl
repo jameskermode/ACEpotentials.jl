@@ -1,7 +1,7 @@
 # Exporter: fit a model in Julia, write it to npz for the JAX
 # evaluator.  See docs/plans/jax_ace_port_plan.md.
 #
-#   julia --project=stage1 stage1/export_model.jl [output.npz]
+#   julia --project=julia julia/export_model.jl [output.npz] [ace1|ace]
 #
 # Exports the SPLINED radial branch, which is what ace1_model actually builds
 # (src/ace1_compat.jl:283) and therefore what a fitted production model is.
