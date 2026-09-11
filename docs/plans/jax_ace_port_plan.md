@@ -935,8 +935,9 @@ PosDef here, the dataset cannot determine the larger bases:
 | embedding deg 8 | 177 | 0.075 | 1.724 | 3.296 |
 
 **At matched basis size (73 vs 77) the categorical encoding fits roughly 2x
-better on forces and energies.** The embedding does not catch up at 177
-functions, where it is still worse than categorical at 73.
+better on forces and energies** — *at this one value of `lambda`*. See the
+CORRECTION below: that gap is a regularisation artefact and shrinks to 16-20% on
+held-out data with `lambda` swept.
 
 **RETRACTION: "lossless" does not mean "spans the same function space", and the
 earlier claim that this is a reparameterisation rather than an approximation was
@@ -957,6 +958,39 @@ Three things it is NOT:
 - **Not ill-spread channels.** The truncated, normalised channel vectors have
   species-space singular-value ratios of 1.14-1.26, i.e. well spread.
 - **Not the normalisation bug** fixed earlier; that is applied throughout here.
+
+**CORRECTION — the 2x above is a regularisation artefact.** Chasing the anomaly
+(why the deliberately lossy `d_max = 2` beat the lossless widths) found that the
+two bases are *nested*, so the superset must win once regularisation is weak —
+and it does: at `lambda = 1e-9` the lossless widths give F = 0.500 against
+d_max=2's 0.690. The single `lambda = 1e-3` used above happens to disfavour the
+embedded basis, whose coefficients are larger.
+
+Re-run properly, on a 25/8 held-out split with `lambda` swept per model and the
+**best test error** reported for each:
+
+| model | n_B | best test F | best test E |
+|---|---|---|---|
+| `ace1_model` deg 5 | 73 | **0.551** | 0.270 |
+| embedding deg 6 | 77 | 0.638 | **0.105** |
+| `ace1_model` deg 6 | 123 | **0.354** | 0.100 |
+| embedding deg 7 | 118 | 0.426 | **0.016** |
+
+So at matched basis size the categorical encoding is **16-20% better on forces**,
+and the embedding is **better on energies** — not the 2x loss reported above, and
+not a clean win either way. What actually dominates both models is the
+regularisation strength: moving `lambda` from 1e-3 to 1e-8 changes test F by more
+than the choice of encoding does at any fixed `lambda`.
+
+**Method note, and it was my error:** the first comparison fixed `lambda = 1e-3`
+for both models and read off a 2x gap. Comparing regularised fits at a single
+arbitrary `lambda` is not a like-for-like comparison — it is tuning one side.
+Any future encoding comparison must sweep `lambda` per model and report held-out
+error, not training error at a shared `lambda`.
+
+Caveats on the corrected numbers: one 25/8 split, 33 configurations total,
+`lambda` selected on the test set (optimistic, but equally so for every model),
+and 8 test configurations makes the energy column noisy.
 
 **What this does and does not tell us.** S = 2 is the regime where the feature is
 *expected* to lose — the spike put the d=128 crossover at S≈6-7 for order 3, and
