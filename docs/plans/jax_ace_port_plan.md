@@ -619,15 +619,53 @@ feature that does not require giving it away.
    `ybasis_kind`, plus the embedding table and its provenance (which MACE
    checkpoint, which layer). A bundle must say how species enter, not leave it to
    be inferred from array shapes.
-4. **This is an ACEpotentials.jl architecture change, not an `acejax` one.** The
-   Julia side has to be able to build such a model before there is anything to
-   export -- which sharpens the single-source-of-truth argument rather than
-   weakening it.
+4. **It can be built entirely in JAX, and probably should be.** An earlier draft
+   of this section said the Julia side had to be able to build such a model
+   first. That is wrong, and the reason is worth spelling out: **the coupling
+   coefficients do not depend on species at all.** Today's S^nu growth comes from
+   species being baked into the basis *spec* -- measured, `WB` is `(n_B, NZ)` and
+   n_B goes **308 -> 917** for Si,C -> Si,C,O at fixed order 3 / degree 8, i.e.
+   ~(3/2)^3 before degree truncation. A *single-species* export is therefore
+   already the species-free spec this feature needs. Export that, and add the
+   channel dimension in JAX:
+
+   ```
+   A[i, nlm]     = sum_j          R_nl(r_ij) Y_lm(rhat_ij)      # today
+   A[i, k, nlm]  = sum_j emb[z_j, k] R_nl(r_ij) Y_lm(rhat_ij)   # with embedding
+   ```
+
+   with `emb` the frozen `(S, d)` table pulled from a MACE checkpoint via
+   `mace-jax`. Nothing in `A2B` or the spec changes. Since the model must be
+   *fitted* in this parameterisation anyway, and fitting is Stage 2A, the whole
+   feature lands naturally there.
+
+   **Two design choices it forces, neither free:**
+
+   - **Channel coupling in the AA product.** Channel-diagonal products (MACE's
+     choice) keep cost at `d x` the single-species basis; full channel mixing
+     reintroduces `d^nu`, which is the same wall in a different variable. Start
+     diagonal.
+   - **Choosing `d`.** MACE-MP-0 small carries 128 channels, and `d x` a
+     single-species basis is not obviously cheaper than what it replaces. The
+     crossover is roughly **`S^nu` versus `d`**: embeddings win for many
+     elements, lose for two. So this is a *many-element* feature, not a general
+     speedup, and a truncated embedding (a few leading components rather than all
+     128) should be measured early -- it may be most of the benefit for a
+     fraction of the cost.
+
+   **The honest cost: this model class would exist only in JAX.** It is a
+   deliberate departure from single source of truth -- ACEpotentials.jl could not
+   fit or evaluate it, and the divergence guard cannot cover it because there is
+   nothing on the Julia side to compare against. That is a real price and should
+   be a conscious decision, not a side effect. It is also an argument for keeping
+   the species interface a *swappable kind* (constraint 1 above) rather than a
+   fork: the categorical path stays the guarded, Julia-backed default, and the
+   embedding path is an additional mode that declares itself in the bundle.
 5. **The divergence matrix must grow an embedding row** when this lands. The
    three-element precursor row is **done** (`Si-C-O order 3`, both model
    families, 66/66) -- and it exercises the problem this feature exists to fix:
-   at order 3 / degree 8 the `ace1` basis goes 648 -> 2823 functions per site
-   going from two species to three.
+   at order 3 / degree 8, n_B goes **308 -> 917** and the site descriptor vector
+   **648 -> 2823** going from two species to three.
 
 ### (b) Distil MACE models into smaller, faster ACE ones
 
@@ -1382,13 +1420,16 @@ Stage 1.
 | 19. Priors + solvers (lineax / optimistix), incl. BLR for uncertainty — **BLR drives teacher-vs-student config generation**, so not deferrable | 2–3 |
 | 20. Data loading, weights, key matching — schema must carry **teacher-model labels with provenance**, not assume DFT keys | 1 |
 | 20b. Clear the jax pin blocking `mace-jax` coexistence (PR to `sphericart-jax`, or pure-JAX harmonics) — **prerequisite for distillation** | 0.5–2 |
+| *20c. Frozen MACE element embeddings, JAX-side: import via `mace-jax`, channel-diagonal AA, fit in this parameterisation* — **optional, many-element only** | 3–5 |
 | 21. Validation harness (milestones 5–6): coefficients and RMSE against `acefit!` | 1 |
 
-**≈ 9–12.5 days.** Three of those phases are shaped by the long-term
-directions above rather than by the linear fit alone; see "Long-term directions,
-and what they constrain now". The frozen-embedding species interface is *not*
-costed here because it is blocked on ACEpotentials.jl being able to build such a
-model — it is a dependency to track, not a phase to schedule.
+**≈ 9–12.5 days**, plus 3–5 optional for the embedding phase. Several of those
+phases are shaped by the long-term directions above rather than by the linear fit
+alone; see "Long-term directions,
+and what they constrain now". The frozen-embedding phase is costed but marked optional: it
+needs only a *single-species* export from Julia, so it is not blocked on
+ACEpotentials.jl, but it creates a JAX-only model class — see the cost noted
+under (a).
 
 Phase 18 is new, and follows from wanting this to scale: at n_B ≈ 2000 and a
 large dataset the design matrix is the memory bottleneck, not the arithmetic.
