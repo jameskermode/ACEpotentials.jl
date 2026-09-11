@@ -55,9 +55,50 @@ jobs:
   # Pkg.develop: without it the exporter would resolve ACEpotentials from the
   # registry and test the released version, not this one) and re-runs the same
   # suite against them, so every reference value is fresh.
+  # The matrix matters as much as the regeneration.  Matching at one basis proves
+  # little: a convention can be right for one species and wrong for two, or right
+  # at correlation order 3 and wrong at 4.  Each entry exports BOTH model families
+  # at its parameters, so the splined/spherical and analytic/solid branches are
+  # both covered at every point.  All but the first skip the fit (ACE_NOFIT=1) --
+  # the guard tests conventions, not fit quality, and a fit to Si_tiny would be
+  # meaningless for a Si-C model anyway.
   divergence:
-    name: julia export vs python evaluator
+    name: julia vs python (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: fitted Si order 3
+            elements: Si
+            order: '3'
+            totaldegree: '10'
+            maxl: '6'
+            nofit: '0'
+          - name: Si-C order 3
+            elements: Si,C
+            order: '3'
+            totaldegree: '8'
+            maxl: '6'
+            nofit: '1'
+          - name: Si order 4
+            elements: Si
+            order: '4'
+            totaldegree: '8'
+            maxl: '4'
+            nofit: '1'
+          - name: Si-C order 4
+            elements: Si,C
+            order: '4'
+            totaldegree: '8'
+            maxl: '4'
+            nofit: '1'
+    env:
+      ACE_ELEMENTS: ${{ matrix.elements }}
+      ACE_ORDER: ${{ matrix.order }}
+      ACE_TOTALDEGREE: ${{ matrix.totaldegree }}
+      ACE_MAXL: ${{ matrix.maxl }}
+      ACE_NOFIT: ${{ matrix.nofit }}
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2

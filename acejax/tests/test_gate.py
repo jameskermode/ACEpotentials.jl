@@ -18,6 +18,7 @@ jax.config.update("jax_enable_x64", True)   # test-local, never library-level
 import jax.numpy as jnp
 
 from acejax import highest_precision, load
+from conftest import species_index
 
 TOL = 1e-10
 
@@ -29,7 +30,7 @@ def case(npz):
     send = jnp.asarray(z["test_edge_i"], jnp.int32)      # centre atom (0-based)
     recv = jnp.asarray(z["test_edge_j"], jnp.int32)
     rij = jnp.asarray(z["test_edge_rij"].T)              # (E,3)
-    node_z = jnp.zeros(n_nodes, jnp.int32)               # single species
+    node_z = species_index(z)
     zi, zj = node_z[send], node_z[recv]
     return model, meta, z, n_nodes, send, recv, rij, node_z, zi, zj
 

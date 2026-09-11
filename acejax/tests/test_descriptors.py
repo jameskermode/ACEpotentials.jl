@@ -11,6 +11,8 @@ import jax
 import numpy as np
 import pytest
 
+from conftest import species_index
+
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 
@@ -36,7 +38,7 @@ def test_descriptors_from_edge_list(case, npz):
     n = int(z["test_pos"].shape[1])
     send = jnp.asarray(z["test_edge_i"], jnp.int32)
     recv = jnp.asarray(z["test_edge_j"], jnp.int32)
-    nz = jnp.zeros(n, jnp.int32)
+    nz = species_index(z)
     with highest_precision():
         d = np.asarray(model.site_descriptors(
             jnp.asarray(z["test_edge_rij"].T), nz[send], nz[recv], send, n, nz))

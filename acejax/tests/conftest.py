@@ -50,3 +50,19 @@ def pytest_generate_tests(metafunc):
                 paths.append(pytest.param(p, marks=pytest.mark.skip(
                     reason=f"missing fixture {p.name}; see julia/export_model.jl")))
         metafunc.parametrize("npz", paths, ids=ids)
+
+
+def species_index(z):
+    """Map the exported per-atom atomic numbers onto model species indices.
+
+    `node_z` is an index into the model's `elements` (i2z) table, NOT an atomic
+    number. Tests used to hardcode `zeros(n_nodes)`, which is correct only for a
+    single-species model and silently wrong for any other -- so a two-element
+    export could not be tested at all.
+    """
+    import jax.numpy as jnp
+    import numpy as np
+    i2z = list(np.asarray(z["elements"]).ravel())
+    lookup = {int(zz): i for i, zz in enumerate(i2z)}
+    return jnp.asarray([lookup[int(a)] for a in np.asarray(z["test_Z"]).ravel()],
+                       dtype=jnp.int32)

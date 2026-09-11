@@ -205,8 +205,21 @@ import Polynomials4ML as P4ML
 probe_Ylm = Matrix(P4ML.evaluate(m.ybasis, [SVector{3}(probe_rij[:, i]) for i in 1:n_probe]))
 
 # ---------------------------------------------------------------- test system
+# The test system must contain EVERY element the model was built for, or the
+# species-pair machinery (Wnlq[:,:,iz,jz], the SelectLinL-equivalent indexing,
+# per-species E0) is exported but never evaluated -- a single-species test
+# system would agree perfectly while a two-species convention was wrong.
 using AtomsBuilder
 sys = AtomsBuilder.bulk(:Si, cubic = true) * 2
+if length(elements) > 1
+    # Deterministic round-robin substitution: every element appears, and the
+    # assignment does not depend on a seed or on iteration order.
+    zs = [AtomsBase.atomic_number(ChemicalSpecies(el)) for el in elements]
+    ats = [AtomsBase.Atom(zs[mod1(i, length(zs))], AtomsBase.position(sys, i))
+           for i in 1:length(sys)]
+    sys = AtomsBase.FlexibleSystem(ats, AtomsBase.cell(sys))
+    @info "multi-element test system: $(elements), counts $( [count(==(z), [AtomsBase.atomic_number(sys,i) for i in 1:length(sys)]) for z in zs] )"
+end
 rattle!(sys, 0.15u"Å")
 nat = length(sys)
 test_pos = reduce(hcat, [ustrip.(u"Å", p) for p in AtomsBase.position(sys, :)])   # (3, nat)

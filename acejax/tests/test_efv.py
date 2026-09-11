@@ -15,6 +15,8 @@ import jax
 import numpy as np
 import pytest
 
+from conftest import species_index
+
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 
@@ -55,7 +57,7 @@ def test_energy_forces_virial(case):
     model, meta, z, atoms = case
     g = sparse_graph(atoms.get_positions(), atoms.get_cell().array,
                      atoms.get_pbc(), meta["rcut"])
-    node_z = jnp.zeros(g.n_nodes, jnp.int32)
+    node_z = species_index(z)
     send, recv = jnp.asarray(g.senders), jnp.asarray(g.receivers)
     with highest_precision():
         E, F, V = model.energy_forces_virial(jnp.asarray(g.rij), node_z[send],
@@ -75,7 +77,7 @@ def test_virial_sign_is_julia_convention(case):
     model, meta, z, atoms = case
     g = sparse_graph(atoms.get_positions(), atoms.get_cell().array,
                      atoms.get_pbc(), meta["rcut"])
-    node_z = jnp.zeros(g.n_nodes, jnp.int32)
+    node_z = species_index(z)
     send, recv = jnp.asarray(g.senders), jnp.asarray(g.receivers)
     with highest_precision():
         _, _, V = model.energy_forces_virial(jnp.asarray(g.rij), node_z[send],
@@ -92,13 +94,14 @@ def test_dense_and_sparse_pooling_agree(case):
     d = dense_graph(atoms.get_positions(), atoms.get_cell().array,
                     atoms.get_pbc(), meta["rcut"], 64)
     n, K = d.idx.shape
-    node_z = jnp.zeros(d.n_nodes, jnp.int32)
-    zi = jnp.zeros((n, K), jnp.int32)
+    node_z = species_index(z)
+    zi = jnp.broadcast_to(node_z[:, None], (n, K))        # centre species per row
+    zj = jnp.asarray(node_z)[jnp.asarray(d.idx)]          # neighbour species per slot
     mask = jnp.asarray(d.mask)
     # padded slots must not be allowed to blow up: park them at the cutoff
     rij = np.where(d.mask[..., None], d.rij, np.array([meta["rcut"], 0.0, 0.0]))
     with highest_precision():
-        e_dense = model.site_energies_dense(jnp.asarray(rij), zi, zi, mask, node_z)
+        e_dense = model.site_energies_dense(jnp.asarray(rij), zi, zj, mask, node_z)
     s = dense_to_sparse(d)
     send = jnp.asarray(s.senders)
     with highest_precision():

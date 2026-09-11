@@ -12,6 +12,8 @@ import jax
 import numpy as np
 import pytest
 
+from conftest import species_index
+
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 
@@ -36,7 +38,7 @@ def _padded(model, z, n_pad, pad_vec):
     recv = jnp.asarray(np.concatenate([recv, np.zeros(n_pad, np.int32)]))
     rij = jnp.asarray(np.concatenate([rij, np.tile(pad_vec, (n_pad, 1))]))
     mask = jnp.concatenate([jnp.ones(E, bool), jnp.zeros(n_pad, bool)])
-    node_z = jnp.zeros(n_nodes, jnp.int32)
+    node_z = species_index(z)
     return rij, send, recv, mask, node_z, n_nodes
 
 
