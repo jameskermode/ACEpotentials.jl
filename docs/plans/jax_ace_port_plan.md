@@ -644,8 +644,9 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | 12. LAMMPS ML-IAP route — **deprioritised by Phase 11; CI rationale stands** | 2–3 |
 | **13. MACE comparison via `symmetrix` on GPU** — not started | 2 |
 | *14. Traced neighbour list for end-to-end differentiability* — **optional** | 1–2 |
+| **15. Conditional gather/matmul swapover for `edge_A`** — not started | 1–1.5 |
 
-**Remaining: phases 12–13, ~4–5 days**, plus optional phase 14. None is blocked; 12 and 13 each need a
+**Remaining: phases 12–13 and 15, ~5–6.5 days**, plus optional phase 14. None is blocked; 12 and 13 each need a
 LAMMPS rebuild with extra packages (`ML-IAP`+`PYTHON`, and `symmetrix`
 respectively), into a new directory as with the ML-PACE rebuild.
 
@@ -1059,6 +1060,67 @@ evidence this phase needs, obtained for free.
 through it w.r.t. a model parameter or the initial positions, giving a finite
 gradient that matches a finite-difference check.
 
+#### Phase 15 — conditional gather/matmul swapover for `edge_A`
+
+`docs/findings/FINDINGS_apple_scaling.md` established that
+`edge_A = Rnl[:, aspec_r] * Ylm[:, aspec_y]` (`acejax/model.py:156`) is the
+scaling bottleneck: the forward gather is cheap and flat, but its reverse-mode
+adjoint is an axis-1 scatter whose cost per slot climbs with buffer length. An
+algebraically identical one-hot matmul form, `(Rnl @ Sr) * (Ylm @ Sy)`, has a
+matmul adjoint instead and is flat. The gradients are **bit identical**.
+
+**Neither form wins everywhere, which is the whole reason this is a phase and not
+a patch.** ns per edge slot, jax 0.11.1, f64:
+
+| edge slots | M3 Pro gather | M3 Pro matmul | Xeon gather | Xeon matmul |
+|---|---|---|---|---|
+| 17057  | 116.4 | 71.2 | 27.3 | 64.0 |
+| 124054 | 303.1 | 52.1 | 42.6 | 46.8 |
+| 496224 | 500.8 | 45.1 | 53.5 | 39.8 |
+
+On the M3 Pro the matmul wins everywhere and by up to 11×. On the Xeon the
+gather wins below roughly 200k slots — by 2.3× at the smallest size — and loses
+only above it. **Hardcoding the matmul would be a 2.3× pessimisation at the
+buffer lengths most x86 runs actually use.**
+
+**Design.**
+
+- Both forms behind one swappable function, exactly as the pooling function
+  already is. No branching inside the traced kernel.
+- An explicit option, `edge_a_kind="gather" | "matmul" | "auto"`, default
+  `"auto"`.
+- **`"auto"` calibrates, it does not guess.** Do *not* dispatch on
+  `platform.machine()`, device kind, or a hardcoded slot threshold: the crossover
+  is a property of the XLA backend, the dtype and the actual shapes, and the GPU
+  behaviour is entirely unmeasured. Time both forms once at the real shapes —
+  milliseconds — and cache the winner keyed on (backend, device kind, dtype,
+  `n_edges`, `n_r`, `n_y`, `n_A`). A calibration that is wrong is still only as
+  bad as the loser, whereas a heuristic that is wrong is silently wrong forever.
+- **`jax.export` must bake the decision in.** The LAMMPS plugin has no
+  calibration step and cannot run one, so the exporter takes `edge_a_kind`
+  explicitly and records it in the bundle alongside `ybasis_kind`. Exported
+  bundles are for a known target; that is the moment to choose.
+
+**Watch the memory claim.** `Sr` is `(n_r, n_A)` and `Sy` is `(n_y, n_A)` — small
+and constant — and `Rnl @ Sr` is `(E, n_A)`, the same shape the gather produces.
+So the matmul form is not a memory regression at the sizes measured. Confirm this
+still holds at production `n_A` before defaulting to it anywhere, since `n_A`
+grows with the model and these were measured at `n_A = 43`.
+
+**Tests.** Equivalence of both forms on values *and* gradients, to bit-identity,
+in both f32 and f64 and on both sparse and dense pooling layouts; a test that
+forcing each kind actually selects it; and a regression that an exported bundle
+round-trips its `edge_a_kind`.
+
+**Gate:** on both an Apple Silicon and an x86 host, `"auto"` matches or beats the
+better of the two fixed choices at every size in
+`acejax/bench/apple_scaling/`'s series, and no existing test changes its result.
+
+**Unmeasured, and a prerequisite for the default:** GPU. Every number above is
+CPU. The scatter may behave completely differently on a GPU, where the whole
+LAMMPS path runs — so measure there before `"auto"` is allowed to pick the matmul
+for GPU export.
+
 **The honest caveat, which belongs in the write-up:** differentiating through a
 trajectory has costs the neighbour-list choice does not fix — memory for every
 intermediate across all steps, and a real non-smoothness whenever the neighbour
@@ -1128,16 +1190,16 @@ Stage 1.
 
 | Phase | Days |
 |---|---|
-| 15. **Gate: re-test Reactant** on a CUDA host with ET#143 applied. If the standard ETACE path traces, build this in Julia instead and stop here | 0.5 |
-| 16. E/F/V design-matrix assembly + custom hybrid JVP (**committed**, gate 3) | 3 |
-| 17. Blocked / streaming assembly so the full design matrix need not be resident | 1–2 |
-| 18. Priors + solvers (lineax / optimistix), incl. BLR for uncertainty | 2–3 |
-| 19. Data loading, weights, key matching | 1 |
-| 20. Validation harness (milestones 5–6): coefficients and RMSE against `acefit!` | 1 |
+| 16. **Gate: re-test Reactant** on a CUDA host with ET#143 applied. If the standard ETACE path traces, build this in Julia instead and stop here | 0.5 |
+| 17. E/F/V design-matrix assembly + custom hybrid JVP (**committed**, gate 3) | 3 |
+| 18. Blocked / streaming assembly so the full design matrix need not be resident | 1–2 |
+| 19. Priors + solvers (lineax / optimistix), incl. BLR for uncertainty | 2–3 |
+| 20. Data loading, weights, key matching | 1 |
+| 21. Validation harness (milestones 5–6): coefficients and RMSE against `acefit!` | 1 |
 
 **≈ 8.5–10.5 days.**
 
-Phase 17 is new, and follows from wanting this to scale: at n_B ≈ 2000 and a
+Phase 18 is new, and follows from wanting this to scale: at n_B ≈ 2000 and a
 large dataset the design matrix is the memory bottleneck, not the arithmetic.
 Note the obvious shortcut is a trap — accumulating normal equations `AᵀA`
 (n_B × n_B, dataset-size-independent) squares the condition number, which is why
@@ -1157,7 +1219,7 @@ caution:
   the Jacobian is stable. `precision=highest` alone does not fix it (2/10 still
   wrong).
 
-For phase 19, prefer exporting `AtomsData` from Julia over reimplementing
+For phase 20, prefer exporting `AtomsData` from Julia over reimplementing
 ACEpotentials' fuzzy key matching and per-configuration weights. That logic is
 fiddly, well-tested, and has no business being written twice.
 
@@ -1165,10 +1227,10 @@ fiddly, well-tested, and has no business being written twice.
 
 | Phase | Days |
 |---|---|
-| 21. Batched loss over configurations (E, F, optionally V) with per-config weights | 1–2 |
-| 22. Bucketed batching, boundaries set from Stage 1's padding curve | 1 |
-| 23. `optax` training loop, schedules, checkpointing | 1–2 |
-| 24. Validation: refit `Si_tiny`, compare against the Stage 2A linear fit | 1 |
+| 22. Batched loss over configurations (E, F, optionally V) with per-config weights | 1–2 |
+| 23. Bucketed batching, boundaries set from Stage 1's padding curve | 1 |
+| 24. `optax` training loop, schedules, checkpointing | 1–2 |
+| 25. Validation: refit `Si_tiny`, compare against the Stage 2A linear fit | 1 |
 
 **≈ 4–6 days**, prerequisite nothing beyond Stage 1. Cheap — but it buys
 expressivity by giving up the unique global optimum, reproducibility, and the
@@ -1207,7 +1269,7 @@ it, so a step is two passes — the second with a small tape.
 **Gate 3's Jacobian cost does not apply to 2B.** 2A needs *all* `n_B` columns of
 `∂B/∂r` (hence 43–238× forward on CPU, 9–20× on GPU); 2B needs only the single
 contraction `v · ∂F/∂θ` per batch — roughly 4–6× forward, and **independent of
-`n_B`**. These factors are analytic, not measured; confirm them in phase 21.
+`n_B`**. These factors are analytic, not measured; confirm them in phase 22.
 
 **Note the two are not interchangeable.** For a model linear in its parameters,
 `∂F/∂c` **is** the design matrix, so a gradient-based fit computes the same
@@ -1217,7 +1279,7 @@ justified only where the parameters are genuinely non-linear.
 
 #### Sequencing
 
-Recommended: **phase 15 (the Reactant gate) first**, since it is half a day and
+Recommended: **phase 16 (the Reactant gate) first**, since it is half a day and
 decides whether 2A is built in Python or in Julia. Then 2A. 2B only if and when a
 specific model needs parameters the linear form cannot express — and even then as
 an additional backend, not a replacement.
@@ -1293,7 +1355,7 @@ vintage and the fork's `main`.
 | ~~Design-matrix assembly too slow via generic AD~~ | **2** | Resolved | Confirmed on CPU and GPU: hybrid JVP required, now committed |
 | ~~f64 GPU throughput on non-datacenter cards~~ | **2** | Resolved | Measured 3–5.4× f32 on a 1/64-rate card; memory-bound, not FLOP-bound |
 | JAX CPU throughput degrades 2.3× with size on Apple Silicon | **2** | Medium | Under investigation (`FINDINGS_apple_scaling.md`). Bounds CPU fallback for fit assembly; GPU path unaffected |
-| Training-step cost (grad of grad) larger than expected | **2A** | Medium | Measure in phase 15 before committing to the loop design |
+| Training-step cost (grad of grad) larger than expected | **2A** | Medium | Measure in phase 16 before committing to the loop design |
 | 2B duplicates work Reactant may soon do in Julia | **2B** | Medium | Phase 19 gate: re-test tracing with ET#143 before starting 2B |
 
 Phase 0 retired all three highest-severity items: convention-matching is confirmed
