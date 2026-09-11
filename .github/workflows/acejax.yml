@@ -147,12 +147,28 @@ jobs:
             Pkg.develop(path=".")     # the ACEpotentials under test, not the registry one
             Pkg.instantiate()
             Pkg.status()'
-      - name: Extract the frozen element embedding
+      # A SYNTHETIC embedding, deliberately.  This job checks that the Julia
+      # exporter and the Python evaluator agree on the same model; it does not
+      # check scientific fidelity, and a real MACE table would add a ~100 MB
+      # checkpoint download plus a torch install to every run, and raise a
+      # licence question about redistributing model weights.  Deterministic so
+      # the two sides are comparing the same thing run to run.
+      # `scripts/extract_mace_embedding.py` remains the route for real tables.
+      - name: Synthesise a frozen element embedding
         if: matrix.kind == 'embedding'
         working-directory: .
         run: |
-          uv run --with torch --with numpy python scripts/extract_mace_embedding.py \
-            -o fresh_embedding.npz
+          python3 - <<'PY'
+          import json, math
+          Z = [22, 13]                       # Ti, Al -- matches matrix.elements
+          d = 8
+          emb = [[math.sin(1.0 + 3.7 * i + 1.3 * k) for k in range(d)]
+                 for i in range(len(Z))]
+          json.dump({"Z": Z, "emb": emb,
+                     "checkpoint": "synthetic-ci",
+                     "note": "deterministic stand-in; not a real MACE table"},
+                    open("fresh_embedding.json", "w"))
+          PY
           ls -l fresh_embedding.json
       - name: Regenerate both fixtures from Julia
         working-directory: .
