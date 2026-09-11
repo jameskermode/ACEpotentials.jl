@@ -142,6 +142,12 @@ def main():
     }
     side = str(args.out) + ".json" if not str(args.out).endswith(".npz") \
            else str(args.out)[:-4] + ".json"
+    # The table goes into the JSON as well as the npz: ACEpotentials reads the
+    # JSON (it already depends on JSON.jl), and a few hundred kB of frozen table
+    # does not justify adding a binary-format dependency to the whole package.
+    # The npz stays for Python consumers.
+    meta["Z"] = [int(z) for z in Z]
+    meta["emb"] = [[float(x) for x in row] for row in emb]
     with open(side, "w") as f:
         json.dump(meta, f, indent=2)
 

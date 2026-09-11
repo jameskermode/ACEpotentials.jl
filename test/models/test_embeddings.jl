@@ -1,0 +1,105 @@
+# Frozen element embeddings: the radial basis must come out as
+#     R(n'k)l(r, Z1, Z2) = P_n'(r) * emb[Z2, k]
+# which is `set_onehot_weights!`'s construction with the one-hot δ replaced by a
+# frozen embedding row.  See src/models/embeddings.jl.
+
+using ACEpotentials, Test, LinearAlgebra, Random, JSON
+M = ACEpotentials.Models
+
+# local, so the file runs in any environment that can load ACEpotentials
+print_tf(r::Test.Pass) = printstyled("+", bold=true, color=:green)
+print_tf(r::Test.Fail) = printstyled("-", bold=true, color=:red)
+print_tf(r) = printstyled("x", bold=true, color=:magenta)
+println_slim(r::Test.Pass) = printstyled("Test Passed\n", bold=true, color=:green)
+println_slim(r) = printstyled("Test Failed\n", bold=true, color=:red)
+
+##
+
+@info("ElementEmbedding: widths, row lookup, artefact round-trip")
+
+# d_ν = min(d_max, C(S+ν-1, ν)); with no cap every order gets its full dimension
+println_slim(@test M.embedding_widths(3, 4) == [3, 6, 10, 15])
+println_slim(@test M.embedding_widths(10, 3) == [10, 55, 220])
+println_slim(@test M.embedding_widths(10, 3; d_max = 32) == [10, 32, 32])
+println_slim(@test M.embedding_widths(1, 3) == [1, 1, 1])     # single species
+
+# a synthetic artefact, so the test needs no downloaded checkpoint
+tmp = tempname() * ".json"
+Zs = [14, 6, 8]
+emb = [1.0 2.0 3.0 4.0; 5.0 6.0 7.0 8.0; 9.0 10.0 11.0 12.0]
+open(tmp, "w") do io
+   JSON.print(io, Dict("Z" => Zs, "emb" => [emb[i, :] for i = 1:size(emb, 1)],
+                       "checkpoint" => "synthetic-for-tests"))
+end
+e = M.read_mace_embedding(tmp)
+println_slim(@test e.Z == Zs)
+println_slim(@test e.emb == emb)
+println_slim(@test e.meta["checkpoint"] == "synthetic-for-tests")
+
+# rows come back in the order asked for, truncated to d
+println_slim(@test M.embedding_rows(e, [6, 14]; d = 2) == [5.0 6.0; 1.0 2.0])
+println_slim(@test_throws Exception M.embedding_rows(e, [79]))      # Au absent
+println_slim(@test_throws Exception M.embedding_rows(e, [14]; d = 99))
+
+##
+
+@info("set_embedding_weights!: Rnl == P_n'(r) * emb[Z2, k]")
+
+# NOTE: `ace1_model` SPLINES its radial basis (SplineRnlrzzBasis), and a spline
+# has no Wnlq to set -- so the embedding must be applied to the LEARNABLE basis,
+# before splining.  `ace_model` keeps the analytic/learnable branch, which is the
+# one this operates on.
+using Random: MersenneTwister
+import Lux
+d = size(emb, 2)
+ri = M._default_rin0cuts((:Si, :C, :O))
+ri = (x -> (rin = x.rin, r0 = x.r0, rcut = 5.5)).(ri)
+raw = M.ace_model(; elements = (:Si, :C, :O), order = 2, Ytype = :solid,
+                  level = M.TotalDegree(), max_level = 8, maxl = 4,
+                  pair_maxn = 8, rin0cuts = ri,
+                  init_WB = :glorot_normal, init_Wpair = :glorot_normal)
+ps0, st0 = Lux.setup(MersenneTwister(1234), raw)
+model = M.ACEPotential(raw, ps0, st0)
+rbasis = model.model.rbasis
+println_slim(@test rbasis isa M.LearnableRnlrzzBasis)
+ps = deepcopy(model.ps)
+M.set_embedding_weights!(rbasis, ps.rbasis, emb)
+
+NZ = length(Zs)
+
+# CHECK 1 -- against trusted existing code.  With emb = I the embedding row for
+# species iz2 IS the one-hot δ_{k, iz2}, so `set_embedding_weights!` must
+# reproduce `set_onehot_weights!` bit for bit.  This is a far stronger check than
+# re-deriving P_n'(r) here would be, and it cannot drift from the convention.
+ps_hot = deepcopy(model.ps)
+M.set_onehot_weights!(rbasis, ps_hot.rbasis)
+ps_eye = deepcopy(model.ps)
+M.set_embedding_weights!(rbasis, ps_eye.rbasis, Matrix{Float64}(I, NZ, NZ))
+println_slim(@test ps_eye.rbasis.Wnlq == ps_hot.rbasis.Wnlq)
+
+# CHECK 2 -- the defining property, without touching any internal basis API.
+# R depends on the neighbour species ONLY through its embedding row, linearly.
+# Scaling one row by c must scale that species' Rnl by exactly c and leave every
+# other species untouched.
+rng = MersenneTwister(7)
+c = 3.7
+for iz2_scaled = 1:NZ
+   emb2 = copy(emb); emb2[iz2_scaled, :] .*= c
+   psA = deepcopy(model.ps); M.set_embedding_weights!(rbasis, psA.rbasis, emb)
+   psB = deepcopy(model.ps); M.set_embedding_weights!(rbasis, psB.rbasis, emb2)
+   ok = true
+   for iz1 = 1:NZ, iz2 = 1:NZ
+      r = 1.5 + 2.5 * rand(rng)
+      RA = M.evaluate(rbasis, r, Zs[iz1], Zs[iz2], psA.rbasis, model.st.rbasis)
+      RB = M.evaluate(rbasis, r, Zs[iz1], Zs[iz2], psB.rbasis, model.st.rbasis)
+      want = (iz2 == iz2_scaled) ? c .* RA : RA
+      ok &= isapprox(collect(RB), collect(want); rtol = 1e-12, atol = 1e-14)
+   end
+   print_tf(@test ok)
+end
+println()
+
+# and the weights must not depend on the CENTRE species -- only on the neighbour
+psC = deepcopy(model.ps); M.set_embedding_weights!(rbasis, psC.rbasis, emb)
+println_slim(@test all(psC.rbasis.Wnlq[:, :, 1, j] == psC.rbasis.Wnlq[:, :, 2, j]
+                       for j = 1:NZ))

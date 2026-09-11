@@ -834,6 +834,38 @@ training the embedding (that breaks convexity and belongs in Stage 2B), and any
 JAX-side work — the export path is unchanged, since this is just a wider radial
 basis.
 
+#### Build status
+
+Landed: `src/models/embeddings.jl` with `ElementEmbedding`,
+`read_mace_embedding`, `embedding_rows`, `embedding_widths` and
+`set_embedding_weights!`, plus `test/models/test_embeddings.jl`.
+
+Two things the build changed from the spec above:
+
+- **The artefact is JSON, not npz.** Reading npz would have added `NPZ` to
+  ACEpotentials' dependencies for the sake of one frozen table; ACEpotentials
+  already depends on JSON. `scripts/extract_mace_embedding.py` now writes the
+  table into the JSON sidecar as well, keeping the npz for Python consumers.
+- **The embedding applies to the LEARNABLE radial basis, before splining.**
+  `ace1_model` builds a `SplineRnlrzzBasis`, which has no `Wnlq` to set, so
+  `set_embedding_weights!` operates on `LearnableRnlrzzBasis` — the branch
+  `ace_model` keeps. An `ace1`-style embedded model therefore has to set the
+  weights and *then* splinify, which is what `ace1_model` already does
+  internally; wiring that is the next step.
+
+The test checks `set_embedding_weights!` against trusted existing code rather
+than re-deriving the reference: with `emb = I` the embedding row is the one-hot
+delta, so it must reproduce `set_onehot_weights!` bit for bit. It does. The
+second check exercises the defining property without touching any internal basis
+API — scaling one embedding row by `c` scales exactly that species' `Rnl` by `c`
+and leaves the others untouched.
+
+Still to build: the spec construction with per-order widths, the
+`ace_embedding_model` constructor, and the splining path for `ace1`-style
+models. The equivariance, losslessness-by-measured-rank and `acefit!` gates are
+therefore **not yet met** — the pieces under them are in place, the model
+assembly is not.
+
 #### Unverified
 
 Whether `acefit!` and the solvers are entirely indifferent to the widened basis
