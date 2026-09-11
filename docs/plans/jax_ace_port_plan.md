@@ -1148,11 +1148,12 @@ flags as *"very hacky and brittle"* (`ET/src/ace/sparse_ace_utils.jl:23-24`).
 | ~~10. Whole-branch review, reorganise to `acejax/`, README, CI, PyPI~~ ✅ `0c670a3d` | 2.5–3 |
 | ~~11. JAX-only distributed MD spike (no LAMMPS)~~ ✅ **viable, and the fastest route** | 0.5 |
 | 12. LAMMPS ML-IAP route — **deprioritised by Phase 11; CI rationale stands** | 2–3 |
-| **13. MACE comparison via `symmetrix` on GPU** — not started | 2 |
+| ~~13. MACE comparison via `symmetrix` on GPU~~ ✅ `6614d7e7` — three routes, see `bench/results_phase13.md` | 2 |
 | *14. Traced neighbour list for end-to-end differentiability* — **optional** | 1–2 |
 | **15. Conditional gather/matmul swapover for `edge_A`** — CPU side done; GPU calibration outstanding | 1–1.5 |
 
-**Remaining: phases 12–13 and 15, ~5–6.5 days**, plus optional phase 14. None is blocked; 12 and 13 each need a
+**Remaining: phase 15's GPU half (~0.5 day) and phase 12 (deprioritised)**, plus
+optional phase 14. Phase 13 is done; Stage 1E is built and exports. None is blocked; 12 and 13 each need a
 LAMMPS rebuild with extra packages (`ML-IAP`+`PYTHON`, and `symmetrix`
 respectively), into a new directory as with the ML-PACE rebuild.
 
