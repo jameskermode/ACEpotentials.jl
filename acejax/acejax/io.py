@@ -80,9 +80,14 @@ def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather"):
         return jnp.asarray(z[k], dtype=dtype)
 
     kind = meta["radial_kind"]
+    # the exporter writes the factorised radial when a frozen embedding with
+    # uniform cutoffs makes the table separable; it falls back silently otherwise
+    factorised = "rnl_spline_coefs_single" in z.files
+    if factorised:
+        kind = "spline_factorised"
     pkind = meta.get("pair_radial_kind", "spline")
     for k in (kind, pkind):
-        if k not in ("spline", "analytic"):
+        if k not in ("spline", "analytic", "spline_factorised"):
             raise NotImplementedError(f"unknown radial_kind {k!r}")
 
     _tr = _a2b_triplets(z, meta["n_B"], meta["n_AA"])
@@ -96,7 +101,8 @@ def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather"):
     # Widths of the two embeddings the A-basis gathers from.  Taken from the
     # coefficient arrays rather than from max(aspec)+1, which would under-count
     # whenever the last radial function happens to be unused by any A entry.
-    n_rnl = (int(z["rnl_spline_coefs"].shape[-1]) if kind == "spline"
+    n_rnl = (int(z["rnl_emb_nidx"].shape[0]) if factorised
+             else int(z["rnl_spline_coefs"].shape[-1]) if kind == "spline"
              else int(z["rnl_Wnlq"].shape[-2]))
     n_ylm = (int(meta["lmax"]) + 1) ** 2
     if int(_ar.max()) >= n_rnl or int(_ay.max()) >= n_ylm:
@@ -126,6 +132,10 @@ def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather"):
         aspec_r=_ar,
         aspec_y=_ay,
         edge_a_kind=edge_a_kind,
+        rnl_coefs_single=(A("rnl_spline_coefs_single") if factorised else None),
+        rnl_embedding=(A("rnl_embedding") if factorised else None),
+        rnl_emb_nidx=(jnp.asarray(z["rnl_emb_nidx"], jnp.int32) if factorised else None),
+        rnl_emb_kidx=(jnp.asarray(z["rnl_emb_kidx"], jnp.int32) if factorised else None),
         a_sel_r=_sel(_ar, n_rnl, dtype) if edge_a_kind == "matmul" else None,
         a_sel_y=_sel(_ay, n_ylm, dtype) if edge_a_kind == "matmul" else None,
         aa_specs=tuple(jnp.asarray(z[f"aa_spec_{k+1}"], jnp.int32) for k in range(n_orders)),

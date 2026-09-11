@@ -176,7 +176,7 @@ function ace_embedding_model(; elements, order, totaldegree,
                                wL = 1.5, maxl = nothing, Ytype = :solid,
                                rcut = nothing, E0s = nothing, ZBL = false,
                                pair_maxn = nothing, ace1_compat = true,
-                               normalise = true,
+                               normalise = true, uniform_cutoffs = true,
                                rng = Random.default_rng())
    zlist = _convert_zlist(elements)
    S = length(zlist)
@@ -194,6 +194,27 @@ function ace_embedding_model(; elements, order, totaldegree,
    rin0cuts = _default_rin0cuts(zlist)
    rcut === nothing ||
       (rin0cuts = (x -> (rin = x.rin, r0 = x.r0, rcut = rcut)).(rin0cuts))
+   if uniform_cutoffs
+      # ONE transform for all species pairs, which is what makes the radial
+      # table factorise.  `_default_rin0cuts` derives rin/r0/rcut from per-PAIR
+      # bond lengths -- measured, 39 distinct transforms across 100 pairs at
+      # S=10 -- so with per-pair cutoffs the splined radial basis is genuinely
+      # (NZ, NZ, ncoef, n_rnl) and O(S^2) in storage and bandwidth, which is
+      # what dominates many-element evaluation (see bench/manyelem/README.md).
+      #
+      # With a single shared transform, R(n'k)l(r, Z1, Z2) = P_n'(r)*emb[Z2,k]
+      # where P no longer depends on the pair, so one spline table plus the
+      # (S, d) embedding suffices -- O(1) in S.
+      #
+      # This is a MODELLING choice, not a pure optimisation: it gives up
+      # per-pair bond-length adaptation, exactly as MACE does with its single
+      # cutoff.  Default true here because this model class exists for the
+      # many-element regime, where per-pair adaptation is what fails to scale.
+      r0m = sum(x.r0 for x in rin0cuts) / length(rin0cuts)
+      rinm = minimum(x.rin for x in rin0cuts)
+      rcm = maximum(x.rcut for x in rin0cuts)
+      rin0cuts = (x -> (rin = rinm, r0 = r0m, rcut = rcm)).(rin0cuts)
+   end
 
    # Match `ace1_model`'s radial heuristics, not `ace_learnable_Rnlrzz`'s
    # defaults.  They differ in three ways that matter, and using the defaults

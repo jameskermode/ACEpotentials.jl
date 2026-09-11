@@ -104,6 +104,13 @@ class ACEModel(eqx.Module):
     elements: tuple = eqx.field(static=True)
     # Defaulted fields must come last (dataclass ordering).
     edge_a_kind: str = eqx.field(static=True, default="gather")   # "gather" | "matmul"
+    # factorised radial (frozen embedding + uniform cutoffs): one species-
+    # independent spline table plus the (NZ, d) embedding, instead of an
+    # (NZ, NZ, ncoef, n_rnl) table that is O(S^2) to store and to gather
+    rnl_coefs_single: jax.Array = None            # (ncoef, n1)
+    rnl_embedding: jax.Array = None               # (NZ, d)
+    rnl_emb_nidx: jax.Array = None                # (n_rnl,) -> column of the table
+    rnl_emb_kidx: jax.Array = None                # (n_rnl,) -> embedding channel
     # one-hot selectors for the "matmul" form; None on the gather path so models
     # that never use it do not carry the arrays
     a_sel_r: jax.Array = None                     # (n_rnl, n_A)
@@ -130,9 +137,21 @@ class ACEModel(eqx.Module):
         # many-body envelope is applied in transformed coordinates
         env = env_poly2sx(agnesi_normalized(r, self.rnl_transform[zi, zj]),
                           self.rnl_envelope[zi, zj])
-        Rnl = self._radial_one(r, zi, zj, self.radial_kind, self.rnl_transform,
-                               self.rnl_coefs, self.rnl_grid, self.rnl_Wnlq,
-                               (self.polys_A, self.polys_B, self.polys_C), env)
+        if self.radial_kind == "spline_factorised":
+            # Rnl[e, i] = P[e, n'(i)] * emb[zj[e], k(i)]
+            # The spline table is species-independent, so there is no
+            # (E, ncoef, n_rnl) gather here at all -- that gather is what makes
+            # many-element models memory-bandwidth bound.
+            x = agnesi_normalized(r, self.rnl_transform[zi, zj])
+            x0, h, nsp = self.rnl_grid
+            P = jax.vmap(lambda xx: spline_eval(xx, self.rnl_coefs_single,
+                                                x0, h, nsp))(x)          # (E, n1)
+            Rnl = (P[:, self.rnl_emb_nidx]
+                   * self.rnl_embedding[zj][:, self.rnl_emb_kidx]) * env[:, None]
+        else:
+            Rnl = self._radial_one(r, zi, zj, self.radial_kind, self.rnl_transform,
+                                   self.rnl_coefs, self.rnl_grid, self.rnl_Wnlq,
+                                   (self.polys_A, self.polys_B, self.polys_C), env)
         # pair envelope is a function of r, and its form differs by model family
         pe = self.pair_envelope[zi, zj]
         envp = (env_ace1_poly1sr(r, pe) if self.pair_envelope_kind == "ace1_poly1sr"
@@ -300,7 +319,8 @@ def with_edge_a_kind(model, kind):
         return model
     if kind == "gather":
         return dataclasses.replace(model, edge_a_kind="gather", a_sel_r=None, a_sel_y=None)
-    n_rnl = (model.rnl_coefs.shape[-1] if model.radial_kind == "spline"
+    n_rnl = (model.rnl_emb_nidx.shape[0] if model.radial_kind == "spline_factorised"
+             else model.rnl_coefs.shape[-1] if model.radial_kind == "spline"
              else model.rnl_Wnlq.shape[-2])
     n_ylm = (model.lmax + 1) ** 2
     dt = model.WB.dtype

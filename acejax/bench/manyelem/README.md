@@ -37,37 +37,52 @@ embedding table's rows — **75 elements**. Picking elements outside that set gi
 failure and is not one. This cost a false "categorical is unbuildable at S=40"
 before it was caught.
 
-## GPU throughput (moriarty, RTX A4500) — MEASURED, and it does not yet follow
+## GPU throughput (moriarty, RTX A4500) — FIXED, and now flat in S
 
-64-atom cell, energy+forces, f64, `ACE_NOFIT=1` models:
+64-atom cell, energy+forces, f64, `ACE_NOFIT=1`, `d_max = 16`:
 
-| S | n_B | descriptor len | npz MB | ms/eval | atom-steps/s |
-|---|---|---|---|---|---|
-| 2 | 77 | 166 | 0.5 | 0.327 | 1.96e5 |
-| 10 | 364 | 3 700 | 21.1 | 1.656 | 3.87e4 |
-| 20 | 400 | 8 120 | 80.1 | 2.974 | 2.15e4 |
+| S | n_B | npz MB | ms/eval | atom-steps/s |
+|---|---|---|---|---|
+| 2 | 77 | 0.3 | 0.282 | 2.27e5 |
+| 10 | 364 | 2.8 | 0.952 | 6.72e4 |
+| 20 | 400 | 7.0 | 1.894 | **3.38e4** |
+| 40 | 400 | 17.4 | 2.074 | **3.09e4** |
+| 75 | 400 | 40.5 | 1.992 | **3.21e4** |
 
-**Throughput falls 9x from S=2 to S=20 even though `n_B` saturates (77 -> 400,
-and only 1.1x from S=10 to S=20).** So the basis-size saturation above does
-**not** currently translate into S-independent cost, and the many-element
-throughput claim is NOT demonstrated.
+**Throughput is flat from S=20 to S=75** — 3.38e4 / 3.09e4 / 3.21e4 atom-steps/s
+for 20, 40 and 75 elements. That is the S-independent cost the basis-size
+saturation predicted, and it is what categorical ACE cannot do at any price.
+The remaining rise from S=2 to S=20 tracks `n_B` (77 -> 400) while the per-order
+widths climb to the `d_max` cap; once they saturate, so does the cost.
 
-The cause is the export, not the method. `rnl_spline_coefs` has shape
-`(NZ, NZ, 102, n_rnl)` — **O(S^2)** — and is 95% of every file: 896 MB of the
-936 MB at S=75. Timing tracks that table (npz 21 -> 80 MB, 3.8x) far better than
-it tracks `n_B` (1.1x), i.e. these evaluations are memory-bandwidth bound on it.
+### What was wrong, and the correction to the first diagnosis
 
-**And with a frozen embedding that table is entirely redundant.** Since
-`R(n'k)l(r, Z1, Z2) = P_n'(r) * emb[Z2, k]`, the radial *shape* does not depend
-on the species pair: all `S^2` blocks are the same `n_rnl` splines scaled by
-embedding values. Storing one spline table plus the `(S, d)` embedding is O(1)
-in S — about 0.2 MB instead of 896 MB at S=75, a ~4500x reduction — and should
-restore near-S-independent evaluation.
+The first measurement had throughput falling **9x** from S=2 to S=20. The cause
+was `rnl_spline_coefs`, shape `(NZ, NZ, ncoef, n_rnl)` — O(S^2) to store and,
+worse, an `(E, ncoef, n_rnl)` gather per edge.
 
-**That fix is the prerequisite for a meaningful many-element throughput number,
-and for the comparison against MACE.** Until it lands, these figures measure the
-exporter's redundancy rather than the method, and S=40/75 were not run at all:
-at 296 MB and 937 MB they would measure it even more thoroughly.
+The first diagnosis said that table was "entirely redundant" with a frozen
+embedding. **That was wrong.** `_default_rin0cuts` derives rin/r0/rcut from
+per-PAIR bond lengths, so the radial *shape* genuinely differs per pair —
+measured, **39 distinct transforms across 100 pairs** at S=10. The table only
+factorises if the cutoffs are uniform.
+
+So the fix is a **modelling** choice plus a storage one:
+
+1. `ace_embedding_model(...; uniform_cutoffs = true)` — one transform for all
+   pairs, as MACE does. This gives up per-pair bond-length adaptation, which is
+   exactly the thing that does not scale to many elements.
+2. The exporter then *detects* the factorisation numerically (residual 5.9e-16;
+   it falls back to the dense table silently if it does not hold) and stores
+   `(ncoef, n1) + (NZ, d)` instead of `(NZ, NZ, ncoef, n_rnl)`.
+3. `acejax` evaluates `Rnl[e,i] = P[e, n'(i)] * emb[zj[e], k(i)]`, with **no
+   species gather over the spline table at all**.
+
+Effect at S=75: the radial table drops from **896 MB to 0.01 MB**, and the model
+becomes evaluable at all — S=40 and S=75 could not previously be run.
+
+Remaining file size is now dominated by `test_desc`, the exported *test fixture*
+(n_B x NZ x n_atoms = 14.6 MB at S=75), not by the model.
 
 ## Superseded: earlier note that GPU throughput was not done
 

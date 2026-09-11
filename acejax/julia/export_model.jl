@@ -352,7 +352,40 @@ D = Dict{String, Any}(
 )
 # only the populated radial branch is written; the loader defaults the other
 if rkind == "spline"
-    D["rnl_spline_coefs"] = rnl_coefs
+    # A frozen embedding with UNIFORM cutoffs makes this table separable:
+    #     coefs[z1, z2, :, i] == emb[z2, k(i)] * C[:, n'(i)]
+    # so the (NZ, NZ, ncoef, n_rnl) array is NZ^2 scaled copies of one
+    # (ncoef, n1) table.  Storing it once is O(1) in the number of elements
+    # instead of O(S^2) -- 0.2 MB rather than 896 MB at S=75 -- and removes the
+    # per-edge (E, ncoef, n_rnl) gather that dominates many-element evaluation.
+    # Detected numerically rather than assumed: if the factorisation does not
+    # hold to 1e-12 (per-pair cutoffs, a non-embedding model) the dense table is
+    # written and nothing changes.
+    fact = nothing
+    if KIND == "embedding"
+        dmb = m.meta["embedding"]["d_max"]
+        n1  = size(rnl_coefs, 4) ÷ dmb
+        embrows = M.embedding_rows(emb, [Int(z) for z in i2z]; d = dmb)
+        C = [ rnl_coefs[1, 1, q, (np_ - 1) * dmb + 1] / embrows[1, 1]
+              for q = 1:size(rnl_coefs, 3), np_ = 1:n1 ]
+        pred = [ embrows[z2, mod1(i, dmb)] * C[q, div(i - 1, dmb) + 1]
+                 for z1 = 1:NZ, z2 = 1:NZ, q = 1:size(rnl_coefs, 3),
+                     i = 1:size(rnl_coefs, 4) ]
+        err = maximum(abs.(pred .- rnl_coefs)) / max(maximum(abs.(rnl_coefs)), eps())
+        @info "radial factorisation residual = $err"
+        err < 1e-12 && (fact = (C, embrows, dmb, n1))
+    end
+    if fact === nothing
+        D["rnl_spline_coefs"] = rnl_coefs
+    else
+        C, embrows, dmb, n1 = fact
+        D["rnl_spline_coefs_single"] = C            # (ncoef, n1)
+        D["rnl_embedding"] = embrows                # (NZ, d)
+        D["rnl_emb_nidx"] = Int32[ div(i - 1, dmb) for i = 1:size(rnl_coefs, 4) ]
+        D["rnl_emb_kidx"] = Int32[ mod1(i, dmb) - 1 for i = 1:size(rnl_coefs, 4) ]
+        @info "radial stored FACTORISED: $(size(C)) + $(size(embrows)) " *
+              "instead of $(size(rnl_coefs))"
+    end
 else
     D["rnl_Wnlq"] = rnl_W; D["polys_A"] = rnl_pA; D["polys_B"] = rnl_pB; D["polys_C"] = rnl_pC
 end
