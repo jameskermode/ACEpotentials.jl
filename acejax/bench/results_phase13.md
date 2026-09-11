@@ -384,9 +384,13 @@ user has, rather than "the same algorithm through two code paths".
 
 ## The incidental finding the plan asked to note
 
-`symmetrix` ships **both CPU (OpenMP/Serial) and GPU (CUDA) Kokkos paths** for
-its pair style — `symmetrix/mace/kk/host` and `symmetrix/mace/kk/device` are
-both registered, from one templated implementation. That is direct evidence
+`symmetrix` ships **both CPU and GPU paths** for its pair style. The binary
+built here lists a plain non-Kokkos `symmetrix/mace` alongside
+`symmetrix/mace/kk` and `symmetrix/mace/float32/kk`, and
+`pair_symmetrix_mace_kokkos.h` registers `symmetrix/mace/kk/host` beside
+`symmetrix/mace/kk/device` from one templated class
+(`PairSymmetrixMACEKokkos<LMPHostType,…>` / `<LMPDeviceType,…>`). Neither CPU
+path was timed here. That is direct evidence
 that a Kokkos ML pair style can support CPU, which reinforces Phase 12's point
 that `pair_style jax/kk` being CUDA-only is a code-structure choice rather than
 an inherent constraint. Worth citing if the CPU backend is raised with the
