@@ -1,0 +1,7 @@
+# Optional: the ONLY packages acejax needs on top of the MACE-JAX environment.
+# Installing these lets acejax and mace_jax share one process and one GPU
+# context (verified -- see MACE_ENV.md).  They do not touch jax/jaxlib.
+# Pins match ~/si-ace/.venv so the two environments stay identical.
+equinox==0.13.8
+jaxtyping==0.3.11
+wadler-lindig==0.1.7
