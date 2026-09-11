@@ -921,6 +921,56 @@ strongest available like-for-like but says nothing about whether the *embedding*
 carries species information usefully), and the export path so these models reach
 `acejax`.
 
+#### MEASURED: multi-element accuracy, and a RETRACTION
+
+TiAl_tiny (33 configs, two elements), order 3, `QR(lambda=1e-3)` — BLR fails
+PosDef here, the dataset cannot determine the larger bases:
+
+| model | n_B | E RMSE | F RMSE | V RMSE |
+|---|---|---|---|---|
+| `ace1_model` deg 5 | 73 | 0.060 | **0.959** | 1.648 |
+| **embedding deg 6 (lossless widths)** | **77** | 0.124 | **2.009** | 4.175 |
+| `ace1_model` deg 6 | 123 | 0.036 | **0.765** | 1.217 |
+| embedding deg 7 | 118 | 0.102 | 1.829 | 3.849 |
+| embedding deg 8 | 177 | 0.075 | 1.724 | 3.296 |
+
+**At matched basis size (73 vs 77) the categorical encoding fits roughly 2x
+better on forces and energies.** The embedding does not catch up at 177
+functions, where it is still worse than categorical at 73.
+
+**RETRACTION: "lossless" does not mean "spans the same function space", and the
+earlier claim that this is a reparameterisation rather than an approximation was
+wrong.** At the same degree the embedded basis has n_B = 77 against the
+categorical 123 — strictly fewer functions, so strictly smaller span. The spike's
+rank result (`min(d, dim Sym^nu(R^S))`, full rank at `d = dim`) is a statement
+about the species tensor **at a fixed (nn,ll) block**. It does not survive
+contact with degree truncation, which in the categorical model couples the
+species index into `n` and so hands different species combinations different
+radial budgets. The 1.4-10x "lossless saving" is therefore a saving in basis
+size at matched construction, **not** a free lunch — and this measurement is what
+that costs.
+
+Three things it is NOT:
+
+- **Not conditioning.** Measured: categorical cond 5.6e8, embedded 1.2e7 — the
+  embedded bases are *better* conditioned, and all are full rank.
+- **Not ill-spread channels.** The truncated, normalised channel vectors have
+  species-space singular-value ratios of 1.14-1.26, i.e. well spread.
+- **Not the normalisation bug** fixed earlier; that is applied throughout here.
+
+**What this does and does not tell us.** S = 2 is the regime where the feature is
+*expected* to lose — the spike put the d=128 crossover at S≈6-7 for order 3, and
+TiAl cannot probe that. A fair test of the premise needs a dataset with 6+
+elements. So this is not evidence the idea fails; it is evidence that **the
+two-element case should not be used to sell it**, and that per-basis-function
+accuracy is materially worse there. Note also that the deliberately lossy
+`d_max = 2` (n_B = 50) fitted *better* than the lossless widths (F 1.63 vs 2.01),
+which suggests the per-order width allocation is not optimal on this system and
+is worth revisiting.
+
+Caveats: 33 configurations, one order, one degree sweep, one solver, one frozen
+embedding taken as the leading `d` channels of MACE-MP-0-small.
+
 #### Unverified
 
 Whether `acefit!` and the solvers are entirely indifferent to the widened basis
