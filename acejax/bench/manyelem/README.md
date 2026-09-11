@@ -37,7 +37,39 @@ embedding table's rows — **75 elements**. Picking elements outside that set gi
 failure and is not one. This cost a false "categorical is unbuildable at S=40"
 before it was caught.
 
-## Not done yet: GPU throughput
+## GPU throughput (moriarty, RTX A4500) — MEASURED, and it does not yet follow
+
+64-atom cell, energy+forces, f64, `ACE_NOFIT=1` models:
+
+| S | n_B | descriptor len | npz MB | ms/eval | atom-steps/s |
+|---|---|---|---|---|---|
+| 2 | 77 | 166 | 0.5 | 0.327 | 1.96e5 |
+| 10 | 364 | 3 700 | 21.1 | 1.656 | 3.87e4 |
+| 20 | 400 | 8 120 | 80.1 | 2.974 | 2.15e4 |
+
+**Throughput falls 9x from S=2 to S=20 even though `n_B` saturates (77 -> 400,
+and only 1.1x from S=10 to S=20).** So the basis-size saturation above does
+**not** currently translate into S-independent cost, and the many-element
+throughput claim is NOT demonstrated.
+
+The cause is the export, not the method. `rnl_spline_coefs` has shape
+`(NZ, NZ, 102, n_rnl)` — **O(S^2)** — and is 95% of every file: 896 MB of the
+936 MB at S=75. Timing tracks that table (npz 21 -> 80 MB, 3.8x) far better than
+it tracks `n_B` (1.1x), i.e. these evaluations are memory-bandwidth bound on it.
+
+**And with a frozen embedding that table is entirely redundant.** Since
+`R(n'k)l(r, Z1, Z2) = P_n'(r) * emb[Z2, k]`, the radial *shape* does not depend
+on the species pair: all `S^2` blocks are the same `n_rnl` splines scaled by
+embedding values. Storing one spline table plus the `(S, d)` embedding is O(1)
+in S — about 0.2 MB instead of 896 MB at S=75, a ~4500x reduction — and should
+restore near-S-independent evaluation.
+
+**That fix is the prerequisite for a meaningful many-element throughput number,
+and for the comparison against MACE.** Until it lands, these figures measure the
+exporter's redundancy rather than the method, and S=40/75 were not run at all:
+at 296 MB and 937 MB they would measure it even more thoroughly.
+
+## Superseded: earlier note that GPU throughput was not done
 
 The basis-size result above says what the model costs to *build*. The throughput
 comparison — embedded ACE at many elements against MACE through the same
