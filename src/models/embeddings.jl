@@ -130,3 +130,80 @@ function set_embedding_weights!(rbasis::LearnableRnlrzzBasis, ps,
    end
    return ps
 end
+
+
+"""
+   ace_embedding_model(; elements, order, totaldegree, embedding, d_max = nothing, ...)
+
+An ACE model whose species dependence enters through a **frozen** element
+embedding rather than a categorical index.
+
+The channel is folded into the radial index, `n = (n'-1)*d + k`, so the radial
+basis is `d` copies of the single-channel one and `abasis` / `aabasis` / `A2B`
+are untouched.  The many-body spec is **channel-diagonal** — all `ν` factors of a
+product share one `k` — because full channel mixing would reintroduce `d^ν`,
+which is the same combinatorial wall in a new variable.
+
+Widths are per correlation order, `d_ν = min(d_max, C(S+ν-1, ν))`.  With
+`d_max = nothing` every order gets its full species-tensor dimension, which is
+**lossless**: a reparameterisation of the categorical basis, measured 1.4-10x
+smaller (see docs/findings/FINDINGS_embedding_spike.md).
+
+`embedding` is an `ElementEmbedding`; it is frozen, so the model stays linear in
+its coefficients and `acefit!` applies unchanged.
+"""
+function ace_embedding_model(; elements, order, totaldegree,
+                               embedding::ElementEmbedding,
+                               d_max = nothing,
+                               wL = 1.5, maxl = nothing, Ytype = :solid,
+                               rcut = nothing, E0s = nothing, ZBL = false,
+                               pair_maxn = nothing,
+                               rng = Random.default_rng())
+   zlist = _convert_zlist(elements)
+   S = length(zlist)
+   widths = embedding_widths(S, order; d_max = d_max)
+   d = maximum(widths)
+   emb = embedding_rows(embedding, [Int(z) for z in zlist]; d = d)
+
+   # single-channel one-particle spec, then widened by d
+   level1 = TotalDegree(1.0, 1 / wL)
+   r1 = oneparticle_spec(level1, totaldegree)
+   maxl === nothing || (r1 = [b for b in r1 if b.l <= maxl])
+   rspec = [ (n = (b.n - 1) * d + k, l = b.l) for b in r1 for k = 1:d ]
+
+   rin0cuts = _default_rin0cuts(zlist)
+   rcut === nothing ||
+      (rin0cuts = (x -> (rin = x.rin, r0 = x.r0, rcut = rcut)).(rin0cuts))
+
+   rbasis = ace_learnable_Rnlrzz(; elements = zlist, spec = rspec,
+                                   rin0cuts = rin0cuts, Winit = :glorot_normal)
+
+   # channel-diagonal many-body spec: every factor of a product shares one k,
+   # and order ν only draws on its own d_ν channels
+   AA1 = sparse_AA_spec(; order = order, r_spec = r1,
+                          level = level1, max_level = totaldegree)
+   AA_spec = [ [ (n = (b.n - 1) * d + k, l = b.l, m = b.m) for b in bb ]
+               for bb in AA1 for k = 1:widths[length(bb)] ]
+   # sparse_equivariant_tensor mis-couples a spec that is not grouped by
+   # correlation order; see N1 in FINDINGS_embedding_spike.md
+   AA_spec = sort(AA_spec, by = length)
+
+   pmaxn = pair_maxn === nothing ? totaldegree : pair_maxn
+   pair_basis = ace_learnable_Rnlrzz(; elements = zlist, level = TotalDegree(),
+                     max_level = pmaxn, maxl = 0, maxn = pmaxn,
+                     rin0cuts = rbasis.rin0cuts,
+                     transforms = (:agnesi, 1, 4), envelopes = :poly1sr)
+   pair_basis.meta["Winit"] = "onehot"
+   pair_basis = splinify(pair_basis, initialparameters(rng, pair_basis))
+
+   rcut_max = maximum([x.rcut for x in rin0cuts])
+   Vref = _make_Vref(zlist, E0s, ZBL, rcut_max)
+   raw = ace_model(rbasis, Ytype, AA_spec, level1, pair_basis, Vref)
+   raw.meta["init_WB"] = "zeros"
+   raw.meta["embedding"] = Dict("d_max" => d, "widths" => widths,
+                                "provenance" => embedding.meta)
+
+   ps, st = LuxCore.setup(rng, raw)
+   set_embedding_weights!(rbasis, ps.rbasis, emb)      # frozen
+   return ACEPotential(raw, ps, st)
+end

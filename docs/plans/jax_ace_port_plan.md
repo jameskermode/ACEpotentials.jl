@@ -860,11 +860,40 @@ second check exercises the defining property without touching any internal basis
 API — scaling one embedding row by `c` scales exactly that species' `Rnl` by `c`
 and leaves the others untouched.
 
-Still to build: the spec construction with per-order widths, the
-`ace_embedding_model` constructor, and the splining path for `ace1`-style
-models. The equivariance, losslessness-by-measured-rank and `acefit!` gates are
-therefore **not yet met** — the pieces under them are in place, the model
-assembly is not.
+`ace_embedding_model` now builds, and **three of the four gates are met**:
+
+| gate | result |
+|---|---|
+| construction | `n_B = 392`, widths `[3,6,10]` at S=3, order 3, degree 8 — matches the standalone per-order calculation exactly |
+| rotation + permutation invariance | both < 1e-12 relative |
+| **losslessness, measured** | design matrix (1200 x 2400), numerical rank **1200 of 1200** — full rank, not merely predicted by the deficiency formula |
+| `acefit!` runs | yes, on Si_tiny |
+
+**But the accuracy gate is NOT met, and the first look is unfavourable.** At
+S = 1 (where the embedding model reduces to a single-channel model and both have
+`n_B = 54`), against `ace1_model` on the same 20 configurations:
+
+| | n_B | E RMSE | F RMSE |
+|---|---|---|---|
+| `ace_embedding_model` | 54 | 35.47 | **23.88** |
+| `ace1_model` | 54 | 35.45 | **1.47** |
+
+Energies agree; **forces are ~16x worse.** The most likely cause is not the
+embedding at all — at S=1 it contributes a single scalar factor — but that the
+constructor picks different radial heuristics from `ace1_model`: its own
+`agnesi_transform(...,2,2)` / `:poly2sx` envelope / `_default_rin0cuts`, and no
+splining, where `ace1_model` splines and uses the ACE1-compatible transform and
+envelope. So this is most likely a *like-for-like* problem rather than evidence
+against the construction. **It must be resolved before any accuracy claim**, and
+until it is, the cost results above say nothing about fit quality.
+
+Also fixed while finding this: `compute_errors` must be given the same keys as
+`acefit!`. With the defaults it finds no reference data in `Si_tiny` (whose keys
+are `dft_*`) and returns **0.0 for every observable** — the first version of this
+gate asserted `isfinite(0.0)` and passed while measuring nothing.
+
+Still to build: the splining path for `ace1`-style embedded models, and matching
+the radial heuristics so the accuracy comparison is like-for-like.
 
 #### Unverified
 

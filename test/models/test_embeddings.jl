@@ -3,7 +3,7 @@
 # which is `set_onehot_weights!`'s construction with the one-hot δ replaced by a
 # frozen embedding row.  See src/models/embeddings.jl.
 
-using ACEpotentials, Test, LinearAlgebra, Random, JSON
+using ACEpotentials, Test, LinearAlgebra, Random, JSON, StaticArrays, ACEfit
 M = ACEpotentials.Models
 
 # local, so the file runs in any environment that can load ACEpotentials
@@ -103,3 +103,69 @@ println()
 psC = deepcopy(model.ps); M.set_embedding_weights!(rbasis, psC.rbasis, emb)
 println_slim(@test all(psC.rbasis.Wnlq[:, :, 1, j] == psC.rbasis.Wnlq[:, :, 2, j]
                        for j = 1:NZ))
+
+##
+
+@info("ace_embedding_model: construction, equivariance, rank, and a fit")
+
+const EMB_JSON = get(ENV, "ACE_EMBEDDING_JSON", "")
+if isempty(EMB_JSON) || !isfile(EMB_JSON)
+   @warn("set ACE_EMBEDDING_JSON to a frozen embedding artefact to run these; " *
+         "see scripts/extract_mace_embedding.py")
+else
+   emb_real = M.read_mace_embedding(EMB_JSON)
+
+   # n_B must match the standalone per-order calculation (scripts/spike_perorder_widths.jl)
+   mdl = M.ace_embedding_model(elements = (:Si, :C, :O), order = 3,
+                               totaldegree = 8, embedding = emb_real)
+   println_slim(@test size(mdl.ps.WB, 1) == 392)
+   println_slim(@test mdl.model.meta["embedding"]["widths"] == [3, 6, 10])
+
+   # --- equivariance: the site energy is invariant under rotation and permutation
+   rng = MersenneTwister(11)
+   Zs0 = [14, 6, 8]
+   Nnb = 14
+   Rs = [ (rand(rng) * 3.0 + 1.2) * normalize(randn(rng, SVector{3, Float64}))
+          for _ = 1:Nnb ]
+   Zs = [ Zs0[mod1(i, 3)] for i = 1:Nnb ]
+   z0 = 14
+   E = M.evaluate(mdl.model, Rs, Zs, z0, mdl.ps, mdl.st)
+
+   A = randn(rng, 3, 3); Q = Matrix(qr(A).Q); Q = Q * det(Q)     # proper rotation
+   EQ = M.evaluate(mdl.model, [SVector{3}(Q * r) for r in Rs], Zs, z0, mdl.ps, mdl.st)
+   println_slim(@test abs(E - EQ) < 1e-12 * max(abs(E), 1.0))
+
+   p = shuffle(rng, 1:Nnb)
+   EP = M.evaluate(mdl.model, Rs[p], Zs[p], z0, mdl.ps, mdl.st)
+   println_slim(@test abs(E - EP) < 1e-12 * max(abs(E), 1.0))
+
+   # --- losslessness: with d_nu = dim_nu the design matrix has full column rank
+   # the basis is (n_B per centre species) + pair terms, so sample generously:
+   # fewer columns than rows can only ever report rank = #columns
+   sample() = M.evaluate_basis(mdl.model,
+                 [ (rand(rng)*3.0 + 1.2) * normalize(randn(rng, SVector{3,Float64}))
+                   for _ = 1:Nnb ],
+                 [ Zs0[mod1(i,3)] for i = 1:Nnb ], Zs0[rand(rng, 1:3)],
+                 mdl.ps, mdl.st)
+   len_basis = length(sample())
+   B = reduce(hcat, [ sample() for _ = 1:2*len_basis ])
+   r = rank(B; rtol = 1e-12)
+   @info("  design matrix $(size(B)), numerical rank $r of $(size(B,1))")
+   println_slim(@test r == size(B, 1))
+
+   # --- it fits: acefit! on a single-element embedding model
+   m1 = M.ace_embedding_model(elements = (:Si,), order = 3, totaldegree = 8,
+                              embedding = emb_real)
+   data = ACEpotentials.example_dataset("Si_tiny").train[1:20]
+   # NOTE: compute_errors must be given the SAME keys as acefit!.  With the
+   # defaults it finds no reference data in Si_tiny (whose keys are dft_*) and
+   # reports 0.0 for every observable -- a gate that passes while measuring
+   # nothing.  Assert the errors are positive as well as finite.
+   kw = (energy_key = "dft_energy", force_key = "dft_force",
+         virial_key = "dft_virial")
+   acefit!(data, m1; kw..., solver = ACEfit.BLR(), verbose = false)
+   rmse = ACEpotentials.compute_errors(data, m1; kw..., verbose = false)["rmse"]["set"]
+   @info("  single-element embedding: n_B = $(size(m1.ps.WB,1)), " *
+         "E = $(rmse["E"]), F = $(rmse["F"])")
+   println_slim(@test all(isfinite(v) && v > 0 for v in values(rmse)))
+end
