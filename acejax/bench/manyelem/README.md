@@ -113,6 +113,17 @@ cancel rather than being estimated. (A first attempt at 33 frames gave a
 | ACE S=75, kernel + per-frame Python neighbour list | 75.6 ms | 8.5e2 |
 | MACE-MP-0 small, `mace_jax` CLI end-to-end | 16.9 ms | 3.79e3 |
 
+> **SUSPECT — the backend was not recorded, and it probably explains everything
+> below.** The ACE runs used `/storage/eng/essswb/macejax-gpu/venv`, whose
+> lockfile was frozen from the Phase 13 venv plus CUDA pins. There is no reason
+> for it to contain `matscipy-neighbours` **or** `matscipy`, and without either
+> `acejax.nlist` silently falls back to a **pure-numpy O(N^2)-per-image-shell**
+> list (`_fallback_neighbour_list`). 63-74 ms for 64 atoms is exactly what that
+> fallback would cost. `acejax.nlist.backend()` reports which is in use and
+> **was not called** — that is the check this should have carried from the
+> start. Re-run with `matscipy-neighbours` installed before believing any
+> neighbour-list number here.
+
 **The comparison as run is dominated by neighbour-list construction on our side,
 not by the potential.** Roughly 63-74 ms of each ACE frame is
 `sparse_graph` on the CPU plus the host-to-device transfer, against a 2 ms
@@ -130,9 +141,10 @@ were measured that way. But it does mean:
 2. **A like-for-like run needs the neighbour list excluded on both sides** (or
    made fast on ours). The cleanest route is the one Phase 13 already used: both
    models through `pair_style jax/kk`, with LAMMPS supplying the list.
-3. Separately, **the per-frame Python neighbour-list cost is worth attention in
-   its own right** for any Python-driven loop — which is exactly what the Phase
-   11 MD spike does.
+3. Separately, **the per-frame neighbour-list cost is worth attention in its own
+   right** for any Python-driven loop — which is exactly what the Phase 11 MD
+   spike does. But see the warning above: this may be measuring the numpy
+   fallback rather than the shipped path.
 
 Environment: `/storage/eng/essswb/macejax-gpu/` (recipe in `macejax/`), MACE
 bundle from `/storage/eng/essswb/phase13/mace-mp-0-small-jax` — the bundle the
