@@ -49,9 +49,20 @@ def time_ace(npz, frames, tag):
     from acejax.nlist import sparse_graph
     model, meta, z = load(npz)
     rcut = float(meta["rcut"])
+    from acejax.nlist import backend
+    print(f"  neighbour-list backend: {backend()}")
     i2z = list(np.asarray(z["elements"]).ravel()); lut = {int(v): i for i, v in enumerate(i2z)}
+    # PAD to a fixed edge capacity.  Without this the edge count varies frame to
+    # frame, every frame is a new shape, and jax retraces on every single one --
+    # which is what a first version of this benchmark actually measured.  Fixed
+    # capacity is the whole reason the export contract uses it.
+    cap = int(max(len(sparse_graph(a.get_positions(), a.get_cell().array,
+                                   a.get_pbc(), rcut).senders)
+                  for a in frames[:16]) * 1.2) + 16
+    print(f"  edge capacity: {cap}")
     def ev(at):
-        g = sparse_graph(at.get_positions(), at.get_cell().array, at.get_pbc(), rcut)
+        g = sparse_graph(at.get_positions(), at.get_cell().array, at.get_pbc(),
+                         rcut, pad_to=cap)
         send = jnp.asarray(g.senders, jnp.int32); recv = jnp.asarray(g.receivers, jnp.int32)
         nz = jnp.asarray([lut[int(a)] for a in at.get_atomic_numbers()], jnp.int32)
         return jnp.asarray(g.rij), send, recv, nz, len(at)

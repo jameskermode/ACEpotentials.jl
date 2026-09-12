@@ -78,40 +78,25 @@ def backend():
 
 
 def _fallback_neighbour_list(positions, cell, pbc, cutoff):
-    """Pure-numpy periodic neighbour list: O(N^2) per image shell.
+    """Fallback periodic neighbour list, via ASE's linear-scaling cell list.
 
-    matscipy-neighbours is not on PyPI, so it cannot be a hard dependency; this
-    keeps `pip install acejax` self-sufficient.  It is correct but quadratic --
-    fine to a few thousand atoms, and the tests check the two agree.  Install
-    the extra for anything larger:
+    `matscipy-neighbours` is not on PyPI so it cannot be a hard dependency, and
+    `matscipy` is optional too -- this keeps `pip install acejax` self-sufficient.
+    ASE is already a dependency, its `neighbor_list` is O(N) rather than the
+    O(N^2)-per-image-shell loop this replaces, and it needs no compiler.  The
+    tests check all available backends agree.
 
-        pip install git+https://github.com/libAtoms/matscipy-neighbours
+    Returns matscipy's convention: (i, j, D, S) sorted by i, with
+    D = r_j + S @ cell - r_i.
     """
-    import itertools
-    n = len(positions)
-    cell = np.asarray(cell, float)
-    pbc = np.broadcast_to(pbc, 3)
-    widths = np.array([np.linalg.norm(cell[k]) if pbc[k] else np.inf for k in range(3)])
-    reps = [0 if not pbc[k] else int(np.ceil(cutoff / max(widths[k], 1e-12)))
-            for k in range(3)]
-    ii, jj, DD, SS = [], [], [], []
-    for sh in itertools.product(*[range(-r, r + 1) for r in reps]):
-        shift = np.asarray(sh, float) @ cell
-        d = (positions[None, :, :] + shift) - positions[:, None, :]
-        r = np.linalg.norm(d, axis=-1)
-        keep = (r < cutoff) & (r > 1e-10)
-        a, b = np.where(keep)
-        if not len(a):
-            continue
-        ii.append(a); jj.append(b); DD.append(d[a, b])
-        SS.append(np.tile(np.asarray(sh, float), (len(a), 1)))
-    if not ii:
-        z = np.zeros((0,), int)
-        return z, z, np.zeros((0, 3)), np.zeros((0, 3))
-    ii = np.concatenate(ii); jj = np.concatenate(jj)
-    DD = np.concatenate(DD); SS = np.concatenate(SS)
-    o = np.argsort(ii, kind="stable")      # sorted by i, as matscipy returns
-    return ii[o], jj[o], DD[o], SS[o]
+    from ase import Atoms
+    from ase.neighborlist import neighbor_list
+    at = Atoms(numbers=np.ones(len(positions), int), positions=np.asarray(positions, float),
+               cell=np.asarray(cell, float), pbc=np.broadcast_to(pbc, 3))
+    i, j, D, S = neighbor_list("ijDS", at, float(cutoff))
+    o = np.argsort(i, kind="stable")       # sorted by i, as matscipy returns
+    return (np.asarray(i)[o].astype(int), np.asarray(j)[o].astype(int),
+            np.asarray(D, float)[o], np.asarray(S, float)[o])
 
 
 def _neighbour_list(positions, cell, pbc, cutoff, force_backend=None):

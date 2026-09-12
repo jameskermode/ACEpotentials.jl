@@ -113,38 +113,31 @@ cancel rather than being estimated. (A first attempt at 33 frames gave a
 | ACE S=75, kernel + per-frame Python neighbour list | 75.6 ms | 8.5e2 |
 | MACE-MP-0 small, `mace_jax` CLI end-to-end | 16.9 ms | 3.79e3 |
 
-> **SUSPECT — the backend was not recorded, and it probably explains everything
-> below.** The ACE runs used `/storage/eng/essswb/macejax-gpu/venv`, whose
-> lockfile was frozen from the Phase 13 venv plus CUDA pins. There is no reason
-> for it to contain `matscipy-neighbours` **or** `matscipy`, and without either
-> `acejax.nlist` silently falls back to a **pure-numpy O(N^2)-per-image-shell**
-> list (`_fallback_neighbour_list`). 63-74 ms for 64 atoms is exactly what that
-> fallback would cost. `acejax.nlist.backend()` reports which is in use and
-> **was not called** — that is the check this should have carried from the
-> start. Re-run with `matscipy-neighbours` installed before believing any
-> neighbour-list number here.
+### CORRECTED
 
-**The comparison as run is dominated by neighbour-list construction on our side,
-not by the potential.** Roughly 63-74 ms of each ACE frame is
-`sparse_graph` on the CPU plus the host-to-device transfer, against a 2 ms
-kernel — a 30x overhead. So the bottom three rows compare neighbour-list
-handling, and only the first row says anything about the model.
+The first version of this benchmark did not pad the edge list. Edge counts vary
+frame to frame, so **every frame was a new shape and jax retraced on every one**
+— the numbers below measured recompilation, not evaluation. Padding to a fixed
+capacity, which is the whole reason the export contract uses one, cuts the ACE
+per-frame cost by ~4x:
 
-This is not a new defect; it is the reason the LAMMPS route exists at all —
-`pair_style jax/kk` has LAMMPS supply the neighbour list, and Phase 13's numbers
-were measured that way. But it does mean:
+| what | per frame | atom-steps/s |
+|---|---|---|
+| ACE S=20, padded, matscipy nlist | **18.1 ms** | 3.54e3 |
+| ACE S=75, padded, matscipy nlist | **17.3 ms** | 3.71e3 |
+| MACE-MP-0 small, CLI end-to-end | 16.9 ms | 3.79e3 |
+| *(unpadded, retracing every frame)* | *64-76 ms* | *~9e2* |
+| ACE S=75, kernel only, edge list supplied | 1.99 ms | 3.21e4 |
 
-1. **No model-vs-model conclusion can be drawn from these numbers.** ACE's kernel
-   is 1.99 ms against MACE's *end-to-end* 16.9 ms, and MACE's own kernel is
-   faster than 16.9 ms by however much its neighbour list costs — which was not
-   isolated. Quoting 1.99 vs 16.9 as a model comparison would be wrong.
-2. **A like-for-like run needs the neighbour list excluded on both sides** (or
-   made fast on ours). The cleanest route is the one Phase 13 already used: both
-   models through `pair_style jax/kk`, with LAMMPS supplying the list.
-3. Separately, **the per-frame neighbour-list cost is worth attention in its own
-   right** for any Python-driven loop — which is exactly what the Phase 11 MD
-   spike does. But see the warning above: this may be measuring the numpy
-   fallback rather than the shipped path.
+**ACE and MACE are level on this workload** — 17.3 ms against 16.9 ms for a
+64-atom, 64-element cell, both end-to-end including their own neighbour lists.
+ACE's kernel is 1.99 ms of its 17.3, so the remaining ~15 ms is neighbour list,
+host-to-device transfer and Python overhead; MACE's split was not isolated.
+
+A hypothesis that the numpy fallback was to blame is **refuted**:
+`acejax.nlist.backend()` reports `matscipy` in that venv. The cost was
+retracing, not the neighbour list. (`backend()` is now printed by the harness —
+not recording it is what let the wrong explanation stand.)
 
 Environment: `/storage/eng/essswb/macejax-gpu/` (recipe in `macejax/`), MACE
 bundle from `/storage/eng/essswb/phase13/mace-mp-0-small-jax` — the bundle the
