@@ -96,3 +96,45 @@ ACE_ELEMENTS=<...> ACE_ORDER=3 ACE_TOTALDEGREE=6 ACE_NOFIT=1 \
 ACE_EMBEDDING=<embedding.json> ACE_DMAX=16 \
 julia --project=acejax/julia acejax/julia/export_model.jl out.npz embedding
 ```
+
+
+## Head-to-head against MACE — what it actually measured
+
+moriarty, RTX A4500, 64-atom cell with 64 distinct elements, f64. Timed **by
+difference**, `t(1000 frames) - t(1 frame)`, so compile, model load and file I/O
+cancel rather than being estimated. (A first attempt at 33 frames gave a
+*negative* per-frame time — the ~38 s fixed cost swamped the variable part.
+1000 frames puts the variable part above the noise.)
+
+| what | per frame | atom-steps/s |
+|---|---|---|
+| ACE S=75, **kernel only** (edge list supplied) | **1.99 ms** | 3.21e4 |
+| ACE S=20, kernel + per-frame Python neighbour list | 64.5 ms | 9.9e2 |
+| ACE S=75, kernel + per-frame Python neighbour list | 75.6 ms | 8.5e2 |
+| MACE-MP-0 small, `mace_jax` CLI end-to-end | 16.9 ms | 3.79e3 |
+
+**The comparison as run is dominated by neighbour-list construction on our side,
+not by the potential.** Roughly 63-74 ms of each ACE frame is
+`sparse_graph` on the CPU plus the host-to-device transfer, against a 2 ms
+kernel — a 30x overhead. So the bottom three rows compare neighbour-list
+handling, and only the first row says anything about the model.
+
+This is not a new defect; it is the reason the LAMMPS route exists at all —
+`pair_style jax/kk` has LAMMPS supply the neighbour list, and Phase 13's numbers
+were measured that way. But it does mean:
+
+1. **No model-vs-model conclusion can be drawn from these numbers.** ACE's kernel
+   is 1.99 ms against MACE's *end-to-end* 16.9 ms, and MACE's own kernel is
+   faster than 16.9 ms by however much its neighbour list costs — which was not
+   isolated. Quoting 1.99 vs 16.9 as a model comparison would be wrong.
+2. **A like-for-like run needs the neighbour list excluded on both sides** (or
+   made fast on ours). The cleanest route is the one Phase 13 already used: both
+   models through `pair_style jax/kk`, with LAMMPS supplying the list.
+3. Separately, **the per-frame Python neighbour-list cost is worth attention in
+   its own right** for any Python-driven loop — which is exactly what the Phase
+   11 MD spike does.
+
+Environment: `/storage/eng/essswb/macejax-gpu/` (recipe in `macejax/`), MACE
+bundle from `/storage/eng/essswb/phase13/mace-mp-0-small-jax` — the bundle the
+new recipe wrote lacks `config.json` and the CLI cannot load it, so Phase 13's
+complete bundle was reused.
