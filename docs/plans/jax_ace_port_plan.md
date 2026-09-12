@@ -1063,10 +1063,47 @@ Parameters are `n_B x NZ` — the basis saturates in S but the readout does not:
 | 75 | 400 | 30 000 | ~150 000 | **~36 GB** |
 
 A 64-atom structure yields ~199 observations (1 energy, 192 force components, 6
-virial). **So S=10 and S=20 are fittable with ACEfit's in-memory assembly and
-S=75 is not** — it needs the blocked/streaming assembly of Stage 2A phase 18.
-That is the concrete form of "streaming assembly is load-bearing for
-distillation", and it means the first experiment runs at **S=10 and S=20**.
+virial). So S=10 and S=20 are fittable with ACEfit's in-memory assembly and S=75
+is not — it needs the blocked/streaming assembly of Stage 2A phase 18. That is
+the concrete form of "streaming assembly is load-bearing for distillation".
+
+#### But the first experiment should be S=5, and that changes its character
+
+The real near-term use case is a **five-component alloy**, not ten or twenty
+elements. That is worth taking seriously rather than treating as a smaller
+version of the same test, because at S=5 the argument for the embedding is
+different:
+
+| S=5, order 3, degree 6 | n_B | parameters |
+|---|---|---|
+| categorical | 1 348 | 6 740 |
+| embedded, lossless `d_nu = [5, 15, 35]` | ~1 190* | ~5 950 |
+| embedded, capped `d <= 16` | 323 | 1 615 |
+
+*measured at degree 8 in the order scan; the degree-6 value is not yet measured.
+
+**At S=5 the categorical model is entirely buildable and fittable**, so the
+embedding is an *optimisation*, not an enabler. The question stops being "can
+this model exist" and becomes "is roughly 4x fewer basis functions worth any
+accuracy cost" — which is a much more demanding bar, and the right one for a
+real use case.
+
+**And S=5 admits a lossless run.** `d_nu = [5, 15, 35]` gives every correlation
+order its full species-tensor dimension, so the reduction is exact and the
+incompleteness question does not arise at all — while still being ~3x smaller
+than categorical. That makes the experiment cleanly three-way:
+
+1. categorical `ace1_model` — the reference;
+2. embedded **lossless** — is the exact reparameterisation as accurate? It must
+   be, or something is wrong in the construction rather than in the idea;
+3. embedded **capped** (`d_max` 8 and 16) — what does truncation actually cost?
+
+(2) is a strong correctness check as much as an accuracy one: a lossless
+reduction that fits worse than categorical would indicate a conditioning or
+regularisation problem, not a modelling limit.
+
+It is also far cheaper: ~6 700 parameters needs ~35 000 observations, about
+**180 structures** — seconds of teacher time and an in-memory fit.
 
 #### Steps
 
@@ -1082,8 +1119,10 @@ distillation", and it means the first experiment runs at **S=10 and S=20**.
    Never one shared `lambda`: that error made a 16-20% gap look like 2x.
 4. **Test** on held-out structures: student-vs-teacher energy and force RMSE,
    for embedded and categorical at matched n_B.
-5. **Also test what only the embedding can do**: S beyond where the categorical
-   basis is buildable. Cost is already known to be flat there; accuracy is not.
+5. **Then, separately**, test what only the embedding can do: S beyond where the
+   categorical basis is buildable. Cost is already known to be flat there;
+   accuracy is not. This is the S=10/20 experiment, and it is only worth running
+   once S=5 says the trade is sound.
 
 #### What would count as success, decided in advance
 
