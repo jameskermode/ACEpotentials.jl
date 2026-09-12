@@ -1105,6 +1105,13 @@ regularisation problem, not a modelling limit.
 It is also far cheaper: ~6 700 parameters needs ~35 000 observations, about
 **180 structures** — seconds of teacher time and an in-memory fit.
 
+**Target system: CrMnFeCoNi** (Cantor alloy). It builds — n_B 323 capped at
+d<=16, 475 with lossless widths [5, 15, 35]. One wrinkle handled: **Mn (Z=25) has
+no tabulated bond length**, which threw `UndefVarError: rnn` from
+`_default_rin0cuts`. Under `uniform_cutoffs` the per-element lengths are only
+used to pick one average, so `ace_embedding_model` now averages over the
+elements that have one and reports which it skipped.
+
 #### Steps
 
 1. **Structures.** The hard part, and the part that decides whether any of this
@@ -1139,9 +1146,20 @@ It is also far cheaper: ~6 700 parameters needs ~35 000 observations, about
 
 - **Garbage-in.** Random element assignment produces chemistry no teacher has
   seen. This is the most likely way to get a confident, meaningless answer.
-- **`uniform_cutoffs = true`** is a default introduced for scaling and never
-  measured against per-pair cutoffs. Measure it at S=2 on TiAl, where real data
-  exists, **before** trusting distilled results at larger S.
+- ~~**`uniform_cutoffs = true`** is an unmeasured default.~~ **Checked, and it
+  is a no-op for both available test systems** — which is itself the finding.
+  On TiAl_tiny, uniform and per-pair cutoffs give *identical* held-out errors
+  (F 0.6375, E 0.3195, same lambda), because `bond_len(Ti) == bond_len(Al) ==
+  2.9 A`, so the per-pair table has one distinct entry and there is nothing to
+  make uniform. The same holds for the target alloy: `bond_len` is **2.5 A for
+  Cr, Fe, Co and Ni alike**, and Mn has none. So the modelling trade this flag
+  represents **does not arise for CrMnFeCoNi**, and the distillation experiment
+  is not exposed to it.
+
+  Where it *would* bite is a chemically diverse set — Si (2.4) with C (1.4), or
+  H (1.2) with W (2.8). Testing it there needs data for such a system, which is
+  a follow-up, not a blocker. Note the identical numbers are what exposed the
+  test as vacuous: a check that cannot fail is worth no more than one not run.
 - **Incompleteness.** Tensor reduction is known to break the
   positions-to-descriptor bijection (arXiv:2210.01705 and Ortner's later work).
   RMSE on a distilled set will not reveal degenerate pairs; the degeneracy probe
