@@ -76,9 +76,10 @@ on a 32-atom, 5-element structure and allocates 20-60 MB instead of
     `executor = SequentialEx()` gives the serial path.  The chunked result
     differs from the serial one only by floating-point summation order
     (tested to 1e-12 relative); on ACEfit workers (1 thread) it is serial.
-  - `domain` is now honoured correctly when it is not `1:length(at)` (the
-    old code indexed `get_neighbours(at, V, nlist, i)` with the virial
-    array as the potential, harmless but a latent bug).
+  - The old loop called `get_neighbours(at, V, nlist, i)` with the virial
+    array `V` in place of the potential (harmless, only used for `get_id`
+    dispatch, but a latent bug and one of the sources of `z0::Any`); the
+    new code passes `calc`.
 
 ### `src/models/ace.jl`
 
