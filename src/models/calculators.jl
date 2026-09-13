@@ -344,17 +344,14 @@ function _efv_basis_chunk(at, calc::ACEPotential{<: ACEModel}, ps, st,
    E = zeros(T, nB)
    F = zeros(SVector{3, T}, length(at), nB)
    V = zeros(SMatrix{3, 3, T, 9}, nB)
-   if ws === nothing
-      # a workspace sized for the largest neighbourhood in this chunk
-      maxneigh = 0
-      for ii in sub
-         maxneigh = max(maxneigh, length(get_neighbours(at, calc, nlist, domain[ii])[1]))
-      end
-      ws = BasisEDWorkspace(model, max(maxneigh, 1); T = T)
-   end
    for ii in sub
       i = domain[ii]
       Js, Rs, Zs, z0 = get_neighbours(at, calc, nlist, i)
+      if ws === nothing
+         # sized for the first site; grows (by doubling) if a later site
+         # has more neighbours
+         ws = BasisEDWorkspace(model, max(length(Rs), 1); T = T)
+      end
       _efv_basis_site!(E, F, V, ws, model, Js, Rs, Zs, z0, ps, st, i)
    end
    return E, F, V
