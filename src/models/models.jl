@@ -39,6 +39,7 @@ include("Rnl_splines.jl")
 
 include("ace_heuristics.jl") 
 include("ace.jl")
+include("basis_ed.jl")
 
 include("calculators.jl")
 include("committee.jl")

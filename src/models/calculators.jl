@@ -285,40 +285,134 @@ energy_forces_virial_basis(at, calc::ACEPotential{<: ACEModel}) =
       energy_forces_virial_basis(at, calc, calc.ps, calc.st)
 
 
-function energy_forces_virial_basis(
-            at, calc::ACEPotential{<: ACEModel}, ps, st;
-            domain   = 1:length(at), 
-            executor = ThreadedEx(),
-            ntasks   = Threads.nthreads(),
-            nlist    = PairList(at, cutoff_radius(calc)), 
-            kwargs...
-            )
-   
-   Js, Rs, Zs, z0 = get_neighbours(at, calc, nlist, 1)            
-   E1 = evaluate_basis(calc.model, Rs, Zs, z0, ps, st)
-   N_basis = length(E1)
+# Site loop for the basis design matrix.  This is a function barrier:
+# `get_neighbours` returns `Zs`, `z0` as `Any`, so the per-site work is done
+# in a separate function that is specialised on their runtime types.  All
+# accumulation is done on unit-less arrays; units are attached once at the
+# end by the caller.
+function _efv_basis_site!(E::Vector{T}, F::Matrix{SVector{3, T}},
+                          V::Vector{SMatrix{3, 3, T, 9}},
+                          ws::BasisEDWorkspace{T}, model::ACEModel,
+                          Js::AbstractVector{<: Integer},
+                          Rs::AbstractVector{SVector{3, T}}, Zs, z0,
+                          ps, st, i::Integer) where {T}
+   n = length(Rs)
+   n == 0 && return nothing
+   evaluate_basis_ed!(ws, model, Rs, Zs, z0, ps, st)
 
-   _e0 = AtomsCalculators.zero_energy(at, calc)
-   T = typeof(ustrip(_e0))
-   E = fill(zero(T) * energy_unit(calc), N_basis)
-   F = fill(zero(SVector{3, T}) * force_unit(calc), length(at), N_basis)
-   V = fill(zero(SMatrix{3, 3, T}) * energy_unit(calc), N_basis)
+   # many-body block
+   @inbounds for (kk, k) in enumerate(get_basis_inds(model, z0))
+      E[k] += ws.Bi[kk]
+      fi = zero(SVector{3, T})
+      vk = zero(SMatrix{3, 3, T, 9})
+      for α = 1:n
+         d = ws.∂Bi[α, kk]
+         F[Js[α], k] -= d
+         fi += d
+         vk -= d * Rs[α]'
+      end
+      F[i, k] += fi
+      V[k] += vk
+   end
 
-   for i in domain
-      Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
-      v, dv = evaluate_basis_ed(calc.model, Rs, Zs, z0, ps, st)
-
-      for k = 1:N_basis
-         E[k] += v[k] * energy_unit(calc) 
-         for α = 1:length(Js) 
-            F[Js[α], k] -= dv[k, α] * force_unit(calc)
-            F[i, k]     += dv[k, α] * force_unit(calc)
+   # pair block
+   if model.pairbasis !== nothing
+      @inbounds for (kk, k) in enumerate(get_pairbasis_inds(model, z0))
+         e = zero(T)
+         fi = zero(SVector{3, T})
+         vk = zero(SMatrix{3, 3, T, 9})
+         for α = 1:n
+            e += ws.Rpair[α, kk]
+            d = ws.dRpair[α, kk] * ws.∇rs[α]
+            F[Js[α], k] -= d
+            fi += d
+            vk -= d * Rs[α]'
          end
-         V[k] += _site_virial(dv[k, :], Rs) * energy_unit(calc)
+         E[k] += e
+         F[i, k] += fi
+         V[k] += vk
       end
    end
-         
-   return (energy = E, forces = F, virial = V)
+   return nothing
+end
+
+# accumulate the sites `domain[sub]` into fresh unit-less (E, F, V) arrays
+function _efv_basis_chunk(at, calc::ACEPotential{<: ACEModel}, ps, st,
+                          nlist, domain, sub, ::Type{T}, ws) where {T}
+   model = calc.model
+   nB = length_basis(model)
+   E = zeros(T, nB)
+   F = zeros(SVector{3, T}, length(at), nB)
+   V = zeros(SMatrix{3, 3, T, 9}, nB)
+   if ws === nothing
+      # a workspace sized for the largest neighbourhood in this chunk
+      maxneigh = 0
+      for ii in sub
+         maxneigh = max(maxneigh, length(get_neighbours(at, calc, nlist, domain[ii])[1]))
+      end
+      ws = BasisEDWorkspace(model, max(maxneigh, 1); T = T)
+   end
+   for ii in sub
+      i = domain[ii]
+      Js, Rs, Zs, z0 = get_neighbours(at, calc, nlist, i)
+      _efv_basis_site!(E, F, V, ws, model, Js, Rs, Zs, z0, ps, st, i)
+   end
+   return E, F, V
+end
+
+"""
+   energy_forces_virial_basis(at, calc::ACEPotential{<: ACEModel}, ps, st; kwargs...)
+
+Evaluate the basis of the linear model on the structure `at`: returns a
+named tuple `(energy, forces, virial)` where `energy[k]`, `forces[:, k]`,
+`virial[k]` are the total energy, forces and virial of basis function `k`
+(with units).  `dot(energy, θ)` etc. reproduce `energy_forces_virial` for
+linear parameters `θ = get_basis_params(model, ps)` (up to the one-body
+reference energy).
+
+Keyword arguments: `domain` (sites to include), `nlist`, `ntasks`
+(number of chunks the sites are split into; each chunk is evaluated on its
+own task when `ntasks > 1` and `executor` is not `SequentialEx`), and `ws`
+(a `BasisEDWorkspace` to reuse across calls; only used on the serial path).
+"""
+function energy_forces_virial_basis(
+            at, calc::ACEPotential{<: ACEModel}, ps, st;
+            domain   = 1:length(at),
+            executor = ThreadedEx(),
+            ntasks   = Threads.nthreads(),
+            nlist    = PairList(at, cutoff_radius(calc)),
+            ws       = nothing,
+            kwargs...
+            )
+
+   T = typeof(ustrip(AtomsCalculators.zero_energy(at, calc)))
+   domain = collect(domain)
+
+   nchunks = (executor isa SequentialEx) ? 1 : min(ntasks, max(length(domain), 1))
+   if nchunks <= 1
+      E, F, V = _efv_basis_chunk(at, calc, ps, st, nlist, domain,
+                                 1:length(domain), T, ws)
+   else
+      chunks = collect(index_chunks(1:length(domain); n = nchunks))
+      results = Vector{Tuple{Vector{T}, Matrix{SVector{3, T}},
+                             Vector{SMatrix{3, 3, T, 9}}}}(undef, length(chunks))
+      Threads.@sync for (ic, sub) in enumerate(chunks)
+         Threads.@spawn begin
+            results[ic] = _efv_basis_chunk(at, calc, ps, st, nlist, domain,
+                                           sub, T, nothing)
+         end
+      end
+      E, F, V = results[1]
+      for ic = 2:length(chunks)
+         E .+= results[ic][1]
+         F .+= results[ic][2]
+         V .+= results[ic][3]
+      end
+   end
+
+   return (energy = E .* energy_unit(calc),
+           forces = F .* force_unit(calc),
+           virial = V .* energy_unit(calc))
 end
 
 

@@ -615,30 +615,6 @@ end
 __vec(Rs::AbstractVector{SVector{3, T}}) where {T} = reinterpret(T, Rs)
 __svecs(Rsvec::AbstractVector{T}) where {T} = reinterpret(SVector{3, T}, Rsvec)
 
-function evaluate_basis_ed_old(model::ACEModel, 
-                           Rs::AbstractVector{SVector{3, T}}, Zs, Z0, 
-                           ps, st) where {T}
-
-   if length(Rs) == 0 
-      B = zeros(T, length_basis(model))
-      dB = zeros(SVector{3, T}, (0, length_basis(model)))
-   else
-
-      B = evaluate_basis(model, Rs, Zs, Z0, ps, st)
-
-      dB_vec = ForwardDiff.jacobian( 
-               _Rs -> evaluate_basis(model, __svecs(_Rs),  Zs, Z0, ps, st),
-               __vec(Rs))
-      dB1 = __svecs(collect(dB_vec')[:])
-      dB = collect( permutedims( reshape(dB1, length(Rs), length(B)), 
-                                 (2, 1) ) )
-   end 
-
-   return B, dB         
-end
-
-
-
 function jacobian_grad_params(model::ACEModel, 
                               Rs::AbstractVector{SVector{3, T}}, Zs, Z0, 
                               ps, st) where {T}
@@ -653,41 +629,4 @@ function jacobian_grad_params(model::ACEModel,
                reshape( __svecs((∂∂Ei_vec')[:]), length(Rs), length(∂Ei_vec) ), 
                (2, 1) ) )
    return Ei, ∂Ei_vec, ∂∂Ei, st
-end
-
-
-
-# ---------------------------------------------------------
-#  experimental pushforwards 
-
-function evaluate_basis_ed(model::ACEModel,
-                            Rs::AbstractVector{SVector{3, T}}, Zs, Z0,
-                            ps, st) where {T}
-
-   # Implementation using ForwardDiff automatic differentiation
-   # This is simpler and more robust than custom pushforwards or Zygote
-   # ForwardDiff is ideal for this case: few inputs (positions), many outputs (basis functions)
-   #
-   # Based on evaluate_basis_ed_old, adapted for EquivariantTensors v0.3 compatibility
-
-   if length(Rs) == 0
-      B = zeros(T, length_basis(model))
-      dB = zeros(SVector{3, T}, (length_basis(model), 0))
-      return B, dB
-   end
-
-   # Forward pass: evaluate basis
-   B = evaluate_basis(model, Rs, Zs, Z0, ps, st)
-
-   # Use ForwardDiff to compute Jacobian of evaluate_basis w.r.t. positions
-   # Convert SVector{3} positions to flat vector for ForwardDiff
-   dB_vec = ForwardDiff.jacobian(
-               _Rs -> evaluate_basis(model, __svecs(_Rs), Zs, Z0, ps, st),
-               __vec(Rs))
-
-   # Reshape Jacobian back to (basis × atoms, 3) format
-   dB1 = __svecs(collect(dB_vec')[:])
-   dB = collect(permutedims(reshape(dB1, length(Rs), length(B)), (2, 1)))
-
-   return B, dB
 end
