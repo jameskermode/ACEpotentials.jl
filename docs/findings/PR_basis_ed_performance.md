@@ -143,7 +143,7 @@ jobs idle.  Structure: 32-atom CrMnFeCoNi (`cantor1k_b_mh1.xyz`, keys
 `ace1_model(elements = [:Cr,:Mn,:Fe,:Co,:Ni], order = 3, totaldegree = D, r0 = 2.5, rcut = 6.25)`
 with random linear parameters.  "Old" is the `main` implementation copied
 verbatim into the benchmark script and run in the same process
-(`scratchpad/bench_basis_ed.jl`); min of 3-5 runs.
+(`bench_basis_ed.jl` in the session scratchpad, log `bench_t1.log`); min of 3-5 runs.
 
 | | D = 6 (6 890 columns) | D = 8 (19 320 columns) |
 |---|---|---|
@@ -155,19 +155,29 @@ verbatim into the benchmark script and run in the same process
 | new / one `energy_forces_virial` (4.4 / 6.8 ms) | 6x | 12x |
 | max rel. difference old vs new (E / F / V) | 2.7e-16 / 5.7e-15 / 1.3e-15 | 1.8e-16 / 3.8e-15 / 1.1e-15 |
 | `ACEfit.feature_matrix`, new | 28.4 ms, 28 MB | 87 ms, 87 MB |
-| `ACEpotentials.assemble`, 32 structures, 1 process, new | 11.0 s = 0.345 s/structure, GC 88 % | see below |
-| old `energy_forces_virial_basis` over the same 32 structures | 200.7 s = 6.27 s/structure | see below |
-| assemble ratio | 18x | see below |
+| `ACEpotentials.assemble`, 32 structures, 1 process, new | 11.0 s = 0.345 s/structure, GC 88 % | 12.1 s = 0.378 s/structure, GC 67 % |
+| old `energy_forces_virial_basis` over the same 32 structures (lower bound for the old assemble) | 200.7 s = 6.27 s/structure | 581.6 s = 18.2 s/structure |
+| assemble ratio | 18x | 48x |
+| `energy_forces_virial_basis`, new, `-t 4` (4 chunks) | 13.3 ms, 111 MB (serial in the same run: 25.2 ms) | 47.0 ms, 322 MB (serial: 77.3 ms) |
+| chunked vs serial max rel. difference (E / F / V) | 1.3e-16 / 2.5e-16 / 3.2e-16 | 1.8e-16 / 3.3e-16 / 1.9e-16 |
 
 (The single-site "new" numbers include building the full
 `(length_basis x nneigh)` `dB` matrix, 13-40 MB, which the
 `energy_forces_virial_basis` path does not do.)
 
-The `assemble` ratio (18x) is far below the `energy_forces_virial_basis`
-ratio (218x) because, once the feature matrix costs 28 ms, the remaining
-0.32 s per structure is ACEfit's own overhead - 88 % of the assembly wall
-time is now garbage collection, i.e. the explicit `GC.gc()` after every
-task in `ACEfit.assemble`.  See the follow-ups below.
+The `assemble` ratios (18x / 48x) are far below the
+`energy_forces_virial_basis` ratios (218x / 174x) because, once the feature
+matrix costs 28-87 ms, the remaining ~0.3 s per structure is ACEfit's own
+overhead: 67-88 % of the assembly wall time is now garbage collection, i.e.
+the explicit `GC.gc()` after every task in `ACEfit.assemble`.  See the
+follow-ups below.  (The "old" assemble was not run in full; the old
+`energy_forces_virial_basis` alone over the same structures is a lower
+bound, consistent with the 16.4 s/structure measured for the full old
+assemble in the findings document.)
+
+With 4 threads the chunked site loop gives 1.6-1.9x over serial at the
+price of one `(natoms x length_basis)` force accumulator per chunk
+(memory-bound; the same behaviour as the scratch `efv_basis_v3t`).
 
 ## ACEfit follow-ups (not in this PR; separate package)
 
