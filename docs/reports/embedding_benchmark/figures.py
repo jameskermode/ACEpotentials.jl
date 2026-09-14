@@ -12,15 +12,15 @@ C_CAT, C_EMB, C_LOSS, C_D8 = "#1f4e79", "#c0392b", "#e67e22", "#7f8c8d"
 pts = {
   "1k": {
     "categorical": [(6740, 0.0969), (19120, 0.0855)],
-    "lossless":    [(2375, 0.1087), (5950, 0.0906)],
-    "d16":         [(1615, 0.1101), (3765, 0.0911)],
-    "d8":          [(910, 0.1162), (2040, 0.0986)],
+    "lossless":    [(5375, 0.0953), (12850, 0.0812)],
+    "d16":         [(3190, 0.0975), (7245, 0.0822)],
+    "d8":          [(1710, 0.1076), (3800, 0.0950)],
   },
   "4k": {
     "categorical": [(19120, 0.0763), (46635, 0.0641)],
-    "lossless":    [(5950, 0.0885), (13650, 0.0753)],
-    "d16":         [(3765, 0.0894), (8045, 0.0767)],
-    "d8":          [(2040, 0.1000), (4250, 0.0895)],
+    "lossless":    [(12850, 0.0755), (27325, 0.0639)],
+    "d16":         [(7245, 0.0787), (14785, 0.0678)],
+    "d8":          [(3800, 0.0915), (7500, float("nan"))],   # deg-10 d<=8 pending
   },
 }
 style = {"categorical": (C_CAT, "s", "categorical"), "lossless": (C_LOSS, "^", "embedded, lossless"),
@@ -33,9 +33,10 @@ for ax, (key, degs) in zip(axes, [("1k", (6, 8)), ("4k", (8, 10))]):
         ax.plot(p[:, 0], p[:, 1], "-", color=c, marker=mk, ms=5, lw=1.2, label=lab)
         if m in ("categorical", "d16"):
             for (x, y), d in zip(p, degs):
-                ax.annotate(f"{d}", (x, y), textcoords="offset points", xytext=(0, -11 if m == "d16" else 5),
+                if not np.isfinite(y): continue
+            ax.annotate(f"{d}", (x, y), textcoords="offset points", xytext=(0, -11 if m == "d16" else 5),
                             fontsize=6.5, color=c, ha="center")
-    ax.set_xscale("log"); ax.set_xlabel("parameters (n_B × S)")
+    ax.set_xscale("log"); ax.set_xlabel("parameters (n_B × S)"); ax.margins(x=0.15, y=0.2)
     from matplotlib.ticker import NullFormatter, FixedLocator, FuncFormatter
     ax.xaxis.set_minor_formatter(NullFormatter())
     ax.xaxis.set_major_locator(FixedLocator([1e3, 3e3, 1e4, 3e4]))
