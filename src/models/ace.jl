@@ -297,115 +297,19 @@ end
 
 
 
-# Function barrier for the gradient assembly in `evaluate_ed`. Because
-# `EquivariantTensors.pullback` is not type-stable, ∂Rnl / ∂Ylm reach the caller as
-# `Any`; passing them through this function call forces Julia to re-specialise on
-# their concrete runtime types, turning the inner products back into statically
-# dispatched (fast, non-allocating) operations.
-function _assemble_grad_ed!(∇Ei, ∂Rnl, dRnl, ∂Ylm, dYlm, ∇rs)
-   @inbounds for t = 1:size(∂Rnl, 2)
-      for j = 1:size(∂Rnl, 1)
-         ∇Ei[j] += (∂Rnl[j, t] * dRnl[j, t]) * ∇rs[j]
-      end
-   end
-   @inbounds for t = 1:size(∂Ylm, 2)
-      for j = 1:size(∂Ylm, 1)
-         ∇Ei[j] += ∂Ylm[j, t] * dYlm[j, t]
-      end
-   end
-   return ∇Ei
-end
-
-
 function evaluate_ed(model::ACEModel,
                      Rs::AbstractVector{SVector{3, T}}, Zs, Z0,
                      ps, st) where {T}
-
-   i_z0 = _z2i(model.rbasis, Z0)
-
-   if length(Rs) == 0 
-      return model.Vref.E0[Z0], SVector{3, T}[] 
-   end 
-
-
-   @no_escape begin 
-   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   
-   # ---------- EMBEDDINGS ------------
-   # (these are done in forward mode, so not part of the fwd, bwd passes)
-
-   # get the radii 
-   rs, ∇rs = @withalloc radii_ed!(Rs)
-
-   # evaluate the radial basis
-   Rnl, dRnl = @withalloc evaluate_ed_batched!(model.rbasis, rs, Z0, Zs, 
-                                               ps.rbasis, st.rbasis)
-
-   # evaluate the Y basis
-   Ylm, dYlm = @withalloc P4ML.evaluate_ed!(model.ybasis, Rs)
-
-   # Forward Pass through the tensor
-   # For pullback, we need the intermediate A basis evaluation
-   TA = promote_type(eltype(Rnl), eltype(Ylm))
-   A = zeros(TA, length(model.tensor.abasis))
-   EquivariantTensors.evaluate!(A, model.tensor.abasis, (Rnl, Ylm))
-
-   BB = EquivariantTensors.evaluate(model.tensor, Rnl, Ylm, NamedTuple(), NamedTuple())
-   B = BB[1]
-
-   # contract with params
-   # (here we can insert another nonlinearity instead of the simple dot)
-   Ei = dot(B, (@view ps.WB[:, i_z0]))
-
-   # Start the backward pass
-   # ∂Ei / ∂B = WB[i_z0]
-   ∂B = @view ps.WB[:, i_z0]
-
-   # backward pass through tensor
-   ∂Rnl, ∂Ylm = EquivariantTensors.pullback([∂B], model.tensor, Rnl, Ylm, A)
-   
-   # ---------- ASSEMBLE DERIVATIVES ------------
-   # The ∂Ei / ∂𝐫ⱼ can now be obtained from the ∂Ei / ∂Rnl, ∂Ei / ∂Ylm
-   # as follows:
-   #    ∂Ei / ∂𝐫ⱼ = ∑_nl ∂Ei / ∂Rnl[j] * ∂Rnl[j] / ∂𝐫ⱼ
-   #              + ∑_lm ∂Ei / ∂Ylm[j] * ∂Ylm[j] / ∂𝐫ⱼ
-   # NB: `EquivariantTensors.pullback` is not type-stable (returns Tuple{Any,Any}),
-   #     so ∂Rnl / ∂Ylm are inferred as `Any`. The assembly is therefore done in a
-   #     separate function (_assemble_grad_ed!) which acts as a function barrier:
-   #     it re-specialises on the concrete runtime types. Doing it inline makes the
-   #     element-wise products dynamically dispatched and is ~10x slower (see
-   #     benchmark/bench_forces_regression.jl).
-   ∇Ei = zeros(SVector{3, T}, length(Rs))
-   _assemble_grad_ed!(∇Ei, ∂Rnl, dRnl, ∂Ylm, dYlm, ∇rs)
-
-   # ------------------- 
-   #  pair potential 
-   if model.pairbasis != nothing 
-      Rpair, dRpair = evaluate_ed_batched(model.pairbasis, rs, Z0, Zs, 
-                                             ps.pairbasis, st.pairbasis)
-      Apair = sum(Rpair, dims=1)[:]
-      Wp_i = @view ps.Wpair[:, i_z0]
-      Ei += dot(Apair, Wp_i)
-
-      # pullback --- I'm now assuming that the pair basis is not learnable.
-      # if !( ps.pairbasis == NamedTuple() ) 
-      #    error("I'm currently assuming the pair basis is not learnable.")
-      # end
-
-      for j = 1:length(Rs)
-         ∇Ei[j] += dot(Wp_i, (@view dRpair[j, :])) * (Rs[j] / rs[j])
-      end
+   # the kernel is `evaluate_ed!` (site_ed.jl); this convenience wrapper
+   # allocates a workspace and folds the readout weights per call.  The
+   # calculators use the kernel directly with a reusable workspace.
+   if length(Rs) == 0
+      return model.Vref.E0[Z0], SVector{3, T}[]
    end
-   # ------------------- 
-   #  TODO - generiv Vref, for now assume it is a OneBody 
-   @assert model.Vref isa OneBody
-   Ei += model.Vref.E0[Z0]
-   # ------------------- 
-
-   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   end # @no_escape
-
-   return Ei, ∇Ei
+   ws = SiteEDWorkspace(model, length(Rs); T = T)
+   wAA = fold_readout_weights(model, ps, _z2i(model.rbasis, Z0))
+   Ei = evaluate_ed!(ws, model, Rs, Zs, Z0, ps, st, wAA)
+   return Ei, ws.∇Ei[1:length(Rs)]
 end
 
 

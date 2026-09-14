@@ -41,16 +41,49 @@ mutable struct LearnableRnlrzzBasis{NZ, TPOLY, TT, TENV, T} <: AbstractLuxLayer
 end
 
 
+# compact B-spline coefficient tables of a `SplineRnlrzzBasis`; built and
+# used in Rnl_splines.jl
+struct RnlSplineTables{T, TT, TENV}
+   P::Array{T, 3}          # (npad, NU, NZ*NZ) padded B-spline coefficients
+   c::Matrix{T}            # (LEN, NZ*NZ) scale of column n for the pair
+   u::Matrix{Int}          # (LEN, NZ*NZ) distinct column used by column n
+   x0::T                   # first spline node
+   x1::T                   # last spline node
+   h::T                    # node spacing
+   nnodes::Int
+   NU::Int
+   LEN::Int
+   factorised::Bool
+   transforms::Matrix{TT}  # plain copies of the SMatrix fields (no boxing)
+   envelopes::Matrix{TENV}
+end
+
 mutable struct SplineRnlrzzBasis{NZ, TT, TENV, LEN, T} <: AbstractLuxLayer
    _i2z::NTuple{NZ, Int}
    transforms::SMatrix{NZ, NZ, TT}
    envelopes::SMatrix{NZ, NZ, TENV}
    splines::SMatrix{NZ, NZ, SPL_OF_SVEC{LEN, T}}
-   # -------------- 
+   # --------------
    rin0cuts::SMatrix{NZ, NZ, NT_RIN0CUTS{T}}  # matrix of (rin, rout, rcut)
    spec::Vector{NT_NL_SPEC}
    # --------------
    meta::Dict{String, Any}
+   # --------------
+   # compact coefficient tables used by the batched evaluators; built from
+   # `splines` by the constructor (see Rnl_splines.jl)
+   tables::RnlSplineTables{T, TT, TENV}
+end
+
+# the tables are derived data: construct them from the splines
+function SplineRnlrzzBasis(_i2z::NTuple{NZ, Int}, transforms, envelopes,
+                           splines::SMatrix{NZ, NZ, SPL_OF_SVEC{LEN, T}},
+                           rin0cuts, spec, meta) where {NZ, LEN, T}
+   tables = RnlSplineTables(_i2z, transforms, envelopes, splines)
+   basis = SplineRnlrzzBasis(_i2z, transforms, envelopes, splines,
+                             rin0cuts, spec, meta, tables)
+   basis.meta["radial_factorisation"] = (LEN = tables.LEN, NU = tables.NU,
+                                         factorised = tables.factorised)
+   return basis
 end
 
 

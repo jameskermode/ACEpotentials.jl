@@ -137,42 +137,110 @@ function energy_forces_virial_serial(
 end
 
 
+# species (atomic numbers) of all atoms, gathered once per call
+_atomic_numbers(at) = Int.(AtomsBase.atomic_number(at, :))
+
+_pairlist_fltype(::PairList{T}) where {T} = T
+_pairlist_fltype(nlist) = eltype(eltype(nlist.X))
+
+# Site loop for `energy_forces_virial`: accumulates the sites `domain[sub]`
+# into unit-less (E, F, V).  Function barrier: everything reaching the site
+# kernel is concretely typed, the neighbourhood is read from the PairList
+# without per-edge species lookups, and the workspace is reused across sites.
+function _efv_chunk(model::ACEModel, ps, st, wAA, nlist::PairList,
+                    zs::Vector{Int}, domain, sub, ::Type{T},
+                    ws::SiteEDWorkspace{T}, nat::Int) where {T}
+   E = zero(T)
+   F = zeros(SVector{3, T}, nat)
+   Vir = zero(SMatrix{3, 3, T, 9})
+   Rs = SVector{3, T}[]
+   Zs = Int[]
+   for ii in sub
+      i = domain[ii]
+      Js, Rsv = NeighbourLists.neigs!(Rs, nlist, i)
+      n = length(Js)
+      resize!(Zs, n)
+      @inbounds for a = 1:n
+         Zs[a] = zs[Js[a]]
+      end
+      z0 = zs[i]
+      Ei = evaluate_ed!(ws, model, Rsv, Zs, z0, ps, st, wAA[_z2i(model, z0)])
+      E += Ei
+      ∇Ei = ws.∇Ei
+      fi = zero(SVector{3, T})
+      @inbounds for a = 1:n
+         g = ∇Ei[a]
+         F[Js[a]] -= g
+         fi += g
+         Vir -= g * Rsv[a]'
+      end
+      F[i] += fi
+   end
+   return E, F, Vir
+end
+
+"""
+   energy_forces_virial(at, V::ACEPotential{<: ACEModel}, ps, st; kwargs...)
+
+Total energy, forces and virial (with units) of the linear ACE model with
+parameters `ps`.  Keyword arguments: `domain` (sites to include), `nlist`
+(a `PairList`; pass one to reuse it across calls), `ntasks` (the sites are
+split into this many chunks, each evaluated on its own task; the default
+is `Threads.nthreads()`), `executor` (`SequentialEx()` forces the serial
+path), and `ws` (a vector of at least `ntasks` `SiteEDWorkspace`s to reuse
+across calls; by default one is allocated per chunk and call).
+
+The chunked result differs from the serial one only by the floating-point
+summation order.
+"""
 function energy_forces_virial(
          at, V::ACEPotential{<: ACEModel}, ps, st;
-         domain   = 1:length(at), 
+         domain   = 1:length(at),
          executor = ThreadedEx(),
          ntasks   = Threads.nthreads(),
-         nlist    = PairList(at, cutoff_radius(V)), 
+         nlist    = PairList(at, cutoff_radius(V)),
+         ws       = nothing,
          kwargs...
          )
 
-   init_e() = AtomsCalculators.zero_energy(at, V) 
-   init_f() = AtomsCalculators.zero_forces(at, V)
-   init_v() = AtomsCalculators.zero_virial(at, V)
+   T = _pairlist_fltype(nlist)
+   model = V.model
+   nat = length(at)
+   zs = _atomic_numbers(at)::Vector{Int}
+   wAA = fold_readout_weights(model, ps)::Vector{Vector{T}}
+   domain = collect(domain)
 
-   E_F_V = Folds.sum(collect(index_chunks(domain; n = ntasks)), 
-                     executor;
-                     init = [init_e(), init_f(), init_v()],
-                     ) do sub_domain
-
-      energy = init_e()
-      forces = init_f()
-      virial = init_v()
-
-      for i in sub_domain
-         Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
-         v, dv = evaluate_ed(V.model, Rs, Zs, z0, ps, st)
-         energy += v * energy_unit(V)
-         for α = 1:length(Js) 
-            forces[Js[α]] -= dv[α] * force_unit(V)
-            forces[i]     += dv[α] * force_unit(V)
+   nchunks = (executor isa SequentialEx) ? 1 : min(ntasks, max(length(domain), 1))
+   if nchunks <= 1
+      E, F, Vir = _efv_chunk(model, ps, st, wAA, nlist, zs, domain, 1:length(domain), T,
+                             ws === nothing ? SiteEDWorkspace(model, 8; T = T) : ws[1], nat)
+   else
+      chunks = collect(index_chunks(1:length(domain); n = nchunks))
+      results = Vector{Tuple{T, Vector{SVector{3, T}}, SMatrix{3, 3, T, 9}}}(undef, length(chunks))
+      Threads.@sync for (ic, sub) in enumerate(chunks)
+         Threads.@spawn begin
+            results[ic] = _efv_chunk(model, ps, st, wAA, nlist, zs, domain, sub, T,
+                                     ws === nothing ? SiteEDWorkspace(model, 8; T = T) : ws[ic], nat)
          end
-         virial += _site_virial(dv, Rs) * energy_unit(V)
       end
-      [energy, forces, virial]
+      E, F, Vir = results[1]
+      for ic = 2:length(chunks)
+         E += results[ic][1]
+         F .+= results[ic][2]
+         Vir += results[ic][3]
+      end
    end
-   return (energy = E_F_V[1], forces = E_F_V[2], virial = E_F_V[3])
+
+   return (energy = E * energy_unit(V),
+           forces = F .* force_unit(V),
+           virial = Vir * energy_unit(V))
 end
+
+# the AtomsCalculators entry point: route to the fast path instead of the
+# generic SitePotential driver (which allocates per edge and rebuilds the
+# neighbour list unless `nlist` is passed)
+energy_forces_virial(at, V::ACEPotential{<: ACEModel}; kwargs...) =
+      energy_forces_virial(at, V, V.ps, V.st; kwargs...)
 
 
 function pullback_EFV(Δefv, 
