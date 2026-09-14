@@ -185,6 +185,25 @@ const MODELS = split(get(ENV, "MODELS", "categorical,lossless,d16,d8"), ",")
 "lossless" in MODELS &&
    sweep("embedded lossless", () -> M.ace_embedding_model(elements = ELS,
              order = ORD, totaldegree = DEG, embedding = emb))
+# Stage 1F: the species-symmetric block rule, three initialisations of one
+# radial layer (identity = categorical, random projection, frozen MH-1), and
+# the non-ACE1 radial heuristics
+zl = [M.atomic_number(z) for z in ELS]
+"symcat" in MODELS &&
+   sweep("symmetric categorical (E=I)", () -> M.ace_embedding_model(elements = ELS,
+             order = ORD, totaldegree = DEG, embedding = M.identity_embedding(zl),
+             block_rule = :symmetric))
+"symrand16" in MODELS &&
+   sweep("symmetric random d_max=16", () -> M.ace_embedding_model(elements = ELS,
+             order = ORD, totaldegree = DEG, embedding = M.random_embedding(zl, 64; rng = MersenneTwister(7)),
+             d_max = 16, block_rule = :symmetric))
+"symemb16" in MODELS &&
+   sweep("symmetric embedded d_max=16", () -> M.ace_embedding_model(elements = ELS,
+             order = ORD, totaldegree = DEG, embedding = emb, d_max = 16, block_rule = :symmetric))
+"cleanemb16" in MODELS &&
+   sweep("clean radials embedded d_max=16", () -> M.ace_embedding_model(elements = ELS,
+             order = ORD, totaldegree = DEG, embedding = emb, d_max = 16, block_rule = :symmetric,
+             ace1_compat = false))
 for dm in (16, 8)
    "d$dm" in MODELS || continue
    sweep("embedded d_max=$dm", () -> M.ace_embedding_model(elements = ELS,

@@ -20,7 +20,7 @@
 # PRL 131, 028001 (2023), arXiv:2210.01705.
 
 using JSON
-using LinearAlgebra: norm, svd, qr
+using LinearAlgebra: norm, svd, qr, I
 
 """
    ElementEmbedding
@@ -91,7 +91,11 @@ is using an arbitrary projection, not the foundation model's element similarity.
 """
 function embedding_rows(e::ElementEmbedding, zlist; d = size(e.emb, 2),
                         reduction = :pca, normalise = true)
-   1 <= d <= size(e.emb, 2) ||
+   d >= 1 || error("d = $d must be positive")
+   # :truncate needs the table to be at least d wide; :pca only needs its rank,
+   # and pads d > rank with a generic orthonormal frame (so a narrow table --
+   # the identity, for a categorical model -- can drive any width)
+   (reduction == :pca || d <= size(e.emb, 2)) ||
       error("d = $d out of range for a width-$(size(e.emb, 2)) table")
    idx = map(zlist) do z
       i = findfirst(==(Int(z)), e.Z)
@@ -160,6 +164,23 @@ function _generic_frame(r::Integer, d::Integer)
    end
    return Matrix(qr(Mt).Q)[:, 1:r]'          # rows of Q orthonormal
 end
+
+"""
+   identity_embedding(zlist)
+   random_embedding(zlist, d; rng)
+
+Synthetic `ElementEmbedding` tables for the two ends of the species-model
+family: the identity (with lossless widths this is a species-symmetric
+*categorical* model, every species its own channel) and a random table
+(Darby et al.'s random projection; what `ace_model`'s default `glorot`
+radial initialisation amounts to under a linear fit).
+"""
+identity_embedding(zlist) = ElementEmbedding(Int.(zlist),
+      Matrix{Float64}(I, length(zlist), length(zlist)),
+      Dict{String, Any}("checkpoint" => "identity"))
+random_embedding(zlist, d::Integer; rng = Random.default_rng()) =
+      ElementEmbedding(Int.(zlist), randn(rng, length(zlist), d),
+                       Dict{String, Any}("checkpoint" => "random(d=$d)"))
 
 """
    embedding_widths(S, order; d_max = nothing)
@@ -242,7 +263,7 @@ function ace_embedding_model(; elements, order, totaldegree,
                                rcut = nothing, E0s = nothing, ZBL = false,
                                pair_maxn = nothing, ace1_compat = true,
                                normalise = true, reduction = :pca,
-                               uniform_cutoffs = true,
+                               uniform_cutoffs = true, block_rule = :ace1,
                                rng = Random.default_rng())
    zlist = _convert_zlist(elements)
    S = length(zlist)
@@ -264,12 +285,16 @@ function ace_embedding_model(; elements, order, totaldegree,
    # that rule (fold with z' = 1, then unfold) so that the embedded model's
    # block set is the categorical one and only the species tensor is
    # compressed.  Found by the TT spike's oracle (FINDINGS_tt_spike.md).
-   NZ = S
-   level_cat = TotalDegree(1.0 * NZ, 1 / wL)
-   _fold1(b) = (n = (b.n - 1) * NZ + 1, l = b.l)
-   _unfold(b) = (n = (b.n - 1) ÷ NZ + 1, l = b.l)
+   # `block_rule = :symmetric` instead counts degree on the radial index alone,
+   # level = n' + wL*l, the same budget for every species (Stage 1F); it is
+   # implemented as the folding with NZ = 1.
+   NZfold = block_rule == :ace1 ? S :
+            block_rule == :symmetric ? 1 :
+            error("block_rule = $block_rule; expected :ace1 or :symmetric")
+   level_cat = TotalDegree(1.0 * NZfold, 1 / wL)
+   _unfold(b) = (n = (b.n - 1) ÷ NZfold + 1, l = b.l)
    r1_folded = [ b for b in oneparticle_spec(level_cat, totaldegree)
-                 if mod(b.n - 1, NZ) == 0 ]
+                 if mod(b.n - 1, NZfold) == 0 ]
    maxl === nothing || (r1_folded = [b for b in r1_folded if b.l <= maxl])
    r1 = _unfold.(r1_folded)
    rspec = [ (n = (b.n - 1) * d + k, l = b.l) for b in r1 for k = 1:d ]
@@ -344,7 +369,7 @@ function ace_embedding_model(; elements, order, totaldegree,
    # and order ν only draws on its own d_ν channels
    AA1_folded = sparse_AA_spec(; order = order, r_spec = r1_folded,
                                  level = level_cat, max_level = totaldegree)
-   AA1 = [ [ (n = (b.n - 1) ÷ NZ + 1, l = b.l, m = b.m) for b in bb ] for bb in AA1_folded ]
+   AA1 = [ [ (n = (b.n - 1) ÷ NZfold + 1, l = b.l, m = b.m) for b in bb ] for bb in AA1_folded ]
    AA_spec = [ [ (n = (b.n - 1) * d + k, l = b.l, m = b.m) for b in bb ]
                for bb in AA1 for k = 1:widths[length(bb)] ]
    # sparse_equivariant_tensor mis-couples a spec that is not grouped by
@@ -360,7 +385,7 @@ function ace_embedding_model(; elements, order, totaldegree,
    # keeps the uniform cutoffs above; the pair basis is exported per pair
    # anyway, so per-pair cutoffs cost nothing there.
    maxq = ceil(Int, pair_maxn === nothing ? totaldegree : pair_maxn)
-   pair_spec = [ (n = n, l = 0) for n in 1:(maxq * NZ) ]
+   pair_spec = [ (n = n, l = 0) for n in 1:(maxq * S) ]
    pair_rin0cuts = uniform_cutoffs ? rin0cuts : _default_rin0cuts(zlist)
    pair_basis = ace_learnable_Rnlrzz(; spec = pair_spec, maxq = maxq,
                      elements = zlist, rin0cuts = pair_rin0cuts,
@@ -373,7 +398,7 @@ function ace_embedding_model(; elements, order, totaldegree,
    Vref = _make_Vref(zlist, E0s, ZBL, rcut_max)
    raw = ace_model(rbasis_eval, Ytype, AA_spec, level1, pair_basis, Vref)
    raw.meta["init_WB"] = "zeros"
-   raw.meta["embedding"] = Dict("d_max" => d, "widths" => widths,
+   raw.meta["embedding"] = Dict("d_max" => d, "widths" => widths, "block_rule" => String(block_rule),
                                 "provenance" => embedding.meta)
 
    ps, st = LuxCore.setup(rng, raw)
