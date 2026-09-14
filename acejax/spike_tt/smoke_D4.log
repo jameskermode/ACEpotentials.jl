@@ -1,0 +1,37 @@
+[ Info: degree 4, lambda 1.0e-7, stages SubString{String}["base", "o1", "cp"]
+map: nB=370 per z0, N_c=620 per z0, #β=19 (embedded-spec 10), maxres=3.3e-16
+train data: AΦ (25544, 3100) built in 0.9 s
+flop model: n_A1=7, DAG nodes per order/depth [[4], [5, 11], [2, 6, 12]], blocks per order [4, 7, 8]
+  categorical lam=1      test F=0.7689 E=0.07849 V=0.4081 | train F=0.7771
+  categorical lam=0.1    test F=0.4006 E=0.03282 V=0.2348 | train F=0.4023
+  categorical lam=0.01   test F=0.1989 E=0.01009 V=0.1051 | train F=0.2001
+  categorical lam=0.001  test F=0.1502 E=0.00631 V=0.0607 | train F=0.1446
+  categorical lam=0.0001 test F=0.1280 E=0.00640 V=0.0488 | train F=0.1170
+  categorical lam=1e-05  test F=0.1208 E=0.00641 V=0.0425 | train F=0.1102
+  categorical lam=1e-06  test F=0.1201 E=0.00628 V=0.0416 | train F=0.1095
+  categorical lam=1e-07  test F=0.1201 E=0.00622 V=0.0414 | train F=0.1094
+  categorical lam=1e-08  test F=0.1201 E=0.00622 V=0.0414 | train F=0.1094
+RES categorical   nparams= 1950  test F=0.1201 E=0.00622 V=0.0414  train F=0.1094  lambda=1e-07
+CHECK tikh_solve vs TikhonovFactor at lam=1e-07: test F 0.120050 vs 0.120050, |dx|/|x| = 3.52e-03
+O1: |Φc − x| = 1.58e-16
+O1: |c_TT − c| = 0.00e+00
+O1: J_TT(θ_cat) = 3.092025835876e+02  J_cat = 3.092025835876e+02  rel diff 3.29e-14
+O1: after one v-step (20.0 s, 5975 readout params): J = 3.092025835876e+02  rel diff vs J_cat 5.52e-16; test F 0.120050 vs 0.120050
+O1: after a G1 step (0 s): J = 3.092025835876e+02 rel diff 1.29e-15; after a G2 step (3 s): J = 3.092025835875e+02 rel diff 3.27e-13; test F 0.120050
+┌ Warning: Assignment to `ts` in soft scope is ambiguous because a global variable by the same name exists: `ts` will be treated as a new local. Disambiguate by using `local ts` to suppress this warning or `global ts` to assign to the existing global variable.
+└ @ ~/.julia/dev/ACEpotentials/acejax/spike_tt/run_tt.jl:225
+  CP-16 lam=1e-05  test F=0.1235 E=0.00542 V=0.0399
+  CP-16 lam=1e-06  test F=0.1228 E=0.00535 V=0.0391
+  CP-16 lam=1e-07  test F=0.1229 E=0.00531 V=0.0390
+  CP-16 lam=1e-08  test F=0.1229 E=0.00531 V=0.0390
+RES CP-4                               nparams=  780 (cores  300, readout  380) flops/site=    2684  test F=0.1252 E=0.00432 V=0.0322  train F=0.1266 vstep=1.0s
+RES CP-8                               nparams= 1595 (cores  795, readout  700) flops/site=    7208  test F=0.1292 E=0.00613 V=0.0411  train F=0.1283 vstep=2.0s
+RES CP-16                              nparams= 3390 (cores 2025, readout 1265) flops/site=   18638  test F=0.1229 E=0.00531 V=0.0390  train F=0.1190 vstep=3.3s
+RES CP-16 (embedded-spec β only)       nparams= 3390 (cores 2025, readout 1265) flops/site=   18638  test F=0.1273 E=0.00509 V=0.0388  train F=0.1266 
+RES CP-35                              nparams= 5575 (cores 3450, readout 2025) flops/site=   32185  test F=0.1214 E=0.00528 V=0.0425  train F=0.1162 vstep=6.8s
+categorical flops/site (species-resolved 𝔸 nodes) = 1980 ; CP-16 = 1453
+┌ Warning: Assignment to `e` in soft scope is ambiguous because a global variable by the same name exists: `e` will be treated as a new local. Disambiguate by using `local e` to suppress this warning or `global e` to assign to the existing global variable.
+└ @ ~/.julia/dev/ACEpotentials/acejax/spike_tt/run_tt.jl:286
+┌ Warning: Assignment to `e` in soft scope is ambiguous because a global variable by the same name exists: `e` will be treated as a new local. Disambiguate by using `local e` to suppress this warning or `global e` to assign to the existing global variable.
+└ @ ~/.julia/dev/ACEpotentials/acejax/spike_tt/run_tt.jl:291
+done.

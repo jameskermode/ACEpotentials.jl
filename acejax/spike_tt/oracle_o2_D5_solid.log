@@ -1,0 +1,8 @@
+D=5 d_max=16 widths=[5, 15, 16]  E (5, 16)
+CP-in-TT columns on embedded-spec β: 194;  embedded model nB per z0: 194
+  z0=24: max rel residual embedded -> CP-in-TT so far 2.12e-01; CP-in-TT -> embedded 5.42e-03  (rank Ycp 194, rank Be 194)
+  z0=25: max rel residual embedded -> CP-in-TT so far 2.12e-01; CP-in-TT -> embedded 5.60e-03  (rank Ycp 194, rank Be 194)
+  z0=26: max rel residual embedded -> CP-in-TT so far 2.12e-01; CP-in-TT -> embedded 5.36e-03  (rank Ycp 194, rank Be 194)
+  z0=27: max rel residual embedded -> CP-in-TT so far 2.15e-01; CP-in-TT -> embedded 5.32e-03  (rank Ycp 194, rank Be 194)
+  z0=28: max rel residual embedded -> CP-in-TT so far 2.15e-01; CP-in-TT -> embedded 4.95e-03  (rank Ycp 194, rank Be 194)
+O2 RESULT D=5 d_max=16: max relative residual over all z0 and all 194 embedded columns = 2.152e-01  (worst: (27, [(1, 1), (1, 1)], 12, [10.629569783691347]))
