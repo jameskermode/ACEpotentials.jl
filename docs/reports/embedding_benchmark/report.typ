@@ -55,6 +55,7 @@ This report covers four things that came out of one line of work, and asks for d
     [deg 10 categorical], [9 327], [46 635], [—], [*0.0641*], [0.0020], [—],
     [deg 10 embedded lossless], [5 465], [27 325], [—], [*0.0639*], [0.0018], [−0.3%, 1.7× fewer],
     [deg 10 embedded $d lt.eq 16$], [2 957], [14 785], [—], [0.0678], [0.0018], [+6%, 3.2× fewer],
+    [deg 10 embedded $d lt.eq 8$], [1 530], [7 650], [—], [0.0796], [0.0021], [+24%, 6.1× fewer],
   ),
   caption: [Held-out force RMSE (eV/Å) and energy RMSE (eV/atom) against MH-1 labels; 1k = 800/200 split, 4k = 3 200/800. "rel. to cat." compares with the categorical model at the same degree on 4k (1k where marked). These are the *corrected* numbers — see the note below the table.],
 ) <tab-main>

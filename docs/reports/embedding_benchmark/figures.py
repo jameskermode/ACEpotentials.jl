@@ -20,7 +20,7 @@ pts = {
     "categorical": [(19120, 0.0763), (46635, 0.0641)],
     "lossless":    [(12850, 0.0755), (27325, 0.0639)],
     "d16":         [(7245, 0.0787), (14785, 0.0678)],
-    "d8":          [(3800, 0.0915), (7500, float("nan"))],   # deg-10 d<=8 pending
+    "d8":          [(3800, 0.0915), (7650, 0.0796)],
   },
 }
 style = {"categorical": (C_CAT, "s", "categorical"), "lossless": (C_LOSS, "^", "embedded, lossless"),
