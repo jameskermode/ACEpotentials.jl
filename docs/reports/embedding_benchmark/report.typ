@@ -4,14 +4,14 @@
 #set heading(numbering: none)
 #show heading.where(level: 1): it => block(above: 1.0em, below: 0.5em, text(size: 12pt, weight: "bold", it.body))
 #show heading.where(level: 2): it => block(above: 0.9em, below: 0.4em, text(size: 10.5pt, weight: "bold", it.body))
-#show table: set text(size: 9pt)
+#show table: set text(size: 8.5pt)
 #set table(stroke: (x, y) => if y == 0 { (bottom: 0.6pt) } else { none }, inset: (x: 5pt, y: 3pt))
 #show figure.caption: set text(size: 9pt)
 
 #align(center)[
   #text(size: 15pt, weight: "bold")[Frozen element embeddings versus categorical species in linear ACE:\ distillation benchmarks on CrMnFeCoNi]
   #v(0.3em)
-  #text(size: 9pt)[ACEpotentials.jl — 14 September 2026 — accompanies pull requests from `fix/basis-ed-performance`, `pr/jax-port`, `pr/element-embeddings`]
+  #text(size: 9pt)[ACEpotentials.jl — 14 September 2026 — accompanies EquivariantTensors PRs \#144 and \#145 and the ACEpotentials branches `fix/basis-ed-performance`, `pr/jax-port`, `pr/element-embeddings`]
 ]
 
 = Summary
@@ -26,17 +26,6 @@ A linear ACE model whose species dependence enters through a *frozen element emb
 
 *Fitting.* Held-out 80/20 split; algebraic smoothness prior $p = 4$; weights from `acefit!` defaults; factor-once Tikhonov (QR of $A$, SVD of $R$) with $lambda$ swept per model and the best held-out force RMSE reported. Assembly on 12 workers; the degree-10 categorical matrix (404 144 × 46 885, 151 GB) was factorised in place on a 376 GB node.
 
-#figure(
-  table(
-    columns: (auto, auto, auto),
-    align: (left, left, left),
-    table.header([branch (PR)], [based on], [contents]),
-    [`fix/basis-ed-performance`], [`main`], [assembly and forward-evaluation speed-ups; profiling findings; 10 commits],
-    [`pr/jax-port`], [`fix/basis-ed-performance`], [JAX evaluator port: `acejax`, exporter, tests + CI divergence gate, LAMMPS, benchmarks, plan; 7 commits, no changes under `src/`],
-    [`pr/element-embeddings`], [`pr/jax-port`], [frozen element embeddings, factorised radial export, distillation benchmarks, FS/VarPro spikes, this report; 5 commits],
-  ),
-  caption: [The three pull requests. Fine-grained history (146 commits) is on branch `jax-eval`; the PR branches are squashed into logical commits.],
-) <tab-prs>
 
 = Results
 
@@ -121,14 +110,31 @@ The plan (`docs/plans/jax_ace_port_plan.md`, Stage 2) has been revised against t
 
 *2C — the convexity demonstration against GRACE-FS.* Neither pacemaker (linear, categorical) nor gracemaker (embedded, gradient-descent) fits a tensor-reduced ACE convexly; that is the differentiator, and it has to be shown on the data the competition used — HEA25S, teacher GRACE-2L-OMAT (public), their extended-distillation recipe. Five measurable benefits: calibrated UQ for free (BLR, and Swinburne–Perez POPS for the misspecified regime a distilled student is always in) against a GRACE-FS ensemble; exact D-optimal data selection (error vs $N$, selected vs random); one-shot deterministic fits with closed-form $lambda$; delta-learning on DFT as one more linear solve against GRACE's fine-tuning curve; and hard physical constraints as convex QPs (equilibrium, elastic constants, phase ordering, repulsion). _Gate first_: accuracy at matched MD cost at $S = 25$ on a 5 000-structure subset (≈150 GB, fits the 376 GB node today) — the first regime where $d_max < S$ and the embedding's values can matter. If the linear model does not reach GRACE-FS accuracy there, items 1–5 are wins on a worse model. _Decision sought: approve the gate experiment as the next substantial run, ahead of phase 18._
 
-*Upstream items.* _A latent correctness bug in EquivariantTensors, found by the embedding spike and not yet reported upstream_: `sparse_equivariant_tensor` (the singular form, which `ACEpotentials.Models._generate_ace_model` calls) silently returns a *non-equivariant* basis when `mb_spec` is not grouped by correlation order — `SparseSymmProd` re-sorts the spec but the `A2Bmaps` columns are not permuted to match; measured rotation error 0.04–0.86 for ungrouped specs against 5×10#super[−16] grouped. ACEpotentials is safe today only because its spec generator happens to emit order-grouped specs. The plural `sparse_equivariant_tensors` already guards against this; a fix with a regression test is EquivariantTensors PR \#145 (draft). The row-wise pushforwards are EquivariantTensors PR \#144 (draft; `pushforward_rows!` for `PooledSparseProduct`, `SparseSymmProd` and `SparseACEbasis`, 0.5.2), and `fix/basis-ed-performance` already calls them — its interim kernels are gone; `SparseSymmProdDAG` for the CPU evaluator; ACEfit's per-task serialisation, `GC.gc()` and `Array(A)`.
+*Upstream items.* _A latent correctness bug in EquivariantTensors, found by the embedding spike — now EquivariantTensors \#145, in review_: `sparse_equivariant_tensor` (the singular form, which `ACEpotentials.Models._generate_ace_model` calls) silently returns a *non-equivariant* basis when `mb_spec` is not grouped by correlation order — `SparseSymmProd` re-sorts the spec but the `A2Bmaps` columns are not permuted to match; measured rotation error 0.04–0.86 for ungrouped specs against 5×10#super[−16] grouped. ACEpotentials is safe today only because its spec generator happens to emit order-grouped specs. The plural `sparse_equivariant_tensors` already guards against this; the fix with a regression test is \#145. The row-wise pushforwards are \#144 (`pushforward_rows!` for `PooledSparseProduct`, `SparseSymmProd` and `SparseACEbasis`, 0.5.2), in review. Two further items: ET \#130 (CP/TRACE format, on `restructure`) is the learnable form of our frozen embedding — `EquivLinearL` + `CPACEbasis` with W frozen *is* this model, with a per-`l` W more general than our species-only one — so Stage 2B's learnable mixing should be adopted from it when `restructure` lands rather than built in ACEpotentials, and its deferred efficient Jacobian is `pushforward_rows!` looped over rank (a natural follow-up to \#144); ET \#83 (NeighbourLists 0.6, multithreaded and GPU neighbour lists) is being rebased now that 0.6.2 is released; `SparseSymmProdDAG` for the CPU evaluator; ACEfit's per-task serialisation, `GC.gc()` and `Array(A)`.
+
+== The pull requests
+
+#show figure.where(kind: table): set block(breakable: true)
+#figure(
+  table(
+    columns: (auto, auto, auto),
+    align: (left, left, left),
+    table.header([branch (PR)], [based on], [contents]),
+    [EquivariantTensors \#144 (review)], [ET `main` 0.5.1], [`pushforward_rows!` — row-wise (per-neighbour) vector-tangent pushforwards for `PooledSparseProduct`, `SparseSymmProd`, `SparseACEbasis`; 0.5.2; ET suite 5 916/5 916],
+    [EquivariantTensors \#145 (review)], [ET `main` 0.5.1], [canonical `AAspec` ordering in `sparse_equivariant_tensor` (the singular constructor silently returned a non-equivariant basis for ungrouped specs); regression test; independent of \#144],
+    [`fix/basis-ed-performance`], [`main` + ET \#144], [assembly and forward-evaluation speed-ups; profiling findings; 11 commits; the tensor-part Jacobian is ET's `pushforward_rows!`, compat `EquivariantTensors = "0.4.3, 0.5"`],
+    [`pr/jax-port`], [`fix/basis-ed-performance`], [JAX evaluator port: `acejax`, exporter, tests + CI divergence gate, LAMMPS, benchmarks, plan; 7 commits, no changes under `src/`],
+    [`pr/element-embeddings`], [`pr/jax-port`], [frozen element embeddings, factorised radial export, distillation benchmarks, FS/VarPro spikes, this report; 5 commits],
+  ),
+  caption: [The pull requests. The two EquivariantTensors PRs are open for review; the three ACEpotentials branches are local and stacked, and the first depends on the release of \#144 as 0.5.2. Fine-grained history (146 commits) is on branch `jax-eval`; the PR branches are squashed into logical commits.],
+) <tab-prs>
 
 = Recommendations
 
 + *Use the embedded model where parameters, memory or many elements are the constraint, and give it one more degree than the categorical model would get.* Degree-10 $d lt.eq 16$ is the current best trade (0.0767 eV/Å, 8 045 parameters, 26 GB matrix on 4k). Where accuracy per structure is all that matters and a large node is available, categorical degree 10 (0.0641) still wins; categorical degree 12 (330 GB) needs the distributed assembly of Stage 2 phase 18, embedded degree 12 (≈50 GB) does not.
 + *Keep $d_max = 16$; do not use $d_max = 8$* (it truncates order 2 and costs a full degree).
 + *Treat the embedding source as immaterial at $S lt.eq d_max$*, and test the transferred-chemistry claim only at $S = 10$–25, where the GRACE-FS distillation on HEA25 is the comparison to beat.
-+ *Code changes, as three stacked pull requests against `main`* (branches listed in @tab-prs). (a) `fix/basis-ed-performance`: the design-matrix path — `evaluate_basis_ed` replaced by a type-stable pushforward Jacobian and the boxed accumulation in `energy_forces_virial_basis` removed — 174–218× per structure, exact to $10^(-12)$; and the forward path — factorised radial spline tables with a plain-Float64 kernel, an allocation-free site loop with $w_(A A) = A 2 B^T W_B$ folding, neighbour-list reuse — 9–12× on four threads, exact to $10^(-12)$; 1 300 existing tests plus 471 new ones pass. The 151 GB degree-10 assembly above took 25 min on it instead of a projected 14 h. Its tensor-part pushforward is EquivariantTensors PR \#144 (`pushforward_rows!`, draft), on which the ACEpotentials PR depends; the ACEfit follow-ups (per-task model serialisation, `GC.gc()` per task, the `Array(A)` copy) are listed in the PR text. (b) `pr/jax-port`: the JAX evaluator, exporter, LAMMPS bundle, benchmarks and the CI matrix that re-exports fitted models from the ACEpotentials under test and requires the evaluator to reproduce them. (c) `pr/element-embeddings`: everything in this report — `ace_embedding_model`, the PCA reduction with its rank check, the factorised radial export, the distillation pipeline, the spikes and the findings.
++ *Code changes, as three stacked pull requests against `main`* (listed in @tab-prs, with the two EquivariantTensors PRs they build on). (a) `fix/basis-ed-performance`: the design-matrix path — `evaluate_basis_ed` replaced by a type-stable pushforward Jacobian and the boxed accumulation in `energy_forces_virial_basis` removed — 174–218× per structure, exact to $10^(-12)$; and the forward path — factorised radial spline tables with a plain-Float64 kernel, an allocation-free site loop with $w_(A A) = A 2 B^T W_B$ folding, neighbour-list reuse — 9–12× on four threads, exact to $10^(-12)$; 1 300 existing tests plus 471 new ones pass. The 151 GB degree-10 assembly above took 25 min on it instead of a projected 14 h. Its tensor-part pushforward is EquivariantTensors \#144 (`pushforward_rows!`, in review), on which the ACEpotentials PR depends — the branch already calls it, and its three interim kernels are gone; the ACEfit follow-ups (per-task model serialisation, `GC.gc()` per task, the `Array(A)` copy) are listed in the PR text. (b) `pr/jax-port`: the JAX evaluator, exporter, LAMMPS bundle, benchmarks and the CI matrix that re-exports fitted models from the ACEpotentials under test and requires the evaluator to reproduce them. (c) `pr/element-embeddings`: everything in this report — `ace_embedding_model`, the PCA reduction with its rank check, the factorised radial export, the distillation pipeline, the spikes and the findings.
 + *After the radial fix, revisit the recursive (DAG) AA products for the CPU evaluator.* The Phase-8 spike (`acejax/spike_recursive/`) measured subproduct sharing at *0.99×* on energy+forces for the JAX GPU evaluator in f64 (1.19× in f32; the reverse pass must materialise ≈25 000 intermediate columns, and AA is only 18% of `site_basis` on the GPU once measured against an oracle rather than in isolation — so it is a dead end there), but *2.30×* on CPU, where AA is 75% of the energy+force cost. With the radial splines no longer dominant in Julia, the AA products become its largest stage, which is the CPU regime the spike measured; EquivariantTensors already provides `SparseSymmProdDAG`, so the trial is a swap of the tensor's `aabasis` on the fixed kernels.
 + *Retire the design-matrix cache* (it exhausted the storage quota at 200 GB; assembly is now minutes) and *replace `svd(R)`* in the factor-once solver with a Cholesky per $lambda$ or a threaded SVD — at $n = 46 685$ it is the remaining post-assembly cost.
 + *Generator before basis.* Bounding the perturbations halved the error; adding short-range order and the unary/binary structures of GRACE's "extended distillation" are the next data-side steps and cost minutes of GPU.
