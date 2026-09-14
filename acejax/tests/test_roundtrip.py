@@ -29,7 +29,11 @@ def test_orientation(loaded):
     assert model.Wpair.shape == (meta["n_pair"], NZ)
     assert model.A2B.shape == (meta["n_B"], meta["n_AA"])
     # the radial branch is per-basis, so check whichever one this model populated
-    if meta["radial_kind"] == "spline":
+    if model.radial_kind == "spline_factorised":
+        # stored once, not per species pair: (ncoef, n1) + (NZ, d)
+        assert model.rnl_coefs_single.shape[0] == meta["rnl_spline"]["ncoef"]
+        assert model.rnl_emb_nidx.shape == (meta["n_rnl"],)
+    elif meta["radial_kind"] == "spline":
         assert model.rnl_coefs.shape == (NZ, NZ, meta["rnl_spline"]["ncoef"], meta["n_rnl"])
     else:
         n_q = model.polys_A.shape[0]
@@ -53,6 +57,15 @@ def test_branch_flags_are_consistent(loaded):
     would still produce plausible numbers."""
     model, meta, z = loaded
     assert meta["radial_kind"] in ("spline", "analytic")
+    # a frozen-embedding export stores the radial FACTORISED -- one
+    # species-independent spline table plus the (NZ, d) embedding -- so the
+    # loader reports a third kind that the metadata does not name
+    if model.radial_kind == "spline_factorised":
+        assert meta["radial_kind"] == "spline"
+        assert model.rnl_coefs_single.ndim == 2
+        assert model.rnl_embedding.shape[0] == len(meta["elements"])
+        assert (model.rnl_emb_nidx.shape == model.rnl_emb_kidx.shape)
+        return
     assert meta["pair_radial_kind"] in ("spline", "analytic")
     assert model.radial_kind == meta["radial_kind"]
     assert model.pair_radial_kind == meta["pair_radial_kind"]

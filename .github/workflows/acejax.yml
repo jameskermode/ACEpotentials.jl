@@ -94,15 +94,26 @@ jobs:
             maxl: '4'
             nofit: '1'
           # Three species: two can hide a convention that is really "centre vs
-          # other" rather than a genuine per-pair lookup.  Note the O(S^nu)
-          # blowup it exercises: at order 3 / degree 8 the ace1 basis goes
-          # 648 -> 2823 per site from two species to three.
+          # other" rather than a genuine per-pair lookup, and this is also the
+          # precursor to the embedding work (see "Long-term directions" in the
+          # plan).  Note the O(S^nu) blowup it exercises: at order 3 / degree 8
+          # the ace1 basis goes 648 -> 2823 per site from two species to three.
           - name: Si-C-O order 3
             elements: Si,C,O
             order: '3'
             totaldegree: '8'
             maxl: '4'
             nofit: '1'
+          # Frozen-element-embedding models export through the ORDINARY splined
+          # path -- the embedding is baked into the radial splines, so acejax
+          # needs no knowledge of it.  This row is what keeps that true.
+          - name: Ti-Al embedding
+            elements: Ti,Al
+            order: '3'
+            totaldegree: '6'
+            maxl: '4'
+            nofit: '1'
+            kind: embedding
     env:
       ACE_ELEMENTS: ${{ matrix.elements }}
       ACE_ORDER: ${{ matrix.order }}
@@ -143,12 +154,38 @@ jobs:
             Pkg.add(PackageSpec(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feat/pushforward-vector-tangents"))
             Pkg.instantiate()
             Pkg.status()'
-      - name: Regenerate the fixtures from Julia
+      # A SYNTHETIC embedding, deliberately.  This job checks that the Julia
+      # exporter and the Python evaluator agree on the same model; it does not
+      # check scientific fidelity, and a real MACE table would add a ~100 MB
+      # checkpoint download plus a torch install to every run, and raise a
+      # licence question about redistributing model weights.  Deterministic so
+      # the two sides are comparing the same thing run to run.
+      # `scripts/extract_mace_embedding.py` remains the route for real tables.
+      - name: Synthesise a frozen element embedding
+        if: matrix.kind == 'embedding'
         working-directory: .
         run: |
+          python3 - <<'PY'
+          import json, math
+          Z = [22, 13]                       # Ti, Al -- matches matrix.elements
+          d = 8
+          emb = [[math.sin(1.0 + 3.7 * i + 1.3 * k) for k in range(d)]
+                 for i in range(len(Z))]
+          json.dump({"Z": Z, "emb": emb,
+                     "checkpoint": "synthetic-ci",
+                     "note": "deterministic stand-in; not a real MACE table"},
+                    open("fresh_embedding.json", "w"))
+          PY
+          ls -l fresh_embedding.json
+      - name: Regenerate the fixtures from Julia
+        working-directory: .
+        env:
+          # the embedding rows for this row's elements; ignored by the other rows
+          ACE_EMBEDDING: ${{ github.workspace }}/fresh_embedding.json
+        run: |
           mkdir -p fresh
-          KIND1=ace1
-          KIND2=ace
+          KIND1=${{ matrix.kind || 'ace1' }}
+          KIND2=${{ matrix.kind || 'ace' }}
           julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_fitted.npz $KIND1
           julia --project=acejax/julia acejax/julia/export_model.jl fresh/si_ace_model.npz $KIND2
           ACE_ELEMENTS=Si,Ge ACE_ORDER=3 ACE_TOTALDEGREE=6 ACE_NOFIT=1 \
