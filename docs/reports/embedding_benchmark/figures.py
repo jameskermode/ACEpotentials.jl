@@ -71,15 +71,22 @@ axes[1].legend(frameon=False, fontsize=6.5, loc="upper right")
 fig.savefig("fig_learning_curves.png")
 
 # ---------- Figure 3: throughput (lestrade, deg-6 embedded d<=16 student vs MH-1) ----
-labels = ["MACE-MH-1\nGPU f32", "Julia CPU\n1 thread", "Julia CPU\n32 threads", "JAX GPU f32\nframe (host nlist)", "JAX GPU f32\nkernel"]
-vals = [4.9e3, 4.7e3, 2.1e4, 5.3e4, 1.8e5]
-cols = ["#555555", C_CAT, C_CAT, C_EMB, C_EMB]
-fig, ax = plt.subplots(figsize=(7.0, 2.2))
-bars = ax.bar(labels, vals, color=cols, width=0.6)
+# all on one host (32 cores, RTX 4000 Ada), 256-384-atom cells; f64 and f32 side by side
+labels = ["MACE-MH-1\nGPU", "Julia CPU\n1 thread", "Julia CPU\n32 threads", "JAX GPU\nframe (host nlist)", "JAX GPU\nkernel"]
+f64 = [8.6e2, 4.7e3, 2.1e4, 4.0e4, 8.3e4]
+f32 = [4.9e3, np.nan, np.nan, 5.3e4, 1.8e5]
+x = np.arange(len(labels)); w = 0.38
+fig, ax = plt.subplots(figsize=(7.0, 2.4))
+b1 = ax.bar(x - w/2, f64, w, color=[C_D8, C_CAT, C_CAT, C_EMB, C_EMB], label="f64")
+b2 = ax.bar(x + w/2, f32, w, color=[C_D8, C_CAT, C_CAT, C_EMB, C_EMB], alpha=0.45, hatch="//", label="f32")
 ax.set_yscale("log"); ax.set_ylabel("atom-steps / s"); ax.grid(axis="y", alpha=0.25, which="both", lw=0.4)
-for b, v in zip(bars, vals):
-    ax.annotate(f"{v:.1e}", (b.get_x() + b.get_width() / 2, v), textcoords="offset points", xytext=(0, 3),
-                ha="center", fontsize=7)
-ax.set_ylim(2e3, 5e5)
+ax.set_xticks(x); ax.set_xticklabels(labels)
+for bars, vals in ((b1, f64), (b2, f32)):
+    for b, v in zip(bars, vals):
+        if np.isfinite(v):
+            ax.annotate(f"{v:.1e}", (b.get_x() + b.get_width() / 2, v), textcoords="offset points",
+                        xytext=(0, 3), ha="center", fontsize=6.5)
+ax.set_ylim(3e2, 6e5)
+ax.legend(frameon=False, fontsize=7, loc="upper left")
 fig.savefig("fig_throughput.png")
 print("figures written")
