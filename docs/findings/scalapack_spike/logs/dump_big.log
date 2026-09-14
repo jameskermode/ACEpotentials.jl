@@ -1,0 +1,2 @@
+time_50k_4k lam=0.001  CPU LAPACK qr (32 threads): 11.84s
+time_101k_8k lam=0.001  CPU LAPACK qr (32 threads): 77.80s

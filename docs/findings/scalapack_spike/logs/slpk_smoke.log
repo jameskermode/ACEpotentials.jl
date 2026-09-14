@@ -1,0 +1,14 @@
+┌ Warning: Assignment to `pr` in soft scope is ambiguous because a global variable by the same name exists: `pr` will be treated as a new local. Disambiguate by using `local pr` to suppress this warning or `global pr` to assign to the existing global variable.
+└ @ /tmp/essswb-scalapack-spike/sp/mpi_scalapack.jl:73
+┌ Warning: Assignment to `pr` in soft scope is ambiguous because a global variable by the same name exists: `pr` will be treated as a new local. Disambiguate by using `local pr` to suppress this warning or `global pr` to assign to the existing global variable.
+└ @ /tmp/essswb-scalapack-spike/sp/mpi_scalapack.jl:73
+┌ Warning: Assignment to `pr` in soft scope is ambiguous because a global variable by the same name exists: `pr` will be treated as a new local. Disambiguate by using `local pr` to suppress this warning or `global pr` to assign to the existing global variable.
+└ @ /tmp/essswb-scalapack-spike/sp/mpi_scalapack.jl:73
+┌ Warning: Assignment to `pr` in soft scope is ambiguous because a global variable by the same name exists: `pr` will be treated as a new local. Disambiguate by using `local pr` to suppress this warning or `global pr` to assign to the existing global variable.
+└ @ /tmp/essswb-scalapack-spike/sp/mpi_scalapack.jl:73
+[SCALAPACK 1d] pdgels on 4 x 1 grid, MB=1000 NB=200, lwork=280200 doubles/rank: 1.37s
+[SCALAPACK 1d] MEASURED cond(A)=1.023e+12  (m=4000 n=200 family=scaled ranks=4)
+[SCALAPACK 1d] single-node LAPACK qr:  rel.resid=9.675e-04  normality=4.318e-13  (0.02s)
+[SCALAPACK 1d] distributed solution :  rel.resid=9.675e-04  normality=3.522e-13
+[SCALAPACK 1d] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 4.222e-13   (cond*eps = 2.3e-04)
+EXIT=0

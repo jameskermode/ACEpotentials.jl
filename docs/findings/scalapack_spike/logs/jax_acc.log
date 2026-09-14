@@ -1,0 +1,86 @@
+jax 0.11.1 lineax 0.1.1 device=cuda:0 x64=True matmul=highest
+### acc_mixed_1.0e12 lam=0.0 m=20000 n=500 cond_meas=1.02e+12   (CPU LAPACK qr: 0.77s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=3.225e-05  rel.resid=9.835e-04  normality=7.593e-07  gpu=0.129s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=9.819e-01  rel.resid=9.844e-04  normality=8.450e-07  gpu=0.215s
+  lineax.QR                  agree_vs_cpu_qr=3.225e-05  rel.resid=9.835e-04  normality=9.424e-07  gpu=0.083s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=9.970e-01  rel.resid=9.848e-04  normality=1.957e-07  gpu=0.216s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.000e+00  rel.resid=9.904e-04  normality=2.839e-07  gpu=4.158s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.000e+00  rel.resid=9.908e-04  normality=1.084e-04  gpu=7.030s result=> steps=10000
+### acc_mixed_1.0e12 lam=0.001 m=20000 n=500 cond_meas=1.02e+12   (CPU LAPACK qr: 1.44s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=2.383e-11  rel.resid=9.901e-04  normality=2.795e-07  gpu=0.136s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=2.382e-11  rel.resid=9.901e-04  normality=2.795e-07  gpu=0.233s
+  lineax.QR                  agree_vs_cpu_qr=2.378e-11  rel.resid=9.901e-04  normality=2.795e-07  gpu=0.088s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=2.382e-11  rel.resid=9.901e-04  normality=2.795e-07  gpu=0.230s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=3.724e-01  rel.resid=9.905e-04  normality=3.708e-07  gpu=4.386s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=4.900e-01  rel.resid=9.908e-04  normality=3.068e-04  gpu=7.723s result=> steps=10000
+### acc_mixed_1.0e16 lam=0.0 m=20000 n=500 cond_meas=9.00e+15   (CPU LAPACK qr: 1.01s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=2.955e-01  rel.resid=9.837e-04  normality=1.133e-02  gpu=0.133s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=1.000e+00  rel.resid=9.871e-04  normality=5.592e-07  gpu=0.225s
+  lineax.QR                  agree_vs_cpu_qr=2.955e-01  rel.resid=9.836e-04  normality=6.863e-03  gpu=0.088s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=1.000e+00  rel.resid=9.872e-04  normality=2.812e-07  gpu=0.219s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.000e+00  rel.resid=9.918e-04  normality=9.189e-08  gpu=4.289s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.000e+00  rel.resid=9.920e-04  normality=2.835e-05  gpu=7.205s result=> steps=10000
+### acc_mixed_1.0e16 lam=0.001 m=20000 n=500 cond_meas=9.00e+15   (CPU LAPACK qr: 1.19s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=2.761e-11  rel.resid=9.918e-04  normality=2.471e-07  gpu=0.141s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=2.760e-11  rel.resid=9.918e-04  normality=2.471e-07  gpu=0.227s
+  lineax.QR                  agree_vs_cpu_qr=2.754e-11  rel.resid=9.918e-04  normality=2.471e-07  gpu=0.090s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=2.760e-11  rel.resid=9.918e-04  normality=2.471e-07  gpu=0.222s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.012e-01  rel.resid=9.918e-04  normality=2.488e-07  gpu=4.443s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=3.046e-01  rel.resid=9.920e-04  normality=1.770e-05  gpu=7.791s result=> steps=10000
+### acc_mixed_1.0e21 lam=0.0 m=20000 n=500 cond_meas=1.88e+16   (CPU LAPACK qr: 1.23s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=5.645e-01  rel.resid=9.854e-04  normality=2.038e-02  gpu=0.138s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=1.000e+00  rel.resid=9.888e-04  normality=4.332e-07  gpu=0.224s
+  lineax.QR                  agree_vs_cpu_qr=5.645e-01  rel.resid=9.853e-04  normality=2.775e-02  gpu=0.089s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=1.000e+00  rel.resid=9.891e-04  normality=2.775e-07  gpu=0.219s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.000e+00  rel.resid=9.923e-04  normality=3.454e-08  gpu=4.319s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.000e+00  rel.resid=9.927e-04  normality=3.654e-05  gpu=7.197s result=> steps=10000
+### acc_mixed_1.0e21 lam=0.001 m=20000 n=500 cond_meas=1.88e+16   (CPU LAPACK qr: 1.34s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=2.832e-11  rel.resid=9.926e-04  normality=2.435e-07  gpu=0.141s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=2.833e-11  rel.resid=9.926e-04  normality=2.435e-07  gpu=0.221s
+  lineax.QR                  agree_vs_cpu_qr=2.827e-11  rel.resid=9.926e-04  normality=2.435e-07  gpu=0.090s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=2.833e-11  rel.resid=9.926e-04  normality=2.435e-07  gpu=0.217s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=2.687e-03  rel.resid=9.926e-04  normality=2.435e-07  gpu=4.445s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.621e-01  rel.resid=9.927e-04  normality=2.244e-05  gpu=7.858s result=> steps=10000
+### acc_scaled_1.0e12 lam=0.0 m=20000 n=500 cond_meas=1.02e+12   (CPU LAPACK qr: 1.40s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=2.348e-12  rel.resid=9.835e-04  normality=6.326e-13  gpu=0.137s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=9.750e-01  rel.resid=9.841e-04  normality=4.219e-12  gpu=0.232s
+  lineax.QR                  agree_vs_cpu_qr=6.918e-13  rel.resid=9.835e-04  normality=5.519e-13  gpu=0.090s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=9.924e-01  rel.resid=9.842e-04  normality=4.199e-12  gpu=0.226s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.000e+00  rel.resid=9.907e-04  normality=3.446e-07  gpu=4.318s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.000e+00  rel.resid=9.913e-04  normality=1.161e-04  gpu=7.200s result=> steps=10000
+### acc_scaled_1.0e12 lam=0.001 m=20000 n=500 cond_meas=1.02e+12   (CPU LAPACK qr: 1.21s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=9.451e-13  rel.resid=9.903e-04  normality=3.087e-07  gpu=0.141s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=1.010e-12  rel.resid=9.903e-04  normality=3.087e-07  gpu=0.239s
+  lineax.QR                  agree_vs_cpu_qr=4.758e-13  rel.resid=9.903e-04  normality=3.087e-07  gpu=0.091s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=1.010e-12  rel.resid=9.903e-04  normality=3.087e-07  gpu=0.233s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=3.152e-01  rel.resid=9.907e-04  normality=4.177e-07  gpu=4.445s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=4.657e-01  rel.resid=9.913e-04  normality=3.297e-04  gpu=7.865s result=> steps=10000
+### acc_scaled_1.0e16 lam=0.0 m=20000 n=500 cond_meas=1.02e+16   (CPU LAPACK qr: 1.35s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=2.725e-12  rel.resid=9.835e-04  normality=4.151e-13  gpu=0.136s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=1.000e+00  rel.resid=9.870e-04  normality=7.389e-12  gpu=0.229s
+  lineax.QR                  agree_vs_cpu_qr=1.413e-12  rel.resid=9.835e-04  normality=4.282e-13  gpu=0.089s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=1.000e+00  rel.resid=9.871e-04  normality=7.327e-12  gpu=0.222s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.000e+00  rel.resid=9.921e-04  normality=9.662e-08  gpu=4.347s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.000e+00  rel.resid=9.923e-04  normality=6.511e-05  gpu=7.342s result=> steps=10000
+### acc_scaled_1.0e16 lam=0.001 m=20000 n=500 cond_meas=1.02e+16   (CPU LAPACK qr: 1.23s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=7.704e-13  rel.resid=9.921e-04  normality=2.742e-07  gpu=0.139s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=9.207e-13  rel.resid=9.921e-04  normality=2.742e-07  gpu=0.229s
+  lineax.QR                  agree_vs_cpu_qr=3.873e-13  rel.resid=9.921e-04  normality=2.742e-07  gpu=0.089s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=9.207e-13  rel.resid=9.921e-04  normality=2.742e-07  gpu=0.229s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.012e-01  rel.resid=9.921e-04  normality=2.760e-07  gpu=4.871s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=2.898e-01  rel.resid=9.923e-04  normality=2.464e-04  gpu=8.471s result=> steps=10000
+### acc_scaled_1.0e21 lam=0.0 m=20000 n=500 cond_meas=1.02e+21   (CPU LAPACK qr: 1.25s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=3.341e-12  rel.resid=9.835e-04  normality=5.139e-13  gpu=0.126s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=1.000e+00  rel.resid=9.892e-04  normality=4.523e-12  gpu=0.209s
+  lineax.QR                  agree_vs_cpu_qr=1.033e-12  rel.resid=9.835e-04  normality=4.922e-13  gpu=0.085s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=1.000e+00  rel.resid=9.894e-04  normality=4.530e-12  gpu=0.214s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.000e+00  rel.resid=9.926e-04  normality=2.741e-08  gpu=4.342s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.000e+00  rel.resid=9.929e-04  normality=5.353e-05  gpu=7.775s result=> steps=10000
+### acc_scaled_1.0e21 lam=0.001 m=20000 n=500 cond_meas=1.02e+21   (CPU LAPACK qr: 1.17s)
+  jnp.linalg.qr+trsolve      agree_vs_cpu_qr=1.106e-12  rel.resid=9.929e-04  normality=2.730e-07  gpu=0.130s
+  jnp.linalg.lstsq(SVD)      agree_vs_cpu_qr=1.043e-12  rel.resid=9.929e-04  normality=2.730e-07  gpu=0.240s
+  lineax.QR                  agree_vs_cpu_qr=1.066e-12  rel.resid=9.929e-04  normality=2.730e-07  gpu=0.087s result=RESULTS<> steps=-
+  lineax.SVD                 agree_vs_cpu_qr=1.043e-12  rel.resid=9.929e-04  normality=2.730e-07  gpu=0.213s result=RESULTS<> steps=-
+  lineax.LSMR                agree_vs_cpu_qr=1.220e-03  rel.resid=9.929e-04  normality=2.729e-07  gpu=4.493s result=> steps=10000
+  lineax.NormalCG            agree_vs_cpu_qr=1.624e-01  rel.resid=9.929e-04  normality=4.100e-05  gpu=7.963s result=> steps=10000
+ACC EXIT=0

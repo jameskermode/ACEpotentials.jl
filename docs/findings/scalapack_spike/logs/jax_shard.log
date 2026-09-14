@@ -1,0 +1,15 @@
+  from jax.experimental.shard_map import shard_map
+jax 0.11.1  devices=8 x cpu
+acc_mixed_1.0e12     lam=0      shard_map TSQR on 8 devices: agree_vs_cpu_qr=5.042e-05 rel.resid=9.835e-04 normality=8.278e-07 t=0.697s
+acc_mixed_1.0e12     lam=0.001  shard_map TSQR on 8 devices: agree_vs_cpu_qr=2.814e-11 rel.resid=9.901e-04 normality=2.795e-07 t=0.716s
+acc_mixed_1.0e16     lam=0      shard_map TSQR on 8 devices: agree_vs_cpu_qr=2.429e-01 rel.resid=9.836e-04 normality=9.388e-03 t=0.713s
+acc_mixed_1.0e16     lam=0.001  shard_map TSQR on 8 devices: agree_vs_cpu_qr=3.648e-11 rel.resid=9.918e-04 normality=2.471e-07 t=0.730s
+acc_mixed_1.0e21     lam=0      shard_map TSQR on 8 devices: agree_vs_cpu_qr=6.711e-01 rel.resid=9.848e-04 normality=1.329e-02 t=0.668s
+acc_mixed_1.0e21     lam=0.001  shard_map TSQR on 8 devices: agree_vs_cpu_qr=3.535e-11 rel.resid=9.926e-04 normality=2.435e-07 t=0.719s
+acc_scaled_1.0e12    lam=0      shard_map TSQR on 8 devices: agree_vs_cpu_qr=2.565e-12 rel.resid=9.835e-04 normality=4.605e-13 t=0.703s
+acc_scaled_1.0e12    lam=0.001  shard_map TSQR on 8 devices: agree_vs_cpu_qr=1.056e-12 rel.resid=9.903e-04 normality=3.087e-07 t=0.710s
+acc_scaled_1.0e16    lam=0      shard_map TSQR on 8 devices: agree_vs_cpu_qr=3.114e-12 rel.resid=9.835e-04 normality=3.687e-13 t=0.649s
+acc_scaled_1.0e16    lam=0.001  shard_map TSQR on 8 devices: agree_vs_cpu_qr=1.012e-12 rel.resid=9.921e-04 normality=2.742e-07 t=0.715s
+acc_scaled_1.0e21    lam=0      shard_map TSQR on 8 devices: agree_vs_cpu_qr=3.048e-12 rel.resid=9.835e-04 normality=2.499e-13 t=0.646s
+acc_scaled_1.0e21    lam=0.001  shard_map TSQR on 8 devices: agree_vs_cpu_qr=6.369e-13 rel.resid=9.929e-04 normality=2.730e-07 t=0.680s
+SHARD EXIT=0

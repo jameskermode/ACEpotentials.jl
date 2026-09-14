@@ -1,0 +1,64 @@
+=================== TIMING m=120000 n=2000 (1.92 GB) family=scaled cond=1e16 ranks=8
+[TSQR] distributed solve time: 8.12s on 8 ranks (local block 15000 x 2000)
+[TSQR] MEASURED cond(A)=1.009e+16  (m=120000 n=2000 family=scaled ranks=8)
+[TSQR] single-node LAPACK qr:  rel.resid=9.905e-04  normality=8.951e-13  (27.58s)
+[TSQR] distributed solution :  rel.resid=9.905e-04  normality=8.213e-13
+[TSQR] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 9.257e-13   (cond*eps = 2.2e+00)
+EXIT=0
+               total        used        free      shared  buff/cache   available
+Mem:              62           3          47           0          12          59
+[SCALAPACK 1d] pdgels on 8 x 1 grid, MB=15000 NB=2000, lwork=38002000 doubles/rank: 105.59s
+[SCALAPACK 1d] MEASURED cond(A)=1.009e+16  (m=120000 n=2000 family=scaled ranks=8)
+[SCALAPACK 1d] single-node LAPACK qr:  rel.resid=9.905e-04  normality=8.951e-13  (27.79s)
+[SCALAPACK 1d] distributed solution :  rel.resid=9.905e-04  normality=8.045e-13
+[SCALAPACK 1d] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 1.572e-12   (cond*eps = 2.2e+00)
+EXIT=0
+               total        used        free      shared  buff/cache   available
+Mem:              62           3          46           0          12          58
+[SCALAPACK 2d] grid 2x4 NB=64: redistribute 1d->2d 0.38s, pdgels 11.91s, lwork=3879424
+[SCALAPACK 2d] MEASURED cond(A)=1.009e+16  (m=120000 n=2000 family=scaled ranks=8)
+[SCALAPACK 2d] single-node LAPACK qr:  rel.resid=9.905e-04  normality=8.951e-13  (30.42s)
+[SCALAPACK 2d] distributed solution :  rel.resid=9.905e-04  normality=4.587e-12
+[SCALAPACK 2d] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 6.809e-12   (cond*eps = 2.2e+00)
+EXIT=0
+               total        used        free      shared  buff/cache   available
+Mem:              62           5          43           0          13          56
+[LSQR] distributed: precond=true damp=0 iters=19/40000  est.normality=3.00e-15  time 2.51s on 8 ranks
+[LSQR] MEASURED cond(A)=1.009e+16  (m=120000 n=2000 family=scaled ranks=8)
+[LSQR] single-node LAPACK qr:  rel.resid=9.905e-04  normality=8.951e-13  (27.91s)
+[LSQR] distributed solution :  rel.resid=9.905e-04  normality=1.973e-13
+[LSQR] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 1.382e-12   (cond*eps = 2.2e+00)
+EXIT=0
+               total        used        free      shared  buff/cache   available
+Mem:              62           3          45           0          13          58
+[ELEMENTAL] fill+redistribute 14.08s, leastSquares 11.78s on 8 ranks (Elemental.jl 0.6.1)
+[ELEMENTAL] MEASURED cond(A)=1.009e+16  (m=120000 n=2000 family=scaled ranks=8)
+[ELEMENTAL] single-node LAPACK qr:  rel.resid=9.905e-04  normality=8.951e-13  (27.38s)
+[ELEMENTAL] distributed solution :  rel.resid=9.905e-04  normality=2.620e-13
+[ELEMENTAL] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 6.273e-13   (cond*eps = 2.2e+00)
+EXIT=0
+[ELEMENTAL] fill+redistribute 0.84s, leastSquares 0.27s on 8 ranks (Elemental.jl 0.6.1)
+[ELEMENTAL] MEASURED cond(A)=1.019e+12  (m=20000 n=500 family=scaled ranks=8)
+[ELEMENTAL] single-node LAPACK qr:  rel.resid=9.835e-04  normality=3.734e-13  (0.38s)
+[ELEMENTAL] distributed solution :  rel.resid=9.835e-04  normality=2.130e-13
+[ELEMENTAL] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 7.583e-13   (cond*eps = 2.3e-04)
+EXIT=0
+[ELEMENTAL] fill+redistribute 0.70s, leastSquares 0.28s on 8 ranks (Elemental.jl 0.6.1)
+[ELEMENTAL] MEASURED cond(A)=1.022e+12  (m=20000 n=500 family=mixed ranks=8)
+[ELEMENTAL] single-node LAPACK qr:  rel.resid=9.835e-04  normality=9.110e-07  (0.40s)
+[ELEMENTAL] distributed solution :  rel.resid=9.835e-04  normality=6.831e-07
+[ELEMENTAL] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 4.402e-05   (cond*eps = 2.3e-04)
+EXIT=0
+[ELEMENTAL] fill+redistribute 0.84s, leastSquares 0.30s on 8 ranks (Elemental.jl 0.6.1)
+[ELEMENTAL] MEASURED cond(A)=1.018e+16  (m=20000 n=500 family=scaled ranks=8)
+[ELEMENTAL] single-node LAPACK qr:  rel.resid=9.835e-04  normality=8.335e-13  (0.40s)
+[ELEMENTAL] distributed solution :  rel.resid=9.835e-04  normality=6.600e-13
+[ELEMENTAL] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 8.071e-13   (cond*eps = 2.3e+00)
+EXIT=0
+[ELEMENTAL] fill+redistribute 0.70s, leastSquares 0.30s on 8 ranks (Elemental.jl 0.6.1)
+[ELEMENTAL] MEASURED cond(A)=8.905e+15  (m=20000 n=500 family=mixed ranks=8)
+[ELEMENTAL] single-node LAPACK qr:  rel.resid=9.835e-04  normality=5.944e-03  (0.40s)
+[ELEMENTAL] distributed solution :  rel.resid=9.836e-04  normality=4.275e-03
+[ELEMENTAL] AGREEMENT ||x_dist - x_qr||/||x_qr|| = 2.755e-01   (cond*eps = 2.0e+00)
+EXIT=0
+TIMING DONE

@@ -1,0 +1,19 @@
+[DAGGER p=1 bs=200] m=4000 n=200 fam=scaled MEASURED cond=1.023e+12 workers=4
+[DAGGER] LAPACK qr: resid=9.675e-04 normality=4.328e-13 (0.02s) | Dagger qr: resid=9.675e-04 normality=9.616e-13 (133.62s)
+[DAGGER] AGREEMENT ||x_dagger - x_qr||/||x_qr|| = 4.104e-13  (cond*eps=2.3e-04)
+[DAGGER p=1 bs=200] m=4000 n=200 fam=scaled MEASURED cond=1.023e+21 workers=4
+[DAGGER] LAPACK qr: resid=9.675e-04 normality=3.124e-13 (0.02s) | Dagger qr: resid=9.675e-04 normality=7.449e-13 (0.84s)
+[DAGGER] AGREEMENT ||x_dagger - x_qr||/||x_qr|| = 7.070e-13  (cond*eps=2.3e+05)
+[DAGGER p=1 bs=200] m=4000 n=200 fam=mixed MEASURED cond=1.032e+12 workers=4
+[DAGGER] LAPACK qr: resid=9.675e-04 normality=8.936e-07 (0.02s) | Dagger qr: resid=9.675e-04 normality=3.955e-06 (1.01s)
+[DAGGER] AGREEMENT ||x_dagger - x_qr||/||x_qr|| = 1.950e-04  (cond*eps=2.3e-04)
+[DAGGER p=1 bs=200] m=4000 n=200 fam=mixed MEASURED cond=2.149e+16 workers=4
+[DAGGER] LAPACK qr: resid=9.698e-04 normality=1.300e-02 (0.02s) | Dagger qr: resid=9.787e-04 normality=6.638e-02 (4.95s)
+[DAGGER] AGREEMENT ||x_dagger - x_qr||/||x_qr|| = 9.234e-01  (cond*eps=4.8e+00)
+[DAGGER p=1 bs=500] m=20000 n=500 fam=scaled MEASURED cond=1.018e+16 workers=4
+[DAGGER] LAPACK qr: resid=9.835e-04 normality=8.335e-13 (0.42s) | Dagger qr: resid=9.835e-04 normality=5.978e-13 (7.75s)
+[DAGGER] AGREEMENT ||x_dagger - x_qr||/||x_qr|| = 1.467e-12  (cond*eps=2.3e+00)
+[DAGGER p=4 bs=500] m=20000 n=500 fam=scaled MEASURED cond=1.018e+16 workers=4
+[DAGGER] LAPACK qr: resid=9.835e-04 normality=8.335e-13 (0.50s) | Dagger qr: resid=9.835e-04 normality=4.276e-13 (7.95s)
+[DAGGER] AGREEMENT ||x_dagger - x_qr||/||x_qr|| = 1.596e-12  (cond*eps=2.3e+00)
+EXIT=0

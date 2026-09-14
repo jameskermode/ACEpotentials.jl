@@ -1,0 +1,30 @@
+family=scaled measured cond=1.02e+12
+  lambda   ||xQR-xLSQR|| /||xQR||     iters      (cond of augmented [A;lam*I])
+  1e-06    7.917e+02    4.763e-01    5000       cond=4.6e+07
+  1e-03    4.978e-10    8.166e-11    851        cond=4.6e+04
+  1e-01    2.189e-12    5.486e-13    119        cond=4.6e+02
+family=scaled measured cond=1.02e+16
+  lambda   ||xQR-xLSQR|| /||xQR||     iters      (cond of augmented [A;lam*I])
+  1e-06    1.246e-01    1.185e-04    5000       cond=4.6e+07
+  1e-03    1.363e-08    2.513e-09    399        cond=4.6e+04
+  1e-01    5.120e-13    1.544e-13    84         cond=4.6e+02
+family=scaled measured cond=1.02e+21
+  lambda   ||xQR-xLSQR|| /||xQR||     iters      (cond of augmented [A;lam*I])
+  1e-06    2.688e-02    2.043e-05    2111       cond=4.6e+07
+  1e-03    4.334e-10    9.857e-11    237        cond=4.6e+04
+  1e-01    1.131e-12    4.151e-13    57         cond=4.6e+02
+family=mixed  measured cond=1.01e+12
+  lambda   ||xQR-xLSQR|| /||xQR||     iters      (cond of augmented [A;lam*I])
+  1e-06    9.141e+02    5.770e-01    5000       cond=4.5e+07
+  1e-03    5.779e-10    9.719e-11    855        cond=4.5e+04
+  1e-01    3.566e-12    8.998e-13    120        cond=4.5e+02
+family=mixed  measured cond=7.64e+15
+  lambda   ||xQR-xLSQR|| /||xQR||     iters      (cond of augmented [A;lam*I])
+  1e-06    2.904e-01    4.291e-04    5000       cond=4.5e+07
+  1e-03    2.993e-09    5.932e-10    404        cond=4.5e+04
+  1e-01    7.666e-13    2.038e-13    81         cond=4.5e+02
+family=mixed  measured cond=3.13e+16
+  lambda   ||xQR-xLSQR|| /||xQR||     iters      (cond of augmented [A;lam*I])
+  1e-06    2.908e-03    4.354e-06    2320       cond=4.5e+07
+  1e-03    6.837e-10    1.640e-10    240        cond=4.5e+04
+  1e-01    9.325e-13    2.631e-13    54         cond=4.5e+02
