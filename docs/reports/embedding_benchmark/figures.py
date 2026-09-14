@@ -90,3 +90,34 @@ ax.set_ylim(3e2, 6e5)
 ax.legend(frameon=False, fontsize=7, loc="upper left")
 fig.savefig("fig_throughput.png")
 print("figures written")
+
+# ---------- Figure 4: LAMMPS, 1728 Si atoms, A4500: ACE jax/kk vs ML-PACE vs MACE ----------
+# Source: acejax/bench/results.md ("Throughput, realistic shape") and results_phase13.md
+# ("The three-way table"); same host, same deck, same three Si models.
+nB = [69, 710, 2849]
+ace_f64 = [3.15e5, 6.45e4, 1.27e4]
+ace_f32 = [6.16e5, 1.17e5, 2.24e4]
+pace_f64 = [9.54e5, 1.39e5, 3.30e4]          # pace/kk, n_B 78 / 693 / 2874 (matched shape)
+mace = [  # label, atom-steps/s, params, linestyle
+    ("MACE-MP-0b2 small, symmetrix f32  (8.2M params)", 4.562e4, "-."),
+    ("MACE-MP-0 small, jax/kk f32  (3.8M)", 3.755e4, "-"),
+    ("MACE-MP-0b2 small, symmetrix f64  (8.2M)", 3.699e4, ":"),
+    ("MACE-MP-0b3 medium, jax/kk f32  (9.1M)", 1.621e4, "--"),
+]
+fig, ax = plt.subplots(figsize=(7.0, 3.2))
+ax.plot(nB, pace_f64, "-", color="#2e8b57", marker="D", ms=5, lw=1.4, label="ML-PACE  pace/kk  f64 (C++/Kokkos)")
+ax.plot(nB, ace_f64, "-", color=C_CAT, marker="s", ms=5, lw=1.4, label="ACE  jax/kk  f64")
+ax.plot(nB, ace_f32, "--", color=C_CAT, marker="s", ms=5, lw=1.2, alpha=0.7, label="ACE  jax/kk  f32")
+for lab, v, ls in mace:
+    ax.axhline(v, color="#666666", lw=0.9, ls=ls, alpha=0.9, label=lab)
+ax.set_xscale("log"); ax.set_yscale("log")
+ax.set_xlim(55, 3600); ax.set_ylim(8e3, 1.5e6)
+from matplotlib.ticker import FixedLocator, FixedFormatter, NullFormatter
+ax.xaxis.set_major_locator(FixedLocator(nB)); ax.xaxis.set_major_formatter(FixedFormatter([str(n) for n in nB]))
+ax.xaxis.set_minor_locator(FixedLocator([])); ax.xaxis.set_minor_formatter(NullFormatter())
+ax.set_xlabel("ACE basis functions n_B (single species, order 4)")
+ax.set_ylabel("atom-steps / s")
+ax.grid(alpha=0.25, which="both", lw=0.4)
+ax.legend(frameon=False, fontsize=6.5, loc="upper right", ncol=1)
+fig.savefig("fig_lammps.png")
+print("lammps figure written")
