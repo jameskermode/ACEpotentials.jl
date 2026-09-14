@@ -134,6 +134,13 @@ jobs:
           julia --project=acejax/julia -e '
             using Pkg
             Pkg.develop(path=".")     # the ACEpotentials under test, not the registry one
+            # TEMPORARY until EquivariantTensors 0.5.2 is released: the basis
+            # Jacobian (`energy_forces_virial_basis`, used by every fit) calls
+            # `EquivariantTensors.pushforward_rows!`, which is on
+            # ACEsuit/EquivariantTensors.jl#144.  Rows that fit a model need it;
+            # ACE_NOFIT rows do not, which is why only one row fails without it.
+            # Remove this line and let the registry supply 0.5.2 once tagged.
+            Pkg.add(PackageSpec(url="https://github.com/jameskermode/EquivariantTensors.jl", rev="feat/pushforward-vector-tangents"))
             Pkg.instantiate()
             Pkg.status()'
       - name: Regenerate both fixtures from Julia
