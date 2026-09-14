@@ -11,7 +11,7 @@
 #align(center)[
   #text(size: 15pt, weight: "bold")[Frozen element embeddings versus categorical species in linear ACE:\ distillation benchmarks on CrMnFeCoNi]
   #v(0.3em)
-  #text(size: 9pt)[ACEpotentials.jl `jax-eval` branch — 14 September 2026]
+  #text(size: 9pt)[ACEpotentials.jl — 14 September 2026 — accompanies pull requests from `fix/basis-ed-performance`, `pr/jax-port`, `pr/element-embeddings`]
 ]
 
 = Summary
@@ -25,6 +25,18 @@ A linear ACE model whose species dependence enters through a *frozen element emb
 *Models.* Order 3, ACE1 heuristics, uniform cutoff 6.25 Å. Categorical `ace1_model` with $S = 5$ elements; embedded `ace_embedding_model` with per-order widths $d_nu = min(d_max, binom(S + nu - 1, nu))$: *lossless* $[5, 15, 35]$ (spans the full species tensor at every order — a reparameterisation), $d_max = 16$ ($[5, 15, 16]$, order 3 cut to 16 of 35 directions) and $d_max = 8$. Embedding table: MACE-MH-1's 512-channel `node_embedding` reduced by PCA of the five rows (Gram preserved exactly; generic orthonormal mixing for $d > S$). Parameters are $n_B times S$ (a readout per central species).
 
 *Fitting.* Held-out 80/20 split; algebraic smoothness prior $p = 4$; weights from `acefit!` defaults; factor-once Tikhonov (QR of $A$, SVD of $R$) with $lambda$ swept per model and the best held-out force RMSE reported. Assembly on 12 workers; the degree-10 categorical matrix (404 144 × 46 885, 151 GB) was factorised in place on a 376 GB node.
+
+#figure(
+  table(
+    columns: (auto, auto, auto),
+    align: (left, left, left),
+    table.header([branch (PR)], [based on], [contents]),
+    [`fix/basis-ed-performance`], [`main`], [assembly and forward-evaluation speed-ups; profiling findings; 10 commits],
+    [`pr/jax-port`], [`fix/basis-ed-performance`], [JAX evaluator port: `acejax`, exporter, tests + CI divergence gate, LAMMPS, benchmarks, plan; 7 commits, no changes under `src/`],
+    [`pr/element-embeddings`], [`pr/jax-port`], [frozen element embeddings, factorised radial export, distillation benchmarks, FS/VarPro spikes, this report; 5 commits],
+  ),
+  caption: [The three pull requests. Fine-grained history (146 commits) is on branch `jax-eval`; the PR branches are squashed into logical commits.],
+) <tab-prs>
 
 = Results
 
@@ -82,7 +94,7 @@ The JAX evaluator's GPU kernel (fp32) runs 32–38× MACE-MH-1's at 40–1 300 a
 + *Use the embedded model where parameters, memory or many elements are the constraint, and give it one more degree than the categorical model would get.* Degree-10 $d lt.eq 16$ is the current best trade (0.0767 eV/Å, 8 045 parameters, 26 GB matrix on 4k). Where accuracy per structure is all that matters and a large node is available, categorical degree 10 (0.0641) still wins; categorical degree 12 (330 GB) needs the distributed assembly of Stage 2 phase 18, embedded degree 12 (≈50 GB) does not.
 + *Keep $d_max = 16$; do not use $d_max = 8$* (it truncates order 2 and costs a full degree).
 + *Treat the embedding source as immaterial at $S lt.eq d_max$*, and test the transferred-chemistry claim only at $S = 10$–25, where the GRACE-FS distillation on HEA25 is the comparison to beat.
-+ *Code changes in flight* (branch `fix/basis-ed-performance` off `main`, one PR). (a) Design-matrix path: `evaluate_basis_ed` replaced by a type-stable pushforward Jacobian and the boxed accumulation in `energy_forces_virial_basis` removed — 174–218× per structure, exact to $10^(-12)$, 514 existing + 158 new tests passing; the 151 GB degree-10 assembly took 25 min instead of a projected 14 h. (b) Forward path: factorised radial splines with a plain-Float64 kernel, allocation-free site loop with $w_(A A) = A 2 B^T W_B$ folding, neighbour-list reuse — in progress on the same branch. Follow-ups elsewhere: ACEfit's per-task model serialisation, `GC.gc()` per task and `Array(A)` copy; EquivariantTensors' `_jacobian_X` vector tangents and `@inbounds` in `_pb_evaluate_pbAA!`.
++ *Code changes, as three stacked pull requests against `main`* (branches listed in @tab-prs). (a) `fix/basis-ed-performance`: the design-matrix path — `evaluate_basis_ed` replaced by a type-stable pushforward Jacobian and the boxed accumulation in `energy_forces_virial_basis` removed — 174–218× per structure, exact to $10^(-12)$; and the forward path — factorised radial spline tables with a plain-Float64 kernel, an allocation-free site loop with $w_(A A) = A 2 B^T W_B$ folding, neighbour-list reuse — 9–12× on four threads, exact to $10^(-12)$; 1 300 existing tests plus 471 new ones pass. The 151 GB degree-10 assembly above took 25 min on it instead of a projected 14 h. Its three pushforward kernels reimplement EquivariantTensors' product structure and should move upstream as multi-tangent `pushforward!` methods (a follow-up PR to EquivariantTensors); the ACEfit follow-ups (per-task model serialisation, `GC.gc()` per task, the `Array(A)` copy) are listed in the PR text. (b) `pr/jax-port`: the JAX evaluator, exporter, LAMMPS bundle, benchmarks and the CI matrix that re-exports fitted models from the ACEpotentials under test and requires the evaluator to reproduce them. (c) `pr/element-embeddings`: everything in this report — `ace_embedding_model`, the PCA reduction with its rank check, the factorised radial export, the distillation pipeline, the spikes and the findings.
 + *Retire the design-matrix cache* (it exhausted the storage quota at 200 GB; assembly is now minutes) and *replace `svd(R)`* in the factor-once solver with a Cholesky per $lambda$ or a threaded SVD — at $n = 46 685$ it is the remaining post-assembly cost.
 + *Generator before basis.* Bounding the perturbations halved the error; adding short-range order and the unary/binary structures of GRACE's "extended distillation" are the next data-side steps and cost minutes of GPU.
 + *Next accuracy lever, convexly:* fixed $sqrt(rho)$ Finnis–Sinclair columns with learned (VarPro) species weights inside the density gave $-12%$ at degree 4 and transfer frozen to a disjoint split; the shape of the embedding function beyond $sqrt(dot)$ does not matter. This is the like-for-like answer to GRACE-FS and should be included in any $S > 5$ run.
