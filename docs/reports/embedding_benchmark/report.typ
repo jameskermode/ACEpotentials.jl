@@ -121,7 +121,7 @@ The plan (`docs/plans/jax_ace_port_plan.md`, Stage 2) has been revised against t
     align: (left, left, left),
     table.header([branch (PR)], [based on], [contents]),
     [EquivariantTensors \#144 (review)], [ET `main` 0.5.1], [`pushforward_rows!` — row-wise (per-neighbour) vector-tangent pushforwards for `PooledSparseProduct`, `SparseSymmProd`, `SparseACEbasis`; 0.5.2; ET suite 5 916/5 916],
-    [EquivariantTensors \#145 (review)], [ET `main` 0.5.1], [canonical `AAspec` ordering in `sparse_equivariant_tensor` (the singular constructor silently returned a non-equivariant basis for ungrouped specs); regression test; independent of \#144],
+    [EquivariantTensors \#145 (review)], [ET `main` 0.5.1], [canonical $bb(A)$`spec` ordering in `sparse_equivariant_tensor` (the singular constructor silently returned a non-equivariant basis for ungrouped specs); regression test; independent of \#144],
     [`fix/basis-ed-performance`], [`main` + ET \#144], [assembly and forward-evaluation speed-ups; profiling findings; 11 commits; the tensor-part Jacobian is ET's `pushforward_rows!`, compat `EquivariantTensors = "0.4.3, 0.5"`],
     [`pr/jax-port`], [`fix/basis-ed-performance`], [JAX evaluator port: `acejax`, exporter, tests + CI divergence gate, LAMMPS, benchmarks, plan; 7 commits, no changes under `src/`],
     [`pr/element-embeddings`], [`pr/jax-port`], [frozen element embeddings, factorised radial export, distillation benchmarks, FS/VarPro spikes, this report; 5 commits],
