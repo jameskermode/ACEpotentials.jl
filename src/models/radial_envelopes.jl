@@ -81,7 +81,7 @@ function evaluate(env::PolyEnvelope2sX, r::T, x::T) where T
       return zero(T)
    end
 
-   return s * (x-x1)^p1 * (x2-x)^p2
+   return s * _intpow(x-x1, p1) * _intpow(x2-x, p2)
 end
 
 

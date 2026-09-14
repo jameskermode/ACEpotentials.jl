@@ -22,13 +22,34 @@ GeneralizedAgnesiTransform(D::AbstractDict) =
 read_dict(::Val{:ACEpotentials_GeneralizedAgnesiTransform}, D::AbstractDict) = 
       GeneralizedAgnesiTransform(D)
 
+# integer power with a run-time exponent taken from a struct field: the
+# small exponents used by the transforms and envelopes are expanded into
+# multiplications (a `^` with a non-literal integer exponent costs as much
+# as the B-spline evaluation it feeds, in particular with Dual numbers)
+@inline function _intpow(x, n::Integer)
+   if n == 0
+      return one(x)
+   elseif n == 1
+      return x
+   elseif n == 2
+      return x * x
+   elseif n == 3
+      return x * x * x
+   elseif n == 4
+      x2 = x * x
+      return x2 * x2
+   else
+      return x^n
+   end
+end
+
 function evaluate(t::GeneralizedAgnesiTransform{T}, r::Number) where {T} 
    if r <= t.rin 
       return one(promote_type(T, typeof(r)))
    end 
    a, r0, q, p, rin = t.a, t.r0, t.q, t.p, t.rin
    s = (r-t.rin)/(t.r0-t.rin)
-   return 1 / (1 + a * s^q / (1 + s^(q-p)))
+   return 1 / (1 + a * _intpow(s, q) / (1 + _intpow(s, q-p)))
 end
 
 evaluate_d(t::GeneralizedAgnesiTransform, r::Number) = 

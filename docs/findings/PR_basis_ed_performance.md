@@ -1,8 +1,22 @@
-# PR draft: Fix the ~200x design-matrix assembly regression (`evaluate_basis_ed` / `energy_forces_virial_basis`)
+# PR draft: Fast design-matrix assembly (~200x) and fast forward evaluation (2.5-4x / core, 12x on 4 threads) for the classic `ACEModel`
 
 Branch: `fix/basis-ed-performance` (off `main` at 266f84eb).
 
 ## Summary
+
+Two independent performance fixes for the classic (non-ET) `ACEModel`
+path, both exact with respect to the previous implementation and covered by
+new tests that keep the previous code as the reference:
+
+* **Part A - design-matrix assembly** (`evaluate_basis_ed`,
+  `energy_forces_virial_basis`, hence `ACEfit.feature_matrix` /
+  `acefit!`): 174-218x faster per structure, allocation 9.5-26 GB -> 20-60 MB.
+* **Part B - forward evaluation** (`energy_forces_virial` of a fitted
+  model, the MD path): 2.3-3.0x faster per core, 11-12x on 4 threads
+  versus the old single-threaded path, allocation 53-97 MB -> 0.2-0.7 MB
+  per 256-atom call; the site loop is allocation-free.
+
+## Part A: design-matrix assembly
 
 Assembling the linear least-squares system (`ACEfit.feature_matrix` ->
 `energy_forces_virial_basis` -> `evaluate_basis_ed`) cost 350-1550x one
@@ -32,9 +46,9 @@ relative; `energy_forces_virial_basis` is **174-218x faster** single-threaded
 on a 32-atom, 5-element structure and allocates 20-60 MB instead of
 9.5-26 GB.
 
-## What changed
+### What changed (Part A)
 
-### `src/models/basis_ed.jl` (new)
+#### `src/models/basis_ed.jl` (new)
 
 * `BasisEDWorkspace{T}`: all intermediates (`rs`, `∇rs`, `Rnl`, `dRnl`,
   `∂Rnl`, `Ylm`, `∂Ylm`, `A`, `∂A`, `AA`, `∂AA`, `Bi`, `∂Bi`, `Rpair`,
@@ -57,7 +71,7 @@ on a 32-atom, 5-element structure and allocates 20-60 MB instead of
   concretely typed (`@inferred` passes) and ~12 ms -> ~1 ms per site.  A
   workspace can be passed to avoid re-allocating the intermediates.
 
-### `src/models/calculators.jl`
+#### `src/models/calculators.jl`
 
 * `energy_forces_virial_basis(at, calc, ps, st; domain, executor, ntasks, nlist, ws)`:
   - `_efv_basis_site!` is a function barrier (`get_neighbours` returns
@@ -81,17 +95,17 @@ on a 32-atom, 5-element structure and allocates 20-60 MB instead of
     dispatch, but a latent bug and one of the sources of `z0::Any`); the
     new code passes `calc`.
 
-### `src/models/ace.jl`
+#### `src/models/ace.jl`
 
 * Removed the ForwardDiff `evaluate_basis_ed` and the dead
   `evaluate_basis_ed_old`.  `__vec`/`__svecs` stay (used by
   `jacobian_grad_params`).
 
-### `src/models/models.jl`
+#### `src/models/models.jl`
 
 * `include("basis_ed.jl")` after `ace.jl`.
 
-### Tests: `test/models/test_basis_ed.jl` (registered in `test/models/test_models.jl`)
+#### Tests: `test/models/test_basis_ed.jl` (registered in `test/models/test_models.jl`)
 
 For `ace1_model(elements = [:Si, :O, :C], order = 3, totaldegree = 8)`
 (splines) and `ace_model(...; max_level = 8, maxl = 4)` (learnable radial
@@ -115,6 +129,138 @@ basis), and the splinified learnable model:
   `domain` as a range and as a vector, serial and chunked, against
   `potential_energy_basis`.
 
+## Part B: forward evaluation
+
+`AtomsCalculators.energy_forces_virial(sys, calc)` for a fitted
+`ACEPotential{ACEModel}` with spline radial bases cost 4-10 ms per 32-atom
+structure (8e3 atom-steps/s per core on the 5-element models) and ~1150
+allocations per site, which also capped thread scaling at ~3x.  Diagnosis
+and profiles: `docs/findings/FINDINGS_forward_profile.md` and
+`acejax/bench/profile_forward/` (jax-eval branch).  Causes:
+
+1. **Radial splines, 45-71 % of a site.**  `SplineRnlrzzBasis` stores one
+   cubic B-spline per species pair whose value is an `SVector{LEN}`
+   (LEN = 74-126 for the categorical models) and evaluated it per edge
+   through `Interpolations` with `Dual` numbers (`Rnl_splines.jl:88`,
+   called from `ace.jl:341` and, allocating, `:384`).  But for the
+   one-hot weights of `ace1_model` (`set_onehot_weights!`) every column
+   `Rnl[:, n]` is a scalar multiple of one of NU ~ 7-10 polynomials,
+   independent of `l`, and 4/5 of the columns are zero on any edge of a
+   5-element model.  The transform / envelope evaluation with `Dual`s and
+   run-time integer `^` (`radial_transforms.jl:31`, `radial_envelopes.jl:84`)
+   cost as much again as the B-spline itself.
+2. **~60 allocations per site + ~6 per edge** in `evaluate_ed`
+   (`ace.jl:322-400`) and the generic `SitePotential` driver: boxed
+   spline/envelope objects from `SMatrix` indexing, `atomic_number(sys, j)`
+   per edge in `get_neighbours`, `ka_evaluate` launches, the A basis
+   computed twice, two sparse `A2B` matvecs per site, `Quantity`-valued
+   force accumulation on an un-inferred `eval_grad_site`.
+3. The neighbour list rebuilt on every call (5-8 % of the old call, ~20 %
+   of the new one).
+
+### What changed (Part B)
+
+#### `src/models/Rnl_basis.jl`, `src/models/Rnl_splines.jl`
+
+* `RnlSplineTables{T, TT, TENV}`: the B-spline coefficients of a
+  `SplineRnlrzzBasis` as plain arrays, with the column factorisation
+  `Rnl[:, n] = c[n, pair] * P[:, u[n, pair], pair]` (`P` is
+  `(nnodes+2, NU, NZ^2)`).  The factorisation is found numerically at
+  construction (`_factorise_columns`, columns proportional to 1e-12
+  relative, then verified against the raw tables); a basis whose columns
+  are not proportional gets the trivial factorisation (NU = LEN, `c = 1`,
+  `u = n`) and goes through exactly the same kernel.  The tables also
+  hold plain `Matrix` copies of the transforms and envelopes (indexing the
+  `SMatrix` of non-isbits objects boxed per edge).  Found:
+  `ace1_model` D6/D8 (Si,O,C): LEN 47/75 -> NU 7/9; the 5-element D6/D8:
+  74/126 -> 7/9; Si D10: 37 -> 10; pair bases 24-40 -> 7-10; a splinified
+  random-weight `ace_model`: NU = LEN.
+* `SplineRnlrzzBasis` gets a `tables` field (concretely typed from the
+  existing type parameters); the previous 7-argument positional
+  constructor builds the tables, so `splinify` and `ace1_model` are
+  unchanged and `basis.splines` is kept for anything that reads it
+  (`fasteval.jl`, `_spline_zz`).  `meta["radial_factorisation"] =
+  (LEN, NU, factorised)`.
+* `evaluate_batched!` / `evaluate_ed_batched!` (signatures unchanged, so
+  Part A's `evaluate_basis_ed!` and `evaluate` / `grad_params` use them
+  as before) call `_spline_tables_batched!`: per edge, transform and
+  envelope once (scalar `Dual` for the derivative), the cubic B-spline
+  position and the 4 value / 4 gradient weights (same arithmetic as
+  `Interpolations`' `Cubic(Line(OnGrid()))`: `_cubic_pos`,
+  `_cubic_value_weights`, `_cubic_gradient_weights`), the NU distinct
+  columns' value and r-derivative, then the expansion to LEN columns with
+  SIMD loops.  Scratch space comes from Bumper (`@no_escape`/`@alloc`).
+  Generic in the element type of `rs`, so `Dual` positions
+  (`jacobian_grad_params`, `ad_hessian_site`) still work.  The scalar
+  `evaluate` / `evaluate_ed` (one edge, `SVector{LEN}`) are unchanged.
+* `radial_transforms.jl`, `radial_envelopes.jl`: `_intpow(x, n)` expands
+  the run-time integer powers of `GeneralizedAgnesiTransform` and
+  `PolyEnvelope2sX` (exponents 0-4) into multiplications (5-7 % of the
+  optimised call).
+
+#### `src/models/site_ed.jl` (new)
+
+* `SiteEDWorkspace{T}` (rs, ∇rs, Rnl, dRnl, Ylm, dYlm, A, AA, ∂A, ∂Rnl,
+  ∂Ylm, ∇Ei, sbuf, Rpair, dRpair), grown by doubling when a site has more
+  neighbours.
+* `fold_readout_weights(model, ps[, iz])`: `wAA[iz] = A2B' * WB[:, iz]`.
+* `evaluate_ed!(ws, model, Rs, Zs, Z0, ps, st, wAA) -> Ei` with `∇Ei` in
+  `ws.∇Ei`: radial and Ylm embeddings into the workspace, `ET.evaluate!`
+  for A and AA once, `Ei = wAA . AA`, `ET.pullback!` for ∂A and (∂Rnl,
+  ∂Ylm) into the workspace, `_assemble_grad_fast!` (radial part reduced to
+  a scalar per edge before the vector update), pair basis contracted
+  column by column.  No B, no A2B matvecs, no KernelAbstractions launches,
+  zero allocations per site (tested).
+* `evaluate_ed(model, Rs, Zs, Z0, ps, st)` (`ace.jl`) is now a wrapper
+  that allocates a workspace and folds the weights per call; return type
+  unchanged (`(Float64, Vector{SVector{3,Float64}})`, `@inferred`).
+  `_assemble_grad_ed!` is removed with the old body.
+
+#### `src/models/calculators.jl`
+
+* `energy_forces_virial(at, V::ACEPotential{<:ACEModel}, ps, st; domain,
+  executor, ntasks, nlist, ws)`: species gathered once per call
+  (`atomic_number(at, :)`), weights folded once, the sites split into
+  `ntasks` chunks on `Threads.@spawn` tasks (default
+  `Threads.nthreads()`; `ntasks = 1` or `SequentialEx()` is serial), each
+  chunk (`_efv_chunk`, a function barrier on the concrete types) reading
+  its neighbourhoods with `NeighbourLists.neigs!` into reused buffers and
+  accumulating unit-free `E::T`, `F::Vector{SVector{3,T}}`,
+  `V::SMatrix{3,3,T}`; chunks summed in order, units attached once.  The
+  returned types are exactly those of `zero_energy` / `zero_forces` /
+  `zero_virial` (tested).  `nlist` (existing keyword, now used) and `ws`
+  (a vector of `SiteEDWorkspace`s) can be passed to reuse the neighbour
+  list and the workspaces across calls, e.g. from an MD driver.
+* New method `energy_forces_virial(at, V::ACEPotential{<:ACEModel}; kwargs...)`
+  so that `AtomsCalculators.energy_forces_virial(sys, calc)` (and
+  `energy_forces`, `forces`) take this path instead of the generic
+  `SitePotential` driver.  `potential_energy` and `virial` still go
+  through the generic driver (`eval_site` / `eval_grad_site`), which now
+  uses the new kernels but still allocates per site.
+* The chunked result differs from the serial one only by summation order
+  (tested to 1e-12; observed <= 4e-16 relative).
+
+#### Tests: `test/models/test_forward_fast.jl` (registered in `test/models/test_models.jl`)
+
+The previous `evaluate_ed` (per-edge `Interpolations` splines via the
+scalar `evaluate_ed(basis, r, ...)`, `ET.evaluate` + `ET.pullback`,
+`_assemble_grad_ed!`) and the generic driver loop are kept verbatim as the
+reference.  Models: `ace1_model` with (Si, O, C) at degrees 6 and 8,
+`ace1_model([:Si], totaldegree = 10)`, `ace_model` with the learnable
+radial basis un-splinified and splinified (random weights: NU = LEN, the
+non-factorisable case).  Checks: spline tables against the per-edge
+splines (1e-13 / 1e-12) including the explicitly unfactorised tables
+(`factorise = false`) and `Dual` numbers through the value kernel;
+`evaluate_ed` against the reference (energies 1e-12, gradients 1e-10),
+`@inferred`, workspace growth, zero allocations of `evaluate_ed!` for
+spline bases, empty neighbourhood, symmetric `ForwardDiff` Hessian through
+`evaluate_ed`; `energy_forces_virial` against the reference driver on
+random 16-atom structures (types identical, energies 1e-12, forces and
+virials 1e-10), the `AtomsCalculators` entry point, serial versus
+`ntasks = 3` (1e-12), `potential_energy`, `domain` as a range and a
+vector, `nlist` / `ws` reuse and its allocation bound (bytes and count),
+which the old path exceeds by ~100x.
+
 ## Verification
 
 Commands (Julia 1.12.7, macOS arm64; the test environment is
@@ -129,7 +275,19 @@ julia +1.12 -t 2 --project=<testenv> -e 'using Test; @testset "ACE Model" begin 
    ACE Calculator |  140    140  11.9s
 julia +1.12 -t 2 --project=<testenv> -e 'using Test, LazyArtifacts; @testset "Test silicon" begin include("test/test_silicon.jl") end'
    Test silicon  |   50     50  1m45.5s
+
+# after Part B (both parts on the branch):
+julia +1.12 -t 3 --project=<testenv> -e 'using Test; @testset "Forward fast" begin include("test/models/test_forward_fast.jl") end'
+   Forward fast  |  313    313  41.9s
+julia +1.12 -t 2 --project=<testenv> -e 'using Test, LazyArtifacts; @testset "all" begin @testset "Models" begin include("test/models/test_models.jl") end; @testset "Test silicon" begin include("test/test_silicon.jl") end end'
+   all           | 1300   1300  3m03.9s      (test_models.jl in full + test_silicon.jl)
+julia +1.12 -t 2 --project=<testenv> -e '... test_recompw.jl, test_json.jl, test_io.jl, test_bugs.jl ...'
+   13 pass, 1 "Unexpected Pass": the pre-existing `@test_broken` in test/test_bugs.jl:47
+   (Julia >= 1.12 basis-ordering issue) passes on this Mac, as its own comment says it does;
+   unrelated to this PR.
 ```
+The ET-backend tests (`test/et_models`, `test/etmodels`) do not touch the
+changed code and were not run.
 
 `test_ace.jl` includes the existing `evaluate_basis_ed` checks against
 `evaluate_ed` and against `jacobian_grad_params` (before and after
@@ -137,6 +295,8 @@ splinification); `test_calculator.jl` includes the existing
 `energy_forces_virial_basis` versus `energy_forces_virial` check.
 
 ## Before / after
+
+### Part A (design-matrix assembly)
 
 Machine: Mac (Apple Silicon, 12 cores), Julia 1.12.7, `-t 1`, other Julia
 jobs idle.  Structure: 32-atom CrMnFeCoNi (`cantor1k_b_mh1.xyz`, keys
@@ -180,6 +340,50 @@ With 4 threads the chunked site loop gives 1.6-1.9x over serial at the
 price of one `(natoms x length_basis)` force accumulator per chunk
 (memory-bound; the same behaviour as the scratch `efv_basis_v3t`).
 
+### Before / after, Part B (forward evaluation)
+
+Same machine and Julia.  "before" = the original checkout's environment
+(`acejax/julia`, whose `ACEpotentials` is the jax-eval branch containing
+`main`'s 266f84eb kernel; the numbers reproduce
+`FINDINGS_forward_profile.md` §1), "after" = this branch, both timing
+`AtomsCalculators.energy_forces_virial(sys, m)` (min of 7 after warm-up;
+`bench_forward.jl`, logs `bench_forward_{before,after}_t{1,4}.log`).
+`nlist` = the neighbour list passed in; `+ws` = neighbour list and
+workspaces reused.  Structures: the 32-atom Cantor cell and its 2x2x2
+replica (80 neighbours/site), a rattled 64-atom Si cell and its 2x2x2
+replica (46 neighbours/site).  Energies agree to all printed digits
+(1e-6 eV) across the two processes; in-process against the verbatim old
+kernel: |dE| <= 4.5e-13 eV, max |dF| <= 4.7e-14 eV/Å, max |dV| <= 8.4e-11 eV.
+
+`-t 1`:
+
+| model | atoms | before ms / atom-steps/s / MB / allocs | after ms / steps/s / MB / allocs | after +nlist | after +nlist+ws (KB, allocs) | speed-up (plain / +nlist+ws) |
+|---|---|---|---|---|---|---|
+| cat_D6 | 32 | 3.87 / 8.3e3 / 6.6 / 37 119 | 1.43 / 2.2e4 / 0.9 / 1 322 | 1.22 / 2.6e4 | 1.20 / 2.7e4 / 172 KB / 64 | **2.7x / 3.2x** |
+| cat_D6 | 256 | 31.3 / 8.2e3 / 52.9 / 294 992 (GC 4 %) | 11.3 / 2.3e4 / 4.1 / 8 499 | 9.42 / 2.7e4 | 9.49 / 2.7e4 / 205 KB / 69 | **2.8x / 3.3x** |
+| cat_D8 | 32 | 6.31 / 5.1e3 / 12.1 / 37 183 | 2.74 / 1.2e4 / 1.6 / 1 325 | 2.47 / 1.3e4 | 2.49 / 1.3e4 / 652 KB / 64 | **2.3x / 2.5x** |
+| cat_D8 | 256 | 53.1 / 4.8e3 / 96.8 / 295 504 (GC 6 %) | 21.1 / 1.2e4 / 4.9 / 8 502 | 19.2 / 1.3e4 | 19.3 / 1.3e4 / 685 KB / 69 | **2.5x / 2.8x** |
+| Si_D10 | 64 | 2.98 / 2.2e4 / 5.5 / 45 959 | 1.64 / 3.9e4 / 1.2 / 2 317 | 0.94 / 6.8e4 | 0.94 / 6.8e4 / 18 KB / 38 | **1.8x / 3.2x** |
+| Si_D10 | 512 | 19.9 / 2.6e4 / 40.9 / 365 860 | 10.0 / 5.1e4 / 5.1 / 16 667 | 7.50 / 6.8e4 | 7.57 / 6.8e4 / 93 KB / 45 | **2.0x / 2.6x** |
+
+`-t 4` (before: the generic driver's `Folds` threading over
+`Threads.nthreads()` chunks; after: `ntasks = 4` `@spawn` chunks):
+
+| model | atoms | before ms / steps/s / allocs | after ms / steps/s / allocs | after +nlist+ws | speed-up vs before-4 | vs before-1 |
+|---|---|---|---|---|---|---|
+| cat_D6 | 32 | 1.44 / 2.2e4 / 38 096 | 0.72 / 4.5e4 / 1 971 | 0.37 / 8.8e4 / 176 | 2.0x / 3.9x | 5.4x / 10.6x |
+| cat_D6 | 256 | 12.4 / 2.1e4 / 300 234 (GC 10 %) | 4.68 / 5.5e4 / 8 951 | 2.65 / 9.7e4 / 167 | 2.6x / 4.7x | 6.7x / **11.8x** |
+| cat_D8 | 32 | 2.03 / 1.6e4 / 38 512 | 1.16 / 2.8e4 / 1 983 | 0.78 / 4.1e4 / 176 | 1.7x / 2.6x | 5.4x / 8.1x |
+| cat_D8 | 256 | 16.7 / 1.5e4 / 303 562 | 7.39 / 3.5e4 / 8 963 | 5.35 / 4.8e4 / 167 | 2.3x / 3.1x | 7.2x / **9.9x** |
+| Si_D10 | 64 | 1.54 / 4.2e4 / 46 328 | 1.03 / 6.2e4 / 2 820 | 0.29 / 2.2e5 / 137 | 1.5x / 5.3x | 2.9x / 10.2x |
+| Si_D10 | 512 | 7.75 / 6.6e4 / 366 241 | 5.10 / 1.0e5 / 17 110 | 2.16 / 2.4e5 / 143 | 1.5x / 3.6x | 3.9x / **9.2x** |
+
+(The 4-thread "after" without `nlist` is bounded by the serial
+`PairList` rebuild - 2.1 ms of the 4.7 ms for cat_D6/256 - which is why
+an MD driver should pass `nlist`; with it the 4-task path scales 3.6x
+over 1 task and the site loop allocates ~170 objects per call, none per
+site.)
+
 ## ACEfit follow-ups (not in this PR; separate package)
 
 Measured in `docs/findings/FINDINGS_assembly_profile.md` §2d and visible
@@ -198,6 +402,38 @@ in the `assemble` numbers above (`ACEfit/src/assemble.jl:36-47`, ACEfit 0.3.x):
    3200-structure degree-10 case).  Return the `SharedArray` / `sdata(A)`
    or write `feature_matrix!` straight into the view.
 
+## Other follow-ups (not in this PR)
+
+* **EquivariantTensors `_jacobian_X`** (`sparse_ace_basis.jl:236`,
+  `sparseprodpool.jl:567`, `sparsesymmprod.jl:349`): takes
+  `promote_type(Float64, SVector{3}) = Any` for the tangent element type,
+  so it cannot be called with vector tangents; a small change
+  (`T∂A = typeof(zero(TA) * zero(eltype(∂Rnl)))`) would let Part A use the
+  batched, KernelAbstractions-ready kernel for all sites of a structure at
+  once instead of the hand-written `_pf_A!` / `_pf_AA!` / `_pf_A2B!`.
+* **EquivariantTensors `_pb_evaluate_pbAA!`** (`sparsesymmprod.jl:174`,
+  vector version): no `@inbounds`, generic over the correlation order; it
+  is now the largest single item of the optimised site for the degree-8
+  categorical model (~23 us of ~67 us per site).  `@inbounds` plus
+  order-1/2/3 specialisations would give ~1.5-2x on that stage.
+* **3-factor A basis** `A = Σ_j P_{n'}(r_j) Y_lm(r_j) e_k(z_j)`
+  (`PooledSparseProduct{3}` over `(P, Ylm, E)` with `P` only NU wide,
+  `E` the one-hot or embedding row): removes the LEN-wide `Rnl`, `dRnl`,
+  `∂Rnl` arrays and the expansion / pullback / assemble passes over them,
+  which are now ~half of the remaining site time for the categorical
+  models and would make an embedded model's cost independent of the
+  embedding dimension.  Projected ~2x on top of Part B; a spec-generation
+  change in `_generate_ace_model` / `ace1_compat.jl`.
+* Type the `ps` / `st` / `co_ps` fields of `ACEPotential` (currently
+  `Any`): `eval_grad_site` and the generic `potential_energy` / `virial`
+  drivers would then infer; the fast `energy_forces_virial` is already a
+  function barrier so this only matters for the generic paths.
+* Contract the pair basis with `Wpair` at `splinify` time (one scalar
+  spline per pair) - the pair basis is ~15 % of the optimised site.
+* The learnable (`LearnableRnlrzzBasis`) `evaluate_ed_batched!` still
+  allocates per edge; only the spline basis got the new kernel (production
+  models are splinified).
+
 ## Deliberately left out
 
 * Batched / GPU-ready evaluation via `EquivariantTensors._jacobian_X`: it
@@ -214,4 +450,11 @@ in the `assemble` numbers above (`ACEfit/src/assemble.jl:36-47`, ACEfit 0.3.x):
 * Any change to the feature-matrix row layout or to the returned types of
   `energy_forces_virial_basis`.
 * Bit-identical serial/threaded results: the chunked sum differs from the
-  serial one by summation order (<= 1e-15 relative here).
+  serial one by summation order (<= 1e-15 relative here), in both parts.
+* Routing `potential_energy` and `virial` through the fast driver (they
+  still use the generic `SitePotential` `Folds` loops with the new
+  kernels); `energy_forces_virial` / `energy_forces` / `forces` are the
+  MD-relevant entry points and do take the fast path.
+* An `ACEPotential` field for cached folded weights: `wAA = A2B' * WB` is
+  recomputed per call (NZ sparse matvecs, ~10 us), which keeps
+  `set_linear_parameters!` / committee parameter swaps safe.
