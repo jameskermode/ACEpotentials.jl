@@ -9,14 +9,24 @@
 #show figure.caption: set text(size: 9pt)
 
 #align(center)[
-  #text(size: 15pt, weight: "bold")[Frozen element embeddings versus categorical species in linear ACE:\ distillation benchmarks on CrMnFeCoNi]
+  #text(size: 15pt, weight: "bold")[Element embeddings, distillation and evaluator performance\ in ACEpotentials: CrMnFeCoNi benchmarks and a Stage 2 proposal]
   #v(0.3em)
   #text(size: 9pt)[ACEpotentials.jl — 14 September 2026 — accompanies EquivariantTensors PRs \#144 and \#145 and the ACEpotentials branches `fix/basis-ed-performance`, `pr/jax-port`, `pr/element-embeddings`]
 ]
 
 = Summary
 
-A linear ACE model whose species dependence enters through a *frozen element embedding* (Darby-style tensor reduction, channel folded into the radial index) was benchmarked against the standard *categorical* model on a five-component alloy, with labels distilled from MACE-MH-1. At matched polynomial degree the embedded model costs 7–17% on force RMSE for 3–6× fewer parameters; given one more degree — which its smaller design matrix makes affordable — it *matches* the categorical model at 2.4× fewer parameters (0.0767 vs 0.0763 eV/Å). The best absolute result is categorical degree 10 on 4 000 structures, 0.0641 eV/Å and 2.0 meV/atom, fitted from a 151 GB design matrix. Learning curves show the categorical model is data-limited and the embedded model basis-limited, which is why the trade runs the way it does. The degree-6 student's GPU kernel runs 6× MACE-MH-1 at its fastest (torch + cuEquivariance, ≈1 100 atoms) and 25–100× at smaller cells. Two surprises: the embedding's *values* do not matter at $S = 5$, and the Julia evaluator ran the embedded model *slower* than the categorical one — now profiled and fixed. Recommendations, including code changes in flight, close the report.
+This report covers four things that came out of one line of work, and asks for decisions on a fifth.
+
+*Element embeddings.* A linear ACE model whose species dependence enters through a *frozen element embedding* (Darby-style tensor reduction, channel folded into the radial index) was benchmarked against the standard *categorical* model on a five-component alloy, with labels distilled from MACE-MH-1. At matched polynomial degree the embedded model costs 7–17% on force RMSE for 3–6× fewer parameters; given one more degree — which its smaller design matrix makes affordable — it *matches* the categorical model at 2.4× fewer parameters (0.0767 vs 0.0763 eV/Å). The best absolute result is categorical degree 10 on 4 000 structures, 0.0641 eV/Å and 2.0 meV/atom, from a 151 GB design matrix. Learning curves show the categorical model is data-limited and the embedded model basis-limited, which is why the trade runs the way it does. The embedding's *values* do not matter at $S = 5$ — which makes this a tensor reduction, not transferred chemistry, until $S > d_max$.
+
+*Evaluator performance, and two fixes.* The degree-6 student's JAX GPU kernel runs 6× MACE-MH-1 at its fastest (MACE-torch + cuEquivariance, ≈1 100 atoms) and 25–100× at smaller cells; in LAMMPS the plugin path, not the model, is what costs a large ACE basis against MACE. The Julia evaluator ran the embedded model *slower* than the categorical one; profiling found both the design-matrix assembly (a type-unstable ForwardDiff Jacobian, 174–218× fixed) and the forward evaluation (LEN-wide radial spline tables of which only 6–8 columns are distinct, 9–12× fixed) — the same 151 GB assembly went from a projected 14 h to 25 min. The tensor-part Jacobian now lives in EquivariantTensors (\#144), and a latent equivariance bug found on the way has its fix in \#145.
+
+*Distillation and its levers.* Bounding the structure generator halved the error at fixed basis; fixed $sqrt(rho)$ Finnis–Sinclair columns keep the fit convex and buy a few percent, the shape of the embedding function beyond $sqrt$ is exhausted, and the species weights inside the density — learned in seconds by variable projection and transferable frozen — are what matters. This validates a two-stage route: pre-train the basis on a subset, then fit convexly at scale.
+
+*Prior art.* Distillation into ACE and element embeddings are both published (Deringer's group; Darby et al.; GRACE); what neither pacemaker nor gracemaker has is a tensor-reduced ACE fitted convexly, and EquivariantTensors \#130 (CP/TRACE) is the learnable form of our frozen model.
+
+*Stage 2, for discussion.* Whether the fitter stays in Julia or moves assembly to JAX is an open choice now that Julia assembly is fast; basis pre-training then convex fitting should become the default path, adopting \#130's mixing layer when it lands; and the convexity claim should be demonstrated against GRACE-FS on HEA25S — calibrated UQ (BLR and POPS), exact data selection, deterministic fits, delta-learning, hard constraints as QPs — gated by an accuracy-at-matched-cost experiment at $S = 25$.
 
 = Set-up
 
