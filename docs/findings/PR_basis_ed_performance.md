@@ -2,6 +2,13 @@
 
 Branch: `fix/basis-ed-performance` (off `main` at 266f84eb).
 
+**Depends on EquivariantTensors >= 0.5.2** (branch
+`feat/pushforward-vector-tangents`, PR to ACEsuit/EquivariantTensors.jl):
+the tensor part of the Part A pushforward (`A -> AA -> B` with one
+`SVector{3}` tangent per neighbour) is `EquivariantTensors.pushforward_rows!`
+from that release; the compat entry goes from `"0.4.3"` to `"0.4.3, 0.5"`.
+See "EquivariantTensors dependency" below.
+
 ## Summary
 
 Two independent performance fixes for the classic (non-ET) `ACEModel`
@@ -50,17 +57,22 @@ on a 32-atom, 5-element structure and allocates 20-60 MB instead of
 
 #### `src/models/basis_ed.jl` (new)
 
-* `BasisEDWorkspace{T}`: all intermediates (`rs`, `∇rs`, `Rnl`, `dRnl`,
-  `∂Rnl`, `Ylm`, `∂Ylm`, `A`, `∂A`, `AA`, `∂AA`, `Bi`, `∂Bi`, `Rpair`,
+* `BasisEDWorkspace{T}`: the embedding intermediates (`rs`, `∇rs`, `Rnl`,
+  `dRnl`, `∂Rnl`, `Ylm`, `∂Ylm`) and the outputs (`Bi`, `∂Bi`, `Rpair`,
   `dRpair`) sized for a maximum neighbour count; grows by doubling if a site
   has more neighbours.
 * `evaluate_basis_ed!(ws, model, Rs, Zs, Z0, ps, st)`: the pushforward with
   `SVector{3}` tangents,
   `rs -> Rnl (evaluate_ed_batched!), Ylm (P4ML.evaluate_ed!) -> A -> AA -> Bi = A2B * AA`,
   plus the pair basis, computing only the block of the centre species.
-  Kernels: `_pf_A!` (pooled sparse product), `_pf_AA!`/`_pf_AA_N!`
-  (symmetric product, `@generated` over the correlation order, uses a local
-  `_prod_ed`), `_pf_A2B!` (CSC loop; generic fallback for a dense map).
+  The tensor part `A -> AA -> Bi` is one call,
+  `EquivariantTensors.pushforward_rows!(Bi, ∂Bi, model.tensor, Rnl, Ylm, ∂Rnl, ∂Ylm)`,
+  the row-wise pushforward of `SparseACEbasis` added to ET in 0.5.2 (see
+  below); its `A`, `∂A`, `AA`, `∂AA` intermediates live on ET's Bumper
+  stack.  (Earlier revisions of this branch carried these three kernels
+  locally as `_pf_A!`, `_pf_AA!`, `_pf_A2B!`; they are now upstream, where
+  they sit next to the `evaluate!` / `pullback!` kernels of the same
+  layers.)
   Works for both radial bases (`SplineRnlrzzBasis` via `ace1_model`,
   `LearnableRnlrzzBasis` via `ace_model`) since both provide
   `evaluate_ed_batched!`.
@@ -70,6 +82,36 @@ on a 32-atom, 5-element structure and allocates 20-60 MB instead of
   `(length_basis, nneigh)` with `dB[k, j] = ∂B[k]/∂Rs[j]` - but now
   concretely typed (`@inferred` passes) and ~12 ms -> ~1 ms per site.  A
   workspace can be passed to avoid re-allocating the intermediates.
+
+#### EquivariantTensors dependency (`Project.toml`)
+
+`EquivariantTensors = "0.4.3, 0.5"` (was `"0.4.3"`).  The three tensor
+kernels of Part A are now ET's `pushforward_rows!` (ET branch
+`feat/pushforward-vector-tangents`, version 0.5.2, one small PR separate
+from the spec-ordering fix):
+
+```julia
+# one tangent per input row j (neighbour); nothing is summed over j;
+# the tangent type only needs T * T∂ -> T∂, so SVector{3} tangents work
+pushforward_rows!(A, ∂A, abasis::PooledSparseProduct{NB}, (Rnl, Ylm), (∂Rnl, ∂Ylm))
+pushforward_rows!(AA, ∂AA, aabasis::SparseSymmProd, A, ∂A)
+pushforward_rows!(B, ∂B, tensor::SparseACEbasis, Rnl, Ylm, ∂Rnl, ∂Ylm)   # composition + A2Bmaps[1]
+pushforward_rows(tensor::SparseACEbasis, Rnl, Ylm, ∂Rnl, ∂Ylm)           # allocating
+```
+
+with `whatalloc` methods, `@inferred`/allocation-free layer kernels, and
+tests against ForwardDiff, finite differences and the adjoint identity with
+the existing `pullback` (`test/ace/test_pushforward_rows.jl` in ET).
+ACEpotentials `main` is already on ET's 0.4 API; the 0.4.3 -> 0.5.x jump
+needs no code change here (`test/models/test_ace.jl`,
+`test_calculator.jl`, `test_forward_fast.jl`, `test_basis_ed.jl` pass
+unchanged on 0.5.2).  One pre-existing threshold in `test/test_silicon.jl`
+is marginally exceeded on ET 0.5.x independently of this branch: the BLR
+fit's `liq` energy RMSE is 0.4203 meV against the 0.4 meV bound
+(`rmse_blr`, line 84), identically with the old local kernels and with the
+ET call (they agree to 1e-12); ET 0.5.0 orthonormalised the coupling
+coefficients, which changes the basis the BLR prior acts on.  Not
+addressed here.
 
 #### `src/models/calculators.jl`
 
@@ -286,6 +328,20 @@ julia +1.12 -t 2 --project=<testenv> -e '... test_recompw.jl, test_json.jl, test
    (Julia >= 1.12 basis-ordering issue) passes on this Mac, as its own comment says it does;
    unrelated to this PR.
 ```
+```
+# with the tensor kernels from EquivariantTensors 0.5.2 (pushforward_rows!),
+# ET dev'd from the feat/pushforward-vector-tangents branch:
+julia +1.12 -t 3 --project=<testenv> -e '... test/models/test_basis_ed.jl ...'
+   Basis ED      |  158    158  56.5s       (unchanged test, same 1e-12 tolerances)
+julia +1.12 -t 2 --project=<testenv> -e '... test_forward_fast.jl, test_ace.jl, test_calculator.jl, test_silicon.jl ...'
+   Forward fast  |  313    313  50.6s
+   ACE Model     |  324    324  24.5s
+   ACE Calculator |  140    140   9.0s
+   Test silicon  |   49      1  1m53.9s     (the BLR liq-E threshold, see above; same with the old kernels on ET 0.5.2)
+# EquivariantTensors itself, full suite on the branch:
+julia +1.12 --project=<ET> -e 'using Pkg; Pkg.test()'
+   EquivariantTensors.jl | 5916   5916  2m54.1s
+```
 The ET-backend tests (`test/et_models`, `test/etmodels`) do not touch the
 changed code and were not run.
 
@@ -328,6 +384,22 @@ verbatim into the benchmark script and run in the same process
 taken before Part B; with Part B's radial kernel the serial
 `energy_forces_virial_basis` is 23.0 ms / 18.5 MB (D = 6) and
 75.8 ms / 58.9 MB (D = 8) on the same structure, i.e. 250x / 190x.)
+
+With the tensor kernels from ET 0.5.2 instead of the local ones (same
+script, same machine, same session-to-session comparison with ET 0.5.2 in
+both runs, `-t 1`, `NASSEMBLE=4`):
+
+| serial, 32-atom structure | D = 6 | D = 8 |
+|---|---|---|
+| `evaluate_basis_ed` with `ws`, local kernels | 0.964 ms, 12.7 MB | 3.05 ms, 35.6 MB |
+| `evaluate_basis_ed` with `ws`, ET `pushforward_rows!` | 0.833 ms, 12.7 MB | 2.74 ms, 35.6 MB |
+| `energy_forces_virial_basis`, local kernels | 23.5 ms, 18.5 MB (197x old) | 80.0 ms, 59.4 MB (196x old) |
+| `energy_forces_virial_basis`, ET `pushforward_rows!` | 20.5 ms, 15.9 MB (215x old) | 66.2 ms, 39.6 MB (229x old) |
+
+i.e. unchanged within noise or slightly faster (the `A`/`AA` intermediates
+are no longer heap arrays in the workspace but Bumper-stack allocations
+inside ET); results agree with the old ForwardDiff path to 3-4e-15 as
+before.
 
 The `assemble` ratios (18x / 48x) are far below the
 `energy_forces_virial_basis` ratios (218x / 174x) because, once the feature
@@ -407,13 +479,13 @@ in the `assemble` numbers above (`ACEfit/src/assemble.jl:36-47`, ACEfit 0.3.x):
 
 ## Other follow-ups (not in this PR)
 
-* **EquivariantTensors `_jacobian_X`** (`sparse_ace_basis.jl:236`,
-  `sparseprodpool.jl:567`, `sparsesymmprod.jl:349`): takes
-  `promote_type(Float64, SVector{3}) = Any` for the tangent element type,
-  so it cannot be called with vector tangents; a small change
-  (`T∂A = typeof(zero(TA) * zero(eltype(∂Rnl)))`) would let Part A use the
-  batched, KernelAbstractions-ready kernel for all sites of a structure at
-  once instead of the hand-written `_pf_A!` / `_pf_AA!` / `_pf_A2B!`.
+* **EquivariantTensors `_jacobian_X`** (`sparse_ace_basis.jl`,
+  `sparseprodpool.jl`, `sparsesymmprod.jl`): the batched
+  `(maxneigs, nnodes, nfeat)` KernelAbstractions version of the same
+  operation still takes `promote_type(Float64, SVector{3}) = Any` for the
+  tangent element type; the single-node `pushforward_rows!` now in ET
+  (which Part A uses) could be the CPU reference for fixing it, after
+  which Part A could evaluate all sites of a structure in one batched call.
 * **EquivariantTensors `_pb_evaluate_pbAA!`** (`sparsesymmprod.jl:174`,
   vector version): no `@inbounds`, generic over the correlation order; it
   is now the largest single item of the optimised site for the degree-8
@@ -441,9 +513,9 @@ in the `assemble` numbers above (`ACEfit/src/assemble.jl:36-47`, ACEfit 0.3.x):
 
 * Batched / GPU-ready evaluation via `EquivariantTensors._jacobian_X`: it
   uses `promote_type(Float64, SVector{3}) = Any` for the tangent element
-  type and cannot take vector tangents as is; a 3-line upstream change
-  would let ACEpotentials call the batched kernel for all sites of a
-  structure at once.  The hand-written kernels here follow its structure.
+  type and cannot take vector tangents as is.  The per-site kernels went
+  upstream as `pushforward_rows!` instead (ET 0.5.2); batching over the
+  sites of a structure is a follow-up.
 * A specialised `ACEfit.feature_matrix(::AtomsData, ::ACEPotential{<:ACEModel})`
   writing straight into the row layout: the unit-strip/copy-out now costs
   ~2 ms of the 28 ms per structure, not worth a second code path.

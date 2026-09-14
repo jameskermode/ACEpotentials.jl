@@ -9,20 +9,23 @@
 #
 #   This used to be a `ForwardDiff.jacobian` over the full basis vector
 #   followed by a chain of collect / reshape / permutedims, which inferred
-#   as `Any` and allocated ~100 MB per site.  It is now a hand-written
-#   forward-mode (pushforward) pass with `SVector{3}` tangents through
+#   as `Any` and allocated ~100 MB per site.  It is now a forward-mode
+#   (pushforward) pass with `SVector{3}` tangents through
 #      rs -> Rnl, Ylm -> A (pooled product) -> AA (symmetric product)
 #         -> B = A2B * AA,
-#   plus the pair basis.  Only the species block of B is nonzero for a
-#   given centre atom, so only that block (n_B + n_pair entries) is
-#   differentiated; the public wrapper scatters it into the full layout.
+#   plus the pair basis.  The radial and spherical-harmonic parts are
+#   evaluated here; the tensor part (A -> AA -> B) is
+#   `EquivariantTensors.pushforward_rows!`, the row-wise (one tangent per
+#   neighbour) pushforward of `SparseACEbasis` (ET >= 0.5.2).  Only the
+#   species block of B is nonzero for a given centre atom, so only that
+#   block (n_B + n_pair entries) is differentiated; the public wrapper
+#   scatters it into the full layout.
 #
-#   All intermediates live in a `BasisEDWorkspace` that is allocated once
-#   per call (or reused across sites / structures if the caller passes one).
+#   The embedding intermediates live in a `BasisEDWorkspace` that is
+#   allocated once per call (or reused across sites / structures if the
+#   caller passes one); the A / AA intermediates are on ET's Bumper stack.
 # ------------------------------------------------------------
 
-using SparseArrays: SparseMatrixCSC, nzrange, rowvals, nonzeros
-using LinearAlgebra: mul!
 using StaticArrays: SVector, SMatrix
 
 # ------------------------------------------------------------
@@ -37,10 +40,6 @@ mutable struct BasisEDWorkspace{T}
    ∂Rnl::Matrix{SVector{3, T}}         # (maxneigh, nR)   ∂Rnl/∂𝐫
    Ylm::Matrix{T}                      # (maxneigh, nY)
    ∂Ylm::Matrix{SVector{3, T}}         # (maxneigh, nY)
-   A::Vector{T}                        # (nA,)
-   ∂A::Matrix{SVector{3, T}}           # (maxneigh, nA)
-   AA::Vector{T}                       # (nAA,)
-   ∂AA::Matrix{SVector{3, T}}          # (maxneigh, nAA)
    Bi::Vector{T}                       # (nBi,)
    ∂Bi::Matrix{SVector{3, T}}          # (maxneigh, nBi)  NB: neighbour-major
    Rpair::Matrix{T}                    # (maxneigh, npair)
@@ -50,8 +49,6 @@ end
 function BasisEDWorkspace(model::ACEModel, maxneigh::Integer; T = Float64)
    nR = length(model.rbasis)
    nY = length(model.ybasis)
-   nA = length(model.tensor.abasis)
-   nAA = length(model.tensor.aabasis)
    nBi = length(model.tensor)
    npair = model.pairbasis === nothing ? 0 : length(model.pairbasis)
    z = zero(SVector{3, T})
@@ -59,8 +56,6 @@ function BasisEDWorkspace(model::ACEModel, maxneigh::Integer; T = Float64)
          zeros(T, maxneigh), fill(z, maxneigh),
          zeros(T, maxneigh, nR), zeros(T, maxneigh, nR), fill(z, maxneigh, nR),
          zeros(T, maxneigh, nY), fill(z, maxneigh, nY),
-         zeros(T, nA), fill(z, maxneigh, nA),
-         zeros(T, nAA), fill(z, maxneigh, nAA),
          zeros(T, nBi), fill(z, maxneigh, nBi),
          zeros(T, maxneigh, npair), zeros(T, maxneigh, npair))
 end
@@ -74,104 +69,6 @@ function _ensure_capacity!(ws::BasisEDWorkspace{T}, model::ACEModel, nneigh::Int
       end
    end
    return ws
-end
-
-# ------------------------------------------------------------
-#  pushforward kernels
-
-# product of a tuple and its gradient: (∏ b_t, (∂/∂b_t ∏ b_s)_t)
-_prod_ed(b::NTuple{1, T}) where {T} = b[1], (one(T),)
-
-function _prod_ed(b::NTuple{N, T}) where {N, T}
-   p2, g2 = _prod_ed(b[2:N])
-   return b[1] * p2, (p2, ntuple(i -> b[1] * g2[i], N - 1)...)
-end
-
-# A[iA] = ∑_j Rnl[j, n] Ylm[j, l]
-# ∂A[j, iA] = ∂Rnl[j, n] Ylm[j, l] + Rnl[j, n] ∂Ylm[j, l]
-function _pf_A!(A::AbstractVector{T}, ∂A::AbstractMatrix{SVector{3, T}},
-                spec::AbstractVector{NTuple{2, Int}}, nneigh::Int,
-                Rnl, ∂Rnl, Ylm, ∂Ylm) where {T}
-   @inbounds for (iA, (n, l)) in enumerate(spec)
-      a = zero(T)
-      @simd ivdep for j = 1:nneigh
-         r = Rnl[j, n]; y = Ylm[j, l]
-         a += r * y
-         ∂A[j, iA] = ∂Rnl[j, n] * y + r * ∂Ylm[j, l]
-      end
-      A[iA] = a
-   end
-   return nothing
-end
-
-# AA[iAA] = ∏_t A[ϕ_t];   ∂AA[j, iAA] = ∑_t (∏_{s≠t} A[ϕ_s]) ∂A[j, ϕ_t]
-function _pf_AA_N!(AA::AbstractVector{T}, ∂AA::AbstractMatrix{SVector{3, T}},
-                   range::UnitRange{Int}, spec::Vector{NTuple{N, Int}}, nneigh::Int,
-                   A::AbstractVector{T}, ∂A::AbstractMatrix{SVector{3, T}}) where {T, N}
-   @inbounds for (iAA, ϕ) in zip(range, spec)
-      aa, ∇aa = _prod_ed(ntuple(t -> A[ϕ[t]], N))
-      AA[iAA] = aa
-      @simd ivdep for j = 1:nneigh
-         d = ∇aa[1] * ∂A[j, ϕ[1]]
-         for t = 2:N
-            d += ∇aa[t] * ∂A[j, ϕ[t]]
-         end
-         ∂AA[j, iAA] = d
-      end
-   end
-   return nothing
-end
-
-@generated function _pf_AA!(AA, ∂AA, basis::EquivariantTensors.SparseSymmProd{ORD},
-                            nneigh::Int, A, ∂A) where {ORD}
-   quote
-      if basis.hasconst
-         AA[1] = one(eltype(AA))
-         @inbounds for j = 1:nneigh
-            ∂AA[j, 1] = zero(eltype(∂AA))
-         end
-      end
-      Base.Cartesian.@nexprs $ORD N -> _pf_AA_N!(AA, ∂AA, basis.ranges[N],
-                                                 basis.specs[N], nneigh, A, ∂A)
-      return nothing
-   end
-end
-
-# B = A2B * AA;   ∂B[j, k] = ∑_iAA A2B[k, iAA] ∂AA[j, iAA]
-function _pf_A2B!(B::AbstractVector{T}, ∂B::AbstractMatrix{SVector{3, T}},
-                  A2B::SparseMatrixCSC, nneigh::Int,
-                  AA::AbstractVector{T}, ∂AA::AbstractMatrix{SVector{3, T}}) where {T}
-   fill!(B, zero(T))
-   @inbounds for k = 1:size(A2B, 1), j = 1:nneigh
-      ∂B[j, k] = zero(SVector{3, T})
-   end
-   rv = rowvals(A2B); nz = nonzeros(A2B)
-   @inbounds for iAA = 1:size(A2B, 2)
-      aa = AA[iAA]
-      for p in nzrange(A2B, iAA)
-         k = rv[p]; c = nz[p]
-         B[k] += c * aa
-         @simd ivdep for j = 1:nneigh
-            ∂B[j, k] += c * ∂AA[j, iAA]
-         end
-      end
-   end
-   return nothing
-end
-
-# generic fallback for a dense (or otherwise non-CSC) coupling matrix
-function _pf_A2B!(B::AbstractVector{T}, ∂B::AbstractMatrix{SVector{3, T}},
-                  A2B::AbstractMatrix, nneigh::Int,
-                  AA::AbstractVector{T}, ∂AA::AbstractMatrix{SVector{3, T}}) where {T}
-   mul!(B, A2B, AA)
-   @inbounds for k = 1:size(A2B, 1), j = 1:nneigh
-      d = zero(SVector{3, T})
-      for iAA = 1:size(A2B, 2)
-         d += A2B[k, iAA] * ∂AA[j, iAA]
-      end
-      ∂B[j, k] = d
-   end
-   return nothing
 end
 
 # ------------------------------------------------------------
@@ -202,13 +99,10 @@ function evaluate_basis_ed!(ws::BasisEDWorkspace{T}, model::ACEModel,
    ∂Ylm = view(ws.∂Ylm, 1:n, :)
    P4ML.evaluate_ed!(Ylm, ∂Ylm, model.ybasis, Rs)
 
-   # A -> AA -> B
-   ∂A = view(ws.∂A, 1:n, :)
-   _pf_A!(ws.A, ∂A, model.tensor.abasis.spec, n, Rnl, ∂Rnl, Ylm, ∂Ylm)
-   ∂AA = view(ws.∂AA, 1:n, :)
-   _pf_AA!(ws.AA, ∂AA, model.tensor.aabasis, n, ws.A, ∂A)
+   # A -> AA -> B: row-wise pushforward through the tensor (ET >= 0.5.2)
    ∂Bi = view(ws.∂Bi, 1:n, :)
-   _pf_A2B!(ws.Bi, ∂Bi, model.tensor.A2Bmaps[1], n, ws.AA, ∂AA)
+   EquivariantTensors.pushforward_rows!(ws.Bi, ∂Bi, model.tensor,
+                                        Rnl, Ylm, ∂Rnl, ∂Ylm)
 
    # pair basis
    if model.pairbasis !== nothing
