@@ -33,6 +33,7 @@ include("radial_transforms.jl")
 
 include("Rnl_basis.jl")
 include("Rnl_learnable.jl")
+include("embeddings.jl")
 include("Rnl_splines.jl")
 
 # sparse.jl removed - now using EquivariantTensors.SparseACEbasis directly
