@@ -435,3 +435,81 @@ embedding; test F in eV/Å, E in eV/atom.
   at 2 meV/atom. Degree 12 embedded (15 885 params at d≤16, ~50 GB at 4k)
   is affordable on any big node and is the obvious next point; categorical
   degree 12 (101 540 params, 330 GB) is not, without phase 18.
+
+## CORRECTION (2026-09-14): the embedded model was mis-built; every embedded-vs-categorical gap above is retracted
+
+The tensor-train spike's exact oracle (`FINDINGS_tt_spike.md`) required the
+embedded model to be a bit-level special case of `ace1_model`, and it was not.
+Three defects in `ace_embedding_model`, all fixed in commit `6440ff88`:
+
+1. **Solid harmonics** by default where `ace1_model` uses spherical — a
+   different basis for l ≥ 1 (21% oracle residual).
+2. **A broken pair basis**: the one-hot spec `n = 1..maxq` was decoded as
+   `(n', z') = (1, n)`, giving four pair functions per centre at S = 5 and none
+   for Ni neighbours, against `ace1_model`'s 20.
+3. **A smaller block set**: the single-channel degree rule `n' + wL·l ≤ D`
+   enumerates 40–45% fewer (n', l) blocks than `ace1_model`'s species-folded
+   rule `n' − 1 + z'/NZ + wL·l ≤ D` (whose union over species is the z' = 1
+   case). A "degree-D embedded model" was a smaller model than the degree-D
+   categorical one with a compressed species index.
+
+The fixed model enumerates blocks with `ace1_model`'s own rule (fold with
+z' = 1, unfold), builds the pair basis as `ace1_compat` does, uses spherical
+harmonics, and carries a `ChannelLevel` so neither the degree bookkeeping nor
+the smoothness prior treats the channel as a degree. Two exact oracles are
+now tests: at S = 1 it *is* `ace1_model` (span residual 5e-16; the
+like-for-like fit is identical to all digits), and at S = 2 the lossless model
+spans the categorical site-basis space to 7e-15 — "lossless" is a
+reparameterisation after all, and the earlier retraction of that claim was
+itself an artefact of defect 3.
+
+### Corrected results (same data, splits, λ sweeps; categorical unchanged)
+
+| model | n_B | params | 1k deg 6 | 1k deg 8 | 4k deg 8 | 4k deg 10 |
+|---|---|---|---|---|---|---|
+| categorical | 1 348 / 3 824 / 9 327 | 6 740 / 19 120 / 46 635 | 0.0969 | 0.0855 | 0.0763 | 0.0641 |
+| embedded lossless | 1 075 / 2 570 / 5 465 | 5 375 / 12 850 / 27 325 | **0.0953** | **0.0812** | **0.0755** | **0.0639** |
+| embedded d≤16 | 638 / 1 449 / — | 3 190 / 7 245 / — | 0.0975 | **0.0822** | 0.0787 | _running_ |
+| embedded d≤8 | 342 / 760 / — | 1 710 / 3 800 / — | 0.1076 | 0.0950 | _running_ | _running_ |
+
+(test F, eV/Å; n_B and params listed for degrees 6 / 8 / 10)
+
+- **At matched degree the frozen embedding costs nothing.** Lossless is
+  0.4–5% *better* than categorical at every degree (a different prior shape
+  on the same span), with 1.3–1.7× fewer parameters; d≤16 is within 1–3% at
+  degree 6–8 (and 4% better at 1k degree 8) with 2.1–2.6× fewer. The old
+  table's 7–20% gap was the three defects.
+- Energies are 1.8–3.6 meV/atom throughout; lossless degree 10 on 4k reaches
+  0.0639 eV/Å / 1.8 meV/atom with 27k parameters against the categorical's
+  47k.
+- d≤8 still costs ~10% — order 2 truncated to 8 of 15 directions — so the
+  recommendation "keep d_max = 16" stands.
+- The parameter counts of the embedded models roughly doubled relative to the
+  old table because the block set is now the full categorical one; the
+  saving is now 2× rather than 3–6×, at zero accuracy cost rather than
+  7–20%.
+
+### Stage 1F: what the ACE1 degree rule and radial heuristics are worth (1k, degree 6)
+
+Species-symmetric block rule (`block_rule = :symmetric`, the pre-fix block
+set, `n' + wL·l ≤ D`), correct pair basis and harmonics; three initialisations
+of one radial layer, plus the non-ACE1 radials:
+
+| model | n_B | params | test F |
+|---|---|---|---|
+| ACE1-rule categorical (reference) | 1 348 | 6 740 | 0.0969 |
+| symmetric categorical (E = I, lossless) | 475 | 2 375 | 0.1038 |
+| symmetric embedded MH-1, d≤16 | 323 | 1 615 | 0.1063 |
+| symmetric random projection, d≤16 | 323 | 1 615 | 0.1082 |
+| symmetric embedded MH-1, d≤16, non-ACE1 radials (Legendre, agnesi (2,2), unsplined, solid) | 323 | 1 615 | 0.1087 |
+
+- The ACE1 species-folded rule's extra tail blocks are worth **7%** at 2.8×
+  the basis (0.0969 vs 0.1038); on the symmetric block set the embedding
+  costs 2.4% against its own categorical (0.1063 vs 0.1038).
+- **The MH-1 table beats a random projection by 1.8%** at matched everything
+  — the first measurable sign of transferred chemistry, small but the right
+  sign; it was invisible before because the pair-basis and harmonics
+  defects dominated.
+- The non-ACE1 radial heuristics cost 2.3% (0.1087 vs 0.1063): Jacobi with
+  the envelope folded in, agnesi (2,4) and splining are worth keeping; the
+  degree rule is the part of ACE1 worth replacing (Stage 1F).
