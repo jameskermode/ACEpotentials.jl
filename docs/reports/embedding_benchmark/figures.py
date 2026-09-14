@@ -84,13 +84,34 @@ ax.set_xticks(x); ax.set_xticklabels(labels)
 for bars, vals in ((b1, f64), (b2, f32)):
     for b, v in zip(bars, vals):
         if np.isfinite(v):
-            ax.annotate(f"{v:.1e}", (b.get_x() + b.get_width() / 2, v), textcoords="offset points",
-                        xytext=(0, 3), ha="center", fontsize=6.5)
+            ax.annotate(f"{v:.1e}", (b.get_x() + b.get_width() / 2, v), textcoords="offset points", xytext=(0, 3),
+                        ha="center", fontsize=6.5)
 ax.set_ylim(3e2, 6e5)
 ax.legend(frameon=False, fontsize=7, loc="upper left")
 fig.savefig("fig_throughput.png")
-print("figures written")
 
+# ---------- Figure 3b: MACE stacks vs the ACE student, kernel throughput, f32, A4500, vs cell size ----
+sizes = [40, 320, 1080]      # mean atoms of the three supercell series
+series = {
+    "ACE deg-6 d≤16 student, JAX":          ([8.3e4, 1.6e5, 8.4e4], C_EMB, "o", "-"),
+    "MACE-MH-1, torch + cuEquivariance":    ([7.6e2, 6.3e3, 1.4e4], "#333333", "D", "-"),
+    "MACE-MH-1, mace-jax (e3nn-jax)":       ([3.9e3, 6.8e3, 7.6e3], "#333333", "s", "--"),
+    "MACE-MH-1, torch plain":               ([1.0e3, 2.2e3, 2.2e3], "#333333", "^", ":"),
+    "MACE-MP-0 medium, torch + cuEq":       ([1.0e3, 8.3e3, 2.8e4], "#8c8c8c", "D", "-"),
+    "MACE-MP-0 small, mace-jax":            ([8.7e3, 2.0e4, 2.4e4], "#8c8c8c", "s", "--"),
+}
+fig, ax = plt.subplots(figsize=(7.0, 3.2))
+for lab, (v, c, mk, ls) in series.items():
+    ax.plot(sizes, v, ls, color=c, marker=mk, ms=4.5, lw=1.2, label=lab)
+ax.set_xscale("log"); ax.set_yscale("log")
+from matplotlib.ticker import FixedLocator, FixedFormatter, NullFormatter
+ax.xaxis.set_major_locator(FixedLocator(sizes)); ax.xaxis.set_major_formatter(FixedFormatter(["32–48", "256–384", "864–1296"]))
+ax.xaxis.set_minor_locator(FixedLocator([])); ax.xaxis.set_minor_formatter(NullFormatter())
+ax.set_xlabel("atoms per cell"); ax.set_ylabel("kernel atom-steps / s (f32)")
+ax.grid(alpha=0.25, which="both", lw=0.4)
+ax.set_ylim(4e2, 5e5)
+ax.legend(frameon=False, fontsize=6.3, loc="upper left", bbox_to_anchor=(0.0, 0.92), ncol=1)
+fig.savefig("fig_mace_stacks.png")
 # ---------- Figure 4: LAMMPS, 1728 Si atoms, A4500: ACE jax/kk vs ML-PACE vs MACE ----------
 # Source: acejax/bench/results.md ("Throughput, realistic shape") and results_phase13.md
 # ("The three-way table"); same host, same deck, same three Si models.
