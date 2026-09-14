@@ -1,0 +1,7 @@
+cat_D10    n_B/elem= 9327  NZ=5  length_basis= 46885  nR=191 nY= 49 nA=  275 nAA= 25843 npair=50 rcut=6.25
+   model build: 12.8 s; natoms = 32
+   efv_basis_v4 (workspace): 0.529 s / structure of 32 atoms  (16.54 ms/site), 41.9 MB
+   energy_forces_virial_serial: 0.0133 s / structure
+   ORIGINAL evaluate_basis_ed, one site: 0.23 s, 668 MB  -> x32 sites = 7 s/structure before the accumulation loop
+cat_D10 serialised model: 8.8 MB; serialize 1.013 s; deserialize 0.417 s
+A2Bmap: 9327 x 25843, nnz 25843 (2.8 per row)

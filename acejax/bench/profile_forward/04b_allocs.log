@@ -1,0 +1,19 @@
+cat_D6: LEN=74 NU=7  pair LEN=30 NU=7
+emb16_D6: LEN=224 NU=6  pair LEN=6 NU=2
+site_ed!: 16 bytes, 1 allocs, nX = 80
+radial_ed!: 1408 bytes, 21 allocs
+_edge_spl: 1040 bytes, 12 allocs
+Ylm: 1360 bytes, 23 allocs
+A: 1600 bytes, 23 allocs
+AA: 1184 bytes, 12 allocs
+∂A: 1520 bytes, 13 allocs
+∂Rnl,∂Ylm: 2096 bytes, 34 allocs
+_gather!: 432 bytes, 8 allocs
+_chunk! (32 sites): 128 bytes, 2 allocs
+fast_efv: 1969320 bytes, 35199 allocs
+       1 allocs     0.000 MB  UnitRange{Int64} @ gc-alloc-profiler.h:43 maybe_record_alloc_to_profile
+       1 allocs     0.000 MB  Core.TypeMapEntry @ gc-alloc-profiler.h:43 maybe_record_alloc_to_profile
+       1 allocs     0.000 MB  Memory{Any} @ gc-alloc-profiler.h:43 maybe_record_alloc_to_profile
+       1 allocs     0.000 MB  Core.MethodMatch @ gc-alloc-profiler.h:43 maybe_record_alloc_to_profile
+       1 allocs     0.000 MB  Vector{Any} @ gc-alloc-profiler.h:43 maybe_record_alloc_to_profile
+       1 allocs     0.000 MB  Tuple{Float64, SMatrix{3, 3, Float64, 9}} @ gc-alloc-profiler.h:43 maybe_record_alloc_to_profile

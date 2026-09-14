@@ -1,0 +1,12 @@
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+   v4 vs v3: E 1.7e-17  F 0.0e+00  V 0.0e+00
+   v3 0.0623 s   415.5 MB | v4 (workspace) 0.0480 s     7.7 MB
+   32 structs back-to-back: v3 5.97 s (gc 51%, 18.3 GB) | v4 2.39 s (gc 0%, 0.3 GB)
+cat_D8     n_B/elem= 3824  NZ=5  length_basis= 19320  nR=126 nY= 25 nA=  157 nAA=  7600 npair=40 rcut=6.25
+   v4 vs v3: E 1.1e-17  F 0.0e+00  V 0.0e+00
+   v3 0.2319 s  1403.4 MB | v4 (workspace) 0.1966 s    17.8 MB
+   32 structs back-to-back: v3 25.85 s (gc 46%, 58.6 GB) | v4 9.29 s (gc 5%, 0.7 GB)
+emb16_D8   n_B/elem=  753  NZ=5  length_basis=  3805  nR=384 nY= 25 nA=  380 nAA=  1217 npair=8 rcut=6.25
+   v4 vs v3: E 8.6e-18  F 0.0e+00  V 0.0e+00
+   v3 0.0534 s   300.4 MB | v4 (workspace) 0.0460 s     5.2 MB
+   32 structs back-to-back: v3 3.93 s (gc 46%, 12.1 GB) | v4 1.94 s (gc 8%, 0.2 GB)

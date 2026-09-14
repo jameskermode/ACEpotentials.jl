@@ -1,0 +1,90 @@
+=== return_types (inferred return type of the call) ===
+  get_neighbours                                     -> BAD  Tuple{Vector{Int64}, Vector{SVector{3, Float64}}, Vector, Any}
+  radii_ed!                                          -> OK   Tuple{Vector{Float64}, Vector{SVector{3, Float64}}}
+  evaluate_ed_batched! (spline Rnl)                  -> OK   Tuple{Matrix{Float64}, Matrix{Float64}}
+  M.evaluate (spline, one edge)                      -> OK   SVector{74, Float64}
+  P4ML.evaluate_ed (Ylm)                             -> OK   Tuple{Matrix{Float64}, Matrix{SVector{3, Float64}}}
+  ET.evaluate! (A)                                   -> OK   Vector{Float64}
+  ET.ka_evaluate (A)                                 -> OK   Vector{Float64}
+  ET.ka_evaluate (AA)                                -> OK   Vector{Float64}
+  ET.evaluate (tensor, as used)                      -> OK   Tuple{Vector{Float64}}
+  ET.pullback (tensor, as used)                      -> BAD  Tuple{Any, Any}
+  evaluate_ed (site E + grad)                        -> OK   Tuple{Float64, Vector{SVector{3, Float64}}}
+  M.evaluate (site E)                                -> OK   Float64
+  evaluate_ed_batched (pair)                         -> OK   Tuple{Matrix{Float64}, Matrix{Float64}}
+  eval_grad_site                                     -> BAD  Tuple{Any, Vector{SVector{3, Float64}}}
+  energy_forces_virial(sys, m)                       -> BAD  NamedTuple{(:energy, :forces, :virial), <:Tuple{Any, Any, Any}}
+
+=== @code_warntype evaluate_ed: lines mentioning Any / Union ===
+  Body::Tuple{Float64, Vector{SVector{3, Float64}}}
+  │    %61  = Base.indexed_iterate(%60, 1)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{Float64, 1}, Int64}, Union{Nothing, Bool}[0, 0], Any[UnsafeArrays.Un
+  │    %65  = Base.indexed_iterate(%60, 2, %64)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{SVector{3, Float64}, 1}, Int64}, Union{Nothing, Bool}[0, 0], An
+  │    %74  = Base.indexed_iterate(%73, 1)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{Float64, 2}, Int64}, Union{Nothing, Bool}[0, 0], Any[UnsafeArrays.Un
+  │    %78  = Base.indexed_iterate(%73, 2, %77)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{Float64, 2}, Int64}, Union{Nothing, Bool}[0, 0], Any[UnsafeArra
+  │    %84  = (%80)(%82, %83, Rs)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{Float64, 2}, UnsafeArrays.UnsafeArray{SVector{3, Float64}, 2}}, Union{Nothing
+  │    %85  = Base.indexed_iterate(%84, 1)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{Float64, 2}, Int64}, Union{Nothing, Bool}[0, 0], Any[Core.PartialStr
+  │    %89  = Base.indexed_iterate(%84, 2, %88)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{SVector{3, Float64}, 2}, Int64}, Union{Nothing, Bool}[0, 0], An
+  │    %96  = Ylm::Core.PartialStruct(UnsafeArrays.UnsafeArray{Float64, 2}, Union{Nothing, Bool}[0, 0], Any[Ptr{Float64}, Core.PartialStruct(Tuple{Int64, Int64}, 
+  │    %112 = Ylm::Core.PartialStruct(UnsafeArrays.UnsafeArray{Float64, 2}, Union{Nothing, Bool}[0, 0], Any[Ptr{Float64}, Core.PartialStruct(Tuple{Int64, Int64}, 
+  │    %113 = Core.tuple(%111, %112)::Core.PartialStruct(Tuple{UnsafeArrays.UnsafeArray{Float64, 2}, UnsafeArrays.UnsafeArray{Float64, 2}}, Union{Nothing, Bool}[0
+  │    %119 = Ylm::Core.PartialStruct(UnsafeArrays.UnsafeArray{Float64, 2}, Union{Nothing, Bool}[0, 0], Any[Ptr{Float64}, Core.PartialStruct(Tuple{Int64, Int64}, 
+  │    %132 = (view)(%129, %130, %131)::Core.PartialStruct(SubArray{Float64, 1, Matrix{Float64}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64}, true}, Union{Nothing
+  │    %140 = ∂B::Core.PartialStruct(SubArray{Float64, 1, Matrix{Float64}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64}, true}, Union{Nothing, Bool}[0, 0, 0, 0], A
+  │    %144 = Ylm::Core.PartialStruct(UnsafeArrays.UnsafeArray{Float64, 2}, Union{Nothing, Bool}[0, 0], Any[Ptr{Float64}, Core.PartialStruct(Tuple{Int64, Int64}, 
+  │    %147 = Base.indexed_iterate(%146, 1)::Core.PartialStruct(Tuple{Any, Int64}, Union{Nothing, Bool}[0, 0], Any[Any, Core.Const(2)])
+  │    %151 = Base.indexed_iterate(%146, 2, %150)::Core.PartialStruct(Tuple{Any, Int64}, Union{Nothing, Bool}[0, 0], Any[Any, Core.Const(3)])
+  │    %165 = dYlm::Core.PartialStruct(UnsafeArrays.UnsafeArray{SVector{3, Float64}, 2}, Union{Nothing, Bool}[0, 0], Any[Ptr{SVector{3, Float64}}, Core.PartialStr
+  │    %179 = Base.indexed_iterate(%178, 1)::Core.PartialStruct(Tuple{Matrix{Float64}, Int64}, Union{Nothing, Bool}[0, 0], Any[Matrix{Float64}, Core.Const(2)])
+  │    %183 = Base.indexed_iterate(%178, 2, %182)::Core.PartialStruct(Tuple{Matrix{Float64}, Int64}, Union{Nothing, Bool}[0, 0], Any[Matrix{Float64}, Core.Const(3
+  │    %202 = Wp_i::Core.PartialStruct(SubArray{Float64, 1, Matrix{Float64}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64}, true}, Union{Nothing, Bool}[0, 0, 0, 0],
+  │    %208 = (%205)(1, %207)::Core.PartialStruct(UnitRange{Int64}, Union{Nothing, Bool}[0, 0], Any[Core.Const(1), Int64])
+  │    %223 = Wp_i::Core.PartialStruct(SubArray{Float64, 1, Matrix{Float64}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64}, true}, Union{Nothing, Bool}[0, 0, 0, 0],
+  │    %249 = ACEpotentials.Models.OneBody::Core.Const(ACEpotentials.Models.OneBody)
+
+=== @code_warntype ET.pullback: Body ===
+  Body::TUPLE{ANY, ANY}
+
+=== @code_warntype energy_forces_virial (SitePotential driver): Body ===
+  Body::NAMEDTUPLE{(:ENERGY, :FORCES, :VIRIAL), <:TUPLE{ANY, ANY, ANY}}
+
+=== ACEPotential field types (mutable struct with untyped ps/st) ===
+  typeof(m.ps) = @NamedTuple{WB::Matrix{Float64}, Wpair::Matrix{Float64}, rbasis::@NamedTuple{}, pairbasis::@NamedTuple{}}
+  fieldtypes(ACEPotential) = (ACEpotentials.Models.ACEModel{5, ACEpotentials.Models.SplineRnlrzzBasis{5, ACEpotentials.Models.NormalizedTransform{Float64, ACEpotentials.Models.GeneralizedAgnesiTransform{Float64}}, ACEpotentials.Models.PolyEnvelope2sX{Float64}, 74, Float64}, Polynomials4ML.RealSCWrapper{SpheriCart.SphericalHarmonics{2, :L2, false, Matrix{Float64}}}, EquivariantTensors.SparseACEbasis{1, EquivariantTensors.PooledSparseProduct{2}, EquivariantTensors.SparseSymmProd{3, Tuple{Vector{Tuple{Int64}}, Vector{Tuple{Int64, Int64}}, Vector{Tuple{Int64, Int64, Int64}}}}, Tuple{SparseArrays.SparseMatrixCSC{Float64, Int64}}}, ACEpotentials.Models.SplineRnlrzzBasis{5, ACEpotentials.Models.NormalizedTransform{Float64, ACEpotentials.Models.GeneralizedAgnesiTransform{Float64}}, ACEpotentials.Models.ACE1_PolyEnvelope1sR{Float64}, 30, Float64}, ACEpotentials.Models.OneBody{Float64, Unitful.FreeUnits{(), NoDims, nothing}, Unitful.FreeUnits{(Å,), 𝐋, nothing}}}, Any, Any, Any)
+
+=== allocations of evaluate_ed vs nneigh (cat_D6) ===
+  nneigh= 10    65472 bytes    122 allocs
+  nneigh= 20    81840 bytes    182 allocs
+  nneigh= 40   114768 bytes    303 allocs
+  nneigh= 80   180560 bytes    543 allocs
+=== allocations of evaluate_ed vs nneigh (emb16_D6) ===
+  nneigh= 10    42224 bytes    119 allocs
+  nneigh= 20    76928 bytes    179 allocs
+  nneigh= 40   122144 bytes    300 allocs
+  nneigh= 80   212608 bytes    542 allocs
+
+=== Profile.Allocs: top allocation sites in energy_forces_virial (cat_D6, 32 atoms) ===
+      21 allocs      0.98 MB  Profile.Allocs.BufferType @ sparse_ace_basis.jl:174 pullback
+       5 allocs      0.30 MB  Profile.Allocs.BufferType @ assembly.jl:56 energy_forces_virial
+      19 allocs      0.30 MB  Profile.Allocs.BufferType @ sparse_ace_basis.jl:144 macro expansion
+      15 allocs      0.28 MB  Profile.Allocs.BufferType @ Rnl_splines.jl:128 evaluate_ed_batched
+      14 allocs      0.22 MB  Profile.Allocs.BufferType @ sparsesymmprod_ka.jl:18 ka_evaluate
+    2555 allocs      0.20 MB  ACEpotentials.Models.NormalizedTransform @ Rnl_splines.jl:37 evaluate
+      10 allocs      0.19 MB  Profile.Allocs.BufferType @ Rnl_splines.jl:127 evaluate_ed_batched
+      17 allocs      0.18 MB  Profile.Allocs.BufferType @ sparse_ace_basis.jl:105 evaluate
+    3872 allocs      0.12 MB  SVector{3, Quantity{Float64, 𝐋 𝐌 𝐓⁻², Un @ assembly.jl:84 #15
+    1316 allocs      0.11 MB  Interpolations.Extrapolation{SVector{30, @ Rnl_splines.jl:39 evaluate
+    1265 allocs      0.10 MB  Interpolations.Extrapolation{SVector{74, @ Rnl_splines.jl:39 evaluate
+    1230 allocs      0.10 MB  Atom{3, Quantity{Float64, 𝐋, Unitful.Fre @ interface.jl:90 get_id
+    1341 allocs      0.09 MB  ACEpotentials.Models.PolyEnvelope2sX{Flo @ Rnl_splines.jl:38 evaluate
+      13 allocs      0.07 MB  Profile.Allocs.BufferType @ sparse_ace_basis.jl:175 pullback
+      85 allocs      0.05 MB  Memory{Int64} @ <other>
+      22 allocs      0.04 MB  Memory{SVector{3, Float64}} @ neighbourlist.jl:40 get_neighbours
+    1260 allocs      0.04 MB  ACEpotentials.Models.ACE1_PolyEnvelope1s @ Rnl_splines.jl:38 evaluate
+      18 allocs      0.03 MB  Memory{SVector{3, Int64}} @ <other>
+      17 allocs      0.03 MB  Memory{SVector{3, Float64}} @ ace.jl:378 macro expansion
+    1303 allocs      0.02 MB  ChemicalSpecies @ interface.jl:90 get_id
+    1288 allocs      0.02 MB  Base.Broadcast.Broadcasted{Base.Broadcas @ interface.jl:90 get_id
+    1194 allocs      0.02 MB  Base.RefValue{ChemicalSpecies} @ interface.jl:90 get_id
+      15 allocs      0.01 MB  Memory{Int64} @ neighbourlist.jl:40 get_neighbours
+      14 allocs      0.01 MB  Memory{Float64} @ sparseprodpool_ka.jl:24 ka_evaluate
+      14 allocs      0.01 MB  Memory{Float64} @ ace.jl:350 macro expansion

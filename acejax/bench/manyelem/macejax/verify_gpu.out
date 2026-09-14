@@ -1,0 +1,24 @@
+jax 0.11.1  devices: [CudaDevice(id=0)]
+GPU: NVIDIA RTX A4500
+/storage/eng/essswb/macejax-gpu/venv/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+2026-09-11 22:26:39 INFO: Wrote predictions for /tmp/macejax-verify-n9u3x9j5/structure.xyz to /tmp/macejax-verify-n9u3x9j5/pred.npz
+jax backend platform(s): {'gpu'}
+/storage/eng/essswb/macejax-gpu/venv/lib/python3.12/site-packages/mace/calculators/mace.py:226: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/storage/eng/essswb/macejax-gpu/venv/lib/python3.12/site-packages/torch/jit/_serialization.py:176: FutureWarning: `torch.jit.load` is deprecated. Please switch to `torch.export`.
+  warnings.warn(
+/storage/eng/essswb/macejax-gpu/venv/lib/python3.12/site-packages/torch/jit/_serialization.py:176: FutureWarning: `torch.jit.load` is deprecated. Please switch to `torch.export`.
+  warnings.warn(
+/storage/eng/essswb/macejax-gpu/venv/lib/python3.12/site-packages/torch/jit/_serialization.py:176: FutureWarning: `torch.jit.load` is deprecated. Please switch to `torch.export`.
+  warnings.warn(
+2026-09-11 22:26:44 INFO: Using CPU
+2026-09-11 22:26:44 INFO: Using head Default out of  ['Default']
+
+  atoms                64
+  E (mace-jax, GPU)    -341.694622424 eV
+  E (mace-torch, CPU)  -341.694600191 eV
+  dE/atom              3.474e-07 eV      (tol 1.0e-06)
+  |F| scale            1.587921 eV/A
+  max|dF|              2.446e-07 eV/A    (tol 1.0e-05)
+  PASS

@@ -1,0 +1,11 @@
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+procs: 1
+ACEfit.assemble: 15.63 s wall for 32; feature_matrix calls: n=32, sum=5.51 s, mean=0.172 s, max=0.716 s
+assemble_instrumented(gc=true, capture=true): pmap 17.44 s wall; feature_matrix sum 5.91 s (mean 0.185); GC.gc sum 10.23 s (mean 0.320, n=32)
+assemble_instrumented(gc=true, capture=true): pmap 13.44 s wall; feature_matrix sum 4.79 s (mean 0.150); GC.gc sum 7.92 s (mean 0.248, n=32)
+assemble_instrumented(gc=false, capture=true): pmap 12.72 s wall; feature_matrix sum 11.71 s (mean 0.366); GC.gc sum 0.00 s (mean 0.000, n=0)
+assemble_instrumented(gc=false, capture=false): pmap 12.81 s wall; feature_matrix sum 11.82 s (mean 0.369); GC.gc sum 0.00 s (mean 0.000, n=0)
+assemble_instrumented(gc=true, capture=false): pmap 20.89 s wall; feature_matrix sum 7.10 s (mean 0.222); GC.gc sum 12.43 s (mean 0.389, n=32)
+A equal across variants: true
+make_atoms_data (32): 0.002 s
+assemble_weights (32): 0.010 s

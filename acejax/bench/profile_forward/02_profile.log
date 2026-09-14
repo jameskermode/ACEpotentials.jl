@@ -1,0 +1,931 @@
+
+=== cat_D6 : per-site stage timings (µs), site 1 with 80 neighbours ===
+  get_neighbours                          5.00 µs    5.1% of evaluate_ed
+  radii_ed!                               0.08 µs    0.1% of evaluate_ed
+  Rnl ed (spline)                        39.58 µs   40.5% of evaluate_ed
+  Ylm ed                                  1.46 µs    1.5% of evaluate_ed
+  A  evaluate!                            0.50 µs    0.5% of evaluate_ed
+  A  ka_evaluate (alloc)                  3.33 µs    3.4% of evaluate_ed
+  AA evaluate!                            1.17 µs    1.2% of evaluate_ed
+  AA ka_evaluate (alloc)                  3.08 µs    3.2% of evaluate_ed
+  B = A2B*AA (mul!)                       2.50 µs    2.6% of evaluate_ed
+  B = A2B*AA (alloc)                      2.62 µs    2.7% of evaluate_ed
+  ET.evaluate (fwd, as used)              9.71 µs    9.9% of evaluate_ed
+  ∂AA = A2B'*∂B (mul!)                    2.12 µs    2.2% of evaluate_ed
+  ∂AA = A2B'*∂B (alloc, as used)          2.21 µs    2.3% of evaluate_ed
+  ∂A  pullback!(AA)                       6.67 µs    6.8% of evaluate_ed
+  ∂Rnl,∂Ylm pullback!(A)                  3.25 µs    3.3% of evaluate_ed
+  ET.pullback (as used)                  14.67 µs   15.0% of evaluate_ed
+  assemble ∇Ei                            5.33 µs    5.5% of evaluate_ed
+  pair ed (alloc)                        24.42 µs   25.0% of evaluate_ed
+  evaluate_ed TOTAL                      97.62 µs  100.0% of evaluate_ed
+  eval_site (energy only)                56.42 µs   57.8% of evaluate_ed
+
+=== emb16_D6 : per-site stage timings (µs), site 1 with 80 neighbours ===
+  get_neighbours                          4.96 µs    3.0% of evaluate_ed
+  radii_ed!                               0.08 µs    0.0% of evaluate_ed
+  Rnl ed (spline)                        99.25 µs   59.2% of evaluate_ed
+  Ylm ed                                  0.67 µs    0.4% of evaluate_ed
+  A  evaluate!                            1.38 µs    0.8% of evaluate_ed
+  A  ka_evaluate (alloc)                  8.08 µs    4.8% of evaluate_ed
+  AA evaluate!                            0.17 µs    0.1% of evaluate_ed
+  AA ka_evaluate (alloc)                  0.79 µs    0.5% of evaluate_ed
+  B = A2B*AA (mul!)                       0.42 µs    0.2% of evaluate_ed
+  B = A2B*AA (alloc)                      0.46 µs    0.3% of evaluate_ed
+  ET.evaluate (fwd, as used)             10.00 µs    6.0% of evaluate_ed
+  ∂AA = A2B'*∂B (mul!)                    0.42 µs    0.2% of evaluate_ed
+  ∂AA = A2B'*∂B (alloc, as used)          0.46 µs    0.3% of evaluate_ed
+  ∂A  pullback!(AA)                       0.58 µs    0.3% of evaluate_ed
+  ∂Rnl,∂Ylm pullback!(A)                  9.21 µs    5.5% of evaluate_ed
+  ET.pullback (as used)                  13.17 µs    7.9% of evaluate_ed
+  assemble ∇Ei                           14.42 µs    8.6% of evaluate_ed
+  pair ed (alloc)                        17.88 µs   10.7% of evaluate_ed
+  evaluate_ed TOTAL                     167.62 µs  100.0% of evaluate_ed
+  eval_site (energy only)                73.54 µs   43.9% of evaluate_ed
+
+=== cat_D8 : per-site stage timings (µs), site 1 with 80 neighbours ===
+  get_neighbours                          5.00 µs    2.7% of evaluate_ed
+  radii_ed!                               0.08 µs    0.0% of evaluate_ed
+  Rnl ed (spline)                        55.67 µs   30.2% of evaluate_ed
+  Ylm ed                                  4.46 µs    2.4% of evaluate_ed
+  A  evaluate!                            1.17 µs    0.6% of evaluate_ed
+  A  ka_evaluate (alloc)                  7.25 µs    3.9% of evaluate_ed
+  AA evaluate!                            5.25 µs    2.8% of evaluate_ed
+  AA ka_evaluate (alloc)                 10.17 µs    5.5% of evaluate_ed
+  B = A2B*AA (mul!)                      13.33 µs    7.2% of evaluate_ed
+  B = A2B*AA (alloc)                     13.75 µs    7.5% of evaluate_ed
+  ET.evaluate (fwd, as used)             32.25 µs   17.5% of evaluate_ed
+  ∂AA = A2B'*∂B (mul!)                    8.50 µs    4.6% of evaluate_ed
+  ∂AA = A2B'*∂B (alloc, as used)          8.62 µs    4.7% of evaluate_ed
+  ∂A  pullback!(AA)                      23.21 µs   12.6% of evaluate_ed
+  ∂Rnl,∂Ylm pullback!(A)                  6.50 µs    3.5% of evaluate_ed
+  ET.pullback (as used)                  47.38 µs   25.7% of evaluate_ed
+  assemble ∇Ei                            9.75 µs    5.3% of evaluate_ed
+  pair ed (alloc)                        28.25 µs   15.3% of evaluate_ed
+  evaluate_ed TOTAL                     184.38 µs  100.0% of evaluate_ed
+  eval_site (energy only)                92.42 µs   50.1% of evaluate_ed
+
+=== emb16_D8 : per-site stage timings (µs), site 1 with 80 neighbours ===
+  get_neighbours                          4.96 µs    1.6% of evaluate_ed
+  radii_ed!                               0.08 µs    0.0% of evaluate_ed
+  Rnl ed (spline)                       196.38 µs   64.8% of evaluate_ed
+  Ylm ed                                  2.25 µs    0.7% of evaluate_ed
+  A  evaluate!                            3.12 µs    1.0% of evaluate_ed
+  A  ka_evaluate (alloc)                 17.71 µs    5.8% of evaluate_ed
+  AA evaluate!                            0.62 µs    0.2% of evaluate_ed
+  AA ka_evaluate (alloc)                  1.50 µs    0.5% of evaluate_ed
+  B = A2B*AA (mul!)                       1.46 µs    0.5% of evaluate_ed
+  B = A2B*AA (alloc)                      1.54 µs    0.5% of evaluate_ed
+  ET.evaluate (fwd, as used)             21.38 µs    7.1% of evaluate_ed
+  ∂AA = A2B'*∂B (mul!)                    1.29 µs    0.4% of evaluate_ed
+  ∂AA = A2B'*∂B (alloc, as used)          1.38 µs    0.5% of evaluate_ed
+  ∂A  pullback!(AA)                       2.00 µs    0.7% of evaluate_ed
+  ∂Rnl,∂Ylm pullback!(A)                 17.54 µs    5.8% of evaluate_ed
+  ET.pullback (as used)                  25.46 µs    8.4% of evaluate_ed
+  assemble ∇Ei                           26.38 µs    8.7% of evaluate_ed
+  pair ed (alloc)                        18.71 µs    6.2% of evaluate_ed
+  evaluate_ed TOTAL                     302.92 µs  100.0% of evaluate_ed
+  eval_site (energy only)               126.54 µs   41.8% of evaluate_ed
+
+=== Si_D10 : per-site stage timings (µs), site 1 with 45 neighbours ===
+  get_neighbours                          2.96 µs   10.4% of evaluate_ed
+  radii_ed!                               0.04 µs    0.1% of evaluate_ed
+  Rnl ed (spline)                         9.71 µs   34.2% of evaluate_ed
+  Ylm ed                                  2.38 µs    8.4% of evaluate_ed
+  A  evaluate!                            0.17 µs    0.6% of evaluate_ed
+  A  ka_evaluate (alloc)                  1.08 µs    3.8% of evaluate_ed
+  AA evaluate!                            0.08 µs    0.3% of evaluate_ed
+  AA ka_evaluate (alloc)                  0.58 µs    2.1% of evaluate_ed
+  B = A2B*AA (mul!)                       0.29 µs    1.0% of evaluate_ed
+  B = A2B*AA (alloc)                      0.33 µs    1.2% of evaluate_ed
+  ET.evaluate (fwd, as used)              2.29 µs    8.1% of evaluate_ed
+  ∂AA = A2B'*∂B (mul!)                    0.21 µs    0.7% of evaluate_ed
+  ∂AA = A2B'*∂B (alloc, as used)          0.21 µs    0.7% of evaluate_ed
+  ∂A  pullback!(AA)                       0.54 µs    1.9% of evaluate_ed
+  ∂Rnl,∂Ylm pullback!(A)                  1.33 µs    4.7% of evaluate_ed
+  ET.pullback (as used)                   3.54 µs   12.5% of evaluate_ed
+  assemble ∇Ei                            2.21 µs    7.8% of evaluate_ed
+  pair ed (alloc)                         6.00 µs   21.1% of evaluate_ed
+  evaluate_ed TOTAL                      28.42 µs  100.0% of evaluate_ed
+  eval_site (energy only)                14.92 µs   52.5% of evaluate_ed
+
+
+######## FLAT PROFILE: cat_D6 (256 atoms) ########
+ Count  Overhead File                    Line Function
+ =====  ======== ====                    ==== ========
+    20         0 @Base/rounding.jl       489 _round_convert
+    20         0 @Base/number.jl           7 convert
+    20        20 @Base/float.jl          920 Int64
+    20         0 @Base/abstractarray.jl  827 similar
+    20         0 @Base/abstractarray.jl  836 similar
+    20         0 @Base/array.jl          407 similar
+    21         0 @ACEpotentials/…models/Rnl_splines.jl   91 evaluate_ed
+    21        14 @SparseArrays/src/linalg.jl  196 _At_or_Ac_mul_B!(tfun::typeof(tra…
+    22         0 @SparseArrays/src/linalg.jl  197 _At_or_Ac_mul_B!(tfun::typeof(tra…
+    22         0 @ForwardDiff/src/dual.jl  573 ^
+    22         0 @Base/abstractarray.jl  684 checkbounds
+    22         0 @Base/rounding.jl       484 floor
+    22         0 @Base/rounding.jl       488 round
+    23         0 @Base/broadcast.jl      359 #flatten##0
+    24         0 @SparseArrays/src/sparsematrix.jl  311 nzrange
+    24         0 @NeighbourLists/src/cell_list.jl  262 _find_neighbours_!(i::Int64, clis…
+    24         1 @NeighbourLists/src/cell_list.jl   47 position_to_cell_index
+    25         0 @ACEpotentials/…models/Rnl_splines.jl  104 evaluate_ed_batched!(Rnl::Matrix{…
+    25        25 @Base/int.jl             86 -
+    25         0 @ACEpotentials/…/radial_transforms.jl   31 evaluate(t::ACEpotentials.Models.…
+    26         0 @Base/subarray.jl       334 getindex
+    26         0 @ACEpotentials/…models/Rnl_splines.jl   92 evaluate_ed
+    26         0 @ForwardDiff/src/derivative.jl   88 extract_derivative
+    26         0 @Base/threadingconstructs.jl  178 (::Base.Threads.var"#threading_ru…
+    26         0 @Base/threadingconstructs.jl  246 #sort_neigs!##0
+    26         0 @Base/threadingconstructs.jl  279 (::NeighbourLists.var"#sort_neigs…
+    27         0 @ACEpotentials/…/radial_transforms.jl   66 evaluate
+    27         0 @ACEpotentials/…/radial_transforms.jl   12 GeneralizedAgnesiTransform
+    29         0 @ACEpotentials/…models/Rnl_splines.jl   42 evaluate(basis::ACEpotentials.Mod…
+    29         0 @EquivariantTensors/…/sparseprodpool_ka.jl   52 macro expansion
+    29         0 @EquivariantTensors/…/sparseprodpool_ka.jl   52 #cpu__ka_evaluate_PooledSparsePro…
+    29         0 @EquivariantTensors/…ace/sparseprodpool.jl  324 pullback!(∂BB::Tuple{Matrix{Float…
+    29        26 @AtomsBase/…on/flexible_system.jl  127 species(sys::FlexibleSystem{3, At…
+    30         0 @ACEpotentials/…models/Rnl_splines.jl  108 evaluate_ed_batched!(Rnl::Matrix{…
+    30         0 @Base/essentials.jl     969 getindex
+    30         3 @Base/essentials.jl     389 checkbounds
+    30         0 @ACEpotentials/src/models/ace.jl  345 macro expansion
+    30         0 @Polynomials4ML/src/sphericart.jl  139 evaluate_ed!
+    30         0 @SpheriCart/src/spherical.jl  143 compute_with_gradients!(Y::Unsafe…
+    30         0 @ACEpotentials/…models/Rnl_splines.jl   41 evaluate(basis::ACEpotentials.Mod…
+    30         0 @ACEpotentials/…/radial_transforms.jl   63 NormalizedTransform
+    30         0 @ACEpotentials/src/models/ace.jl  308 _assemble_grad_ed!(∇Ei::Vector{SV…
+    31         0 @KernelAbstractions/src/cpu.jl  147 __thread_run
+    31         0 none                      ? cpu__ka_evaluate_PooledSparseProd…
+    32        32 @Base/Base_compiler.jl   57 getproperty
+    32         0 @EquivariantTensors/…ace/sparseprodpool.jl  317 pullback!(∂BB::Tuple{Matrix{Float…
+    34         0 @EquivariantTensors/…e/sparse_ace_basis.jl  102 evaluate
+    34         0 @EquivariantTensors/…/sparseprodpool_ka.jl   24 ka_evaluate
+    34         0 @EquivariantTensors/…/sparseprodpool_ka.jl   25 ka_evaluate
+    34         0 @EquivariantTensors/…/sparseprodpool_ka.jl   33 ka_evaluate!
+    34         0 @EquivariantTensors/…/sparseprodpool_ka.jl   43 _ka_evaluate_launcher!(A::Vector{…
+    34         0 @UnsafeArrays/src/unsafe_array.jl   57 getindex
+    34        34 @Base/pointer.jl        151 unsafe_load
+    35         0 @ACEpotentials/…models/Rnl_splines.jl  128 evaluate_ed_batched(basis::ACEpot…
+    36         0 @Base/ntuple.jl          19 ntuple
+    37         4 @Base/special/pow.jl     62 ^
+    38         0 @Base/array.jl         1024 _setindex!
+    39         0 @ACEpotentials/src/models/ace.jl  309 _assemble_grad_ed!(∇Ei::Vector{SV…
+    41        41 @ACEpotentials/…models/Rnl_splines.jl   34 evaluate(basis::ACEpotentials.Mod…
+    42         0 @Base/boot.jl           648 Array
+    42         9 @Base/abstractarray.jl  702 checkbounds
+    42        36 @ACEpotentials/…models/Rnl_splines.jl   37 evaluate(basis::ACEpotentials.Mod…
+    43         0 @Base/boot.jl           661 Array
+    43         0 @KernelAbstractions/src/cpu.jl  147 __thread_run(tid::Int64, len::Int…
+    43         0 none                      ? cpu__ka_evaluate_SparseSymmProd_v…
+    45         0 @SparseArrays/src/linalg.jl   97 spdensemul!
+    45         0 @Base/abstractarray.jl 1392 _getindex
+    46        40 @Base/range.jl          928 iterate
+    47         0 @StaticArrays/src/broadcast.jl  119 _broadcast
+    47         0 @StaticArrays/src/broadcast.jl  123 __broadcast
+    47        16 @StaticArrays/src/broadcast.jl  135 macro expansion
+    49         0 @EquivariantTensors/…e/sparse_ace_basis.jl  105 evaluate
+    49         0 @Base/broadcast.jl     1129 copy
+    49         0 @Base/ntuple.jl          65 ntuple
+    49         0 @Base/ntuple.jl          68 macro expansion
+    49         0 @Base/broadcast.jl     1129 #copy##0
+    49         0 @Base/broadcast.jl      677 _broadcast_getindex
+    49         0 @Base/broadcast.jl      704 _broadcast_getindex_evalf
+    49         0 @ForwardDiff/src/dual.jl  503 +
+    50         0 @SparseArrays/src/linalg.jl   99 spdensemul!
+    50         0 @Base/array.jl          622 zeros
+    52        52 @StaticArrays/src/indexing.jl   11 getindex(::SMatrix{5, 5, Interpol…
+    52         0 @Base/array.jl         1031 setindex!
+    52        52 @Base/array.jl         1037 _setindex!
+    52         0 @StaticArrays/src/broadcast.jl   60 copy
+    53        44 @AtomsCalculatorsUtilities/…otentials/assembly.jl   84 (::AtomsCalculatorsUtilities.Site…
+    57         0 @Base/abstractarray.jl 1487 _setindex!
+    57         0 @Base/array.jl          627 zeros
+    60         0 @EquivariantTensors/…/sparsesymmprod_ka.jl   19 ka_evaluate
+    60         2 @EquivariantTensors/…/sparsesymmprod_ka.jl   44 _ka_evaluate_launcher!(AA::Vector…
+    61         0 @ACEpotentials/…models/Rnl_splines.jl  109 evaluate_ed_batched!(Rnl::UnsafeA…
+    61         0 @EquivariantTensors/…e/sparse_ace_basis.jl  154 macro expansion
+    63         0 @Base/essentials.jl      11 length
+    64        28 @AtomsBase/…/utils/chemspecies.jl  338 atomic_number(sys::FlexibleSystem…
+    64        64 @Base/essentials.jl      10 size
+    65         0 @Interpolations/src/Interpolations.jl  305 interp_getindex
+    65         0 @Interpolations/src/Interpolations.jl  311 interp_getindex
+    65         0 @OffsetArrays/src/OffsetArrays.jl  435 getindex
+    65         1 @AtomsCalculatorsUtilities/…tentials/interface.jl   90 get_id
+    65         0 @KernelAbstractions/src/macros.jl  314 macro expansion
+    66         0 @AtomsCalculatorsUtilities/…ials/neighbourlist.jl   17 get_neighbours!(out::@NamedTuple{…
+    66         0 @EquivariantTensors/…e/sparse_ace_basis.jl  144 macro expansion
+    66         0 @Base/reduce.jl          56 _foldl_impl(op::Base.MappingRF{Eq…
+    66         0 none                      ? #pullback!##20
+    66         0 @Base/simdloop.jl        77 macro expansion
+    67         5 @Base/essentials.jl     385 checkbounds
+    68         0 @Base/reduce.jl         564 sum
+    68         0 @Base/reduce.jl         564 #sum#279
+    68         0 @Base/reduce.jl         535 sum
+    68         0 @Base/reduce.jl         535 #sum#278
+    68         0 @Base/reduce.jl         306 mapreduce
+    68         0 @Base/reduce.jl         306 #mapreduce#275
+    68         0 @Base/reduce.jl         173 mapfoldl
+    68         0 @Base/reduce.jl         173 #mapfoldl#271
+    68         0 @Base/reduce.jl          42 mapfoldl_impl
+    68         0 @Base/reduce.jl          46 foldl_impl
+    68         0 @Base/reduce.jl          98 MappingRF
+    69         0 @Base/abstractarray.jl 1363 getindex
+    72         1 @ACEpotentials/src/models/ace.jl  379 macro expansion
+    74         0 @KernelAbstractions/src/cpu.jl  112 __run(obj::KernelAbstractions.Ker…
+    78         0 @EquivariantTensors/…e/sparse_ace_basis.jl  103 evaluate
+    78         0 @EquivariantTensors/…/sparsesymmprod_ka.jl   18 ka_evaluate
+    79         1 @KernelAbstractions/src/cpu.jl   46 (::KernelAbstractions.Kernel{Kern…
+    80         0 @ForwardDiff/src/dual.jl  289 *
+    80         0 @AtomsCalculatorsUtilities/…ials/neighbourlist.jl   44 get_neighbours(sys::FlexibleSyste…
+    82         0 @EquivariantTensors/…ace/sparsesymmprod.jl  179 _pb_evaluate_pbAA!(gA::UnsafeArra…
+    83         0 @StaticArrays/src/linalg.jl   21 #*##0
+    85         0 @Base/multidimensional.jl 1050 macro expansion
+    86         0 @Base/cartesian.jl       65 macro expansion
+    87        87 @Base/float.jl          492 +
+    88         0 @Base/multidimensional.jl 1036 _setindex!
+    88         0 @Base/multidimensional.jl 1048 _unsafe_setindex!
+    90         1 @Interpolations/src/Interpolations.jl  316 _weight_itp(w::ForwardDiff.Dual{F…
+    90         0 @Base/array.jl          359 fill!
+    90         0 @Base/array.jl          363 _fill!
+    92         2 @KernelAbstractions/src/cpu.jl   39 Kernel
+    94         0 @StaticArrays/src/linalg.jl   12 +
+    94         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   78 (::AtomsCalculatorsUtilities.Site…
+    95         0 @StaticArrays/src/mapreduce.jl   78 macro expansion
+    95         0 @LinearAlgebra/src/matmul.jl  270 mul!
+    95         0 @LinearAlgebra/src/matmul.jl   73 mul!
+    95         0 @LinearAlgebra/src/matmul.jl   76 _mul!
+    95         0 @SparseArrays/src/linalg.jl   91 mul!
+    96         0 @Base/abstractarray.jl 1464 setindex!
+   100       100 @StaticArraysCore/…c/StaticArraysCore.jl  122 SArray
+   100         0 @EquivariantTensors/…e/sparse_ace_basis.jl  151 macro expansion
+   100         0 @EquivariantTensors/…ace/sparsesymmprod.jl  156 pullback!(∂A::UnsafeArrays.Unsafe…
+   100         0 @EquivariantTensors/…ace/sparsesymmprod.jl  161 macro expansion
+   100         0 @NeighbourLists/src/cell_list.jl  196 _pairlist_(clist::NeighbourLists.…
+   101       100 @Base/array.jl         1025 _setindex!
+   103         0 @StaticArrays/src/mapreduce.jl   39 map
+   103         0 @Base/broadcast.jl      899 materialize
+   104       104 @Base/float.jl          494 *
+   107         0 @UnsafeArrays/src/unsafe_array.jl   62 setindex!
+   107       107 @Base/pointer.jl        178 unsafe_store!
+   108         0 @NeighbourLists/src/cell_list.jl  295 _pairlist_(X::Vector{SVector{3, F…
+   110         0 @StaticArrays/src/indexing.jl   13 getindex(::SMatrix{5, 5, ACEpoten…
+   110         0 @StaticArrays/src/indexing.jl   16 _getindex_scalar
+   110         0 @StaticArrays/src/indexing.jl   36 macro expansion
+   110         0 @StaticArrays/src/SArray.jl   65 getindex
+   110       110 @Base/tuple.jl           33 getindex
+   112         0 @NeighbourLists/src/atoms_base.jl   35 PairList(ab::FlexibleSystem{3, At…
+   112         0 @NeighbourLists/src/cell_list.jl    5 kwcall(::@NamedTuple{int_type::Da…
+   112         0 @NeighbourLists/src/cell_list.jl    5 #PairList#1
+   115         0 @LinearAlgebra/src/matmul.jl   62 *
+   125         0 @NeighbourLists/src/atoms_base.jl    6 PairList
+   130       130 @Base/essentials.jl     970 getindex
+   132         0 @StaticArrays/src/linalg.jl   21 *
+   136         4 @Interpolations/src/Interpolations.jl  314 _weight_itp(w::ForwardDiff.Dual{F…
+   137         0 @Base/array.jl         1020 setindex!
+   153         0 @Base/boot.jl           662 Array
+   153         0 @Base/boot.jl           652 Array
+   153         0 @Base/boot.jl           605 new_as_memoryref
+   157         0 @Base/array.jl          626 zeros
+   158         2 @EquivariantTensors/…e/sparse_ace_basis.jl  174 pullback(∂BB::Vector{SubArray{Flo…
+   161         0 @ACEpotentials/src/models/ace.jl  353 macro expansion
+   164         0 @Base/array.jl          622 zeros(::Type{Float64}, ::Int64, :…
+   177         0 @StaticArrays/src/mapreduce.jl   33 map
+   177       116 @ACEpotentials/…models/Rnl_splines.jl   38 evaluate(basis::ACEpotentials.Mod…
+   185        24 @StaticArrays/src/mapreduce.jl   77 macro expansion
+   203       203 @Base/boot.jl           588 GenericMemory
+   217         0 @Interpolations/src/Interpolations.jl  307 interp_getindex
+   221       113 @ACEpotentials/…models/Rnl_splines.jl   39 evaluate(basis::ACEpotentials.Mod…
+   228         0 @EquivariantTensors/…e/sparse_ace_basis.jl  130 pullback!(∂Rnl::Matrix{Float64}, …
+   229         1 @EquivariantTensors/…e/sparse_ace_basis.jl  176 pullback(∂BB::Vector{SubArray{Flo…
+   252         0 @Interpolations/src/Interpolations.jl  306 interp_getindex
+   280         0 @StaticArrays/src/mapreduce.jl   42 _map
+   282         0 @Interpolations/…b-splines/indexing.jl    8 BSplineInterpolation
+   282         0 @Interpolations/src/Interpolations.jl  289 getindex
+   296         0 @Interpolations/…rc/scaling/scaling.jl   82 ScaledInterpolation
+   299         0 @Interpolations/…tion/extrapolation.jl   54 Extrapolation
+   351        28 @ACEpotentials/…models/Rnl_splines.jl   44 evaluate(basis::ACEpotentials.Mod…
+   407         0 @ACEpotentials/src/models/ace.jl  365 macro expansion
+   478         0 @ACEpotentials/…models/Rnl_splines.jl  129 evaluate_ed_batched(basis::ACEpot…
+   524         0 @ACEpotentials/src/models/ace.jl  384 macro expansion
+   603         0 @ACEpotentials/src/models/ace.jl  341 macro expansion
+   638         0 @WithAlloc/src/WithAlloc.jl   11 macro expansion
+   638         0 @WithAlloc/src/WithAlloc.jl   17 withalloc
+   638         0 none                      ? _genwithalloc
+   638         0 none                      ? macro expansion
+   638         0 @WithAlloc/src/WithAlloc.jl   37 macro expansion
+   932         8 @ACEpotentials/…models/Rnl_splines.jl   90 evaluate_ed
+   957         0 @ACEpotentials/…models/Rnl_splines.jl  107 evaluate_ed_batched!(Rnl::Matrix{…
+  1827         0 @ACEpotentials/src/models/ace.jl  331 evaluate_ed(model::ACEpotentials.…
+  1827         0 @Bumper/src/internals.jl   76 macro expansion
+  1831         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   79 (::AtomsCalculatorsUtilities.Site…
+  1831         3 @ACEpotentials/…models/calculators.jl   82 eval_grad_site(V::ACEpotentials.M…
+  1987         0 @Folds/src/reduce.jl    131 kwcall(::@NamedTuple{init::Vector…
+  1987         0 @Folds/src/reduce.jl    131 #_#13
+  1987         0 @Folds/src/reduce.jl    118 exec
+  1987         0 @Folds/src/reduce.jl     19 mapreduce
+  1987         0 @Folds/src/reduce.jl     26 #mapreduce#6
+  1987         0 @Transducers/src/executors.jl  157 fold
+  1987         0 @Transducers/src/executors.jl  157 #fold#72
+  1987         0 @Transducers/src/executors.jl  152 transduce
+  1987         0 @Transducers/src/reduce.jl   84 transduce_assoc
+  1987         0 @Transducers/src/reduce.jl  108 transduce_assoc(xform::Transducer…
+  1987         0 @Transducers/src/reduce.jl  131 _transduce_assoc_nocomplete
+  1987         0 @Transducers/src/reduce.jl  139 _reduce(ctx::Transducers.Cancella…
+  1987         0 @Transducers/…rc/threading_utils.jl   58 _reduce_basecase(rf::Transducers.…
+  1987         0 @Transducers/src/processes.jl  361 foldl_basecase
+  1987         0 @Transducers/src/processes.jl  182 __foldl__
+  1987         0 @Transducers/src/processes.jl  187 _foldl_array
+  1987         0 @Transducers/src/core.jl  181 macro expansion
+  1987         0 @Transducers/src/simd.jl    8 next
+  1987         0 @Transducers/src/core.jl  775 next(rf::Transducers.Reduction{Tr…
+  1987         3 @Transducers/src/library.jl   54 next
+  1993         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   66 energy_forces_virial(sys::Flexibl…
+  2118         0 @Base/client.jl         577 _start()
+  2118         0 @Base/client.jl         344 exec_options(opts::Base.JLOptions)
+  2118         0 @Base/Base.jl           309 include(mod::Module, _path::Strin…
+  2118         0 @Base/loading.jl       3076 _include(mapexpr::Function, mod::…
+  2118         0 @Base/loading.jl       3016 include_string(mapexpr::typeof(id…
+  2118         0 @Base/boot.jl           489 eval(m::Module, e::Any)
+  2118         0 @ACEpotentials/…forward/02_profile.jl   97 run_profile(name::String, m::ACEp…
+  2118         0 @ACEpotentials/…forward/02_profile.jl  101 run_profile(name::String, m::ACEp…
+  2118         0 @Profile/src/Profile.jl   60 macro expansion
+  2118         0 @ACEpotentials/…forward/02_profile.jl  101 macro expansion
+  2118         0 @ACEpotentials/…ile_forward/common.jl   84 efv
+  2118         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   56 energy_forces_virial(sys::Flexibl…
+Total snapshots: 5048. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+
+######## TREE PROFILE: cat_D6 (256 atoms) ########
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎2118 @Base/client.jl:577  _start()
+    ╎ 2118 @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  2118 @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   2118 @Base/loading.jl:3076  _include(mapexpr::Function, mod::Module, _p…
+    ╎    2118 @Base/loading.jl:3016  include_string(mapexpr::typeof(identity), …
+    ╎     2118 @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 2118 @ACEpotentials/…e.jl:97  run_profile(name::String, m::ACEpotent…
+    ╎    ╎  2118 @ACEpotentials/…e.jl:101  run_profile(name::String, m::ACEpote…
+    ╎    ╎   2118 @Profile/…Profile.jl:60  macro expansion
+    ╎    ╎    2118 @ACEpotentials/….jl:101  macro expansion
+    ╎    ╎     2118 @ACEpotentials/….jl:84  efv
+    ╎    ╎    ╎ 2118 @AtomsCalculatorsUtilities/…:56  energy_forces_virial(sys:…
+    ╎    ╎    ╎  1993 @AtomsCalculatorsUtilities/…:66  energy_forces_virial(sys…
+    ╎    ╎    ╎   1987 @Folds/…reduce.jl:131  kwcall(::@NamedTuple{init::Vector…
+    ╎    ╎    ╎    1987 @Folds/…reduce.jl:131  #_#13
+    ╎    ╎    ╎     1987 @Folds/…educe.jl:118  exec
+    ╎    ╎    ╎    ╎ 1987 @Folds/…educe.jl:19  mapreduce
+    ╎    ╎    ╎    ╎  1987 @Folds/…educe.jl:26  #mapreduce#6
+    ╎    ╎    ╎    ╎   1987 @Transducers/…l:157  fold
+    ╎    ╎    ╎    ╎    1987 @Transducers/…l:157  #fold#72
+    ╎    ╎    ╎    ╎     1987 @Transducers/…:152  transduce
+    ╎    ╎    ╎    ╎    ╎ 1987 @Transducers/…:84  transduce_assoc
+    ╎    ╎    ╎    ╎    ╎  1987 @Transducers/…:108  transduce_assoc(xform::Tran…
+    ╎    ╎    ╎  125  @NeighbourLists/…l:6  PairList
+    ╎    ╎    ╎   112  @NeighbourLists/…l:35  PairList(ab::FlexibleSystem{3, At…
+    ╎    ╎    ╎    112  @NeighbourLists/…l:5  kwcall(::@NamedTuple{int_type::Da…
+    ╎    ╎    ╎     112  @NeighbourLists/…:5  #PairList#1
+    ╎    ╎    ╎    ╎ 108  @NeighbourLists/…:295  _pairlist_(X::Vector{SVector{3…
+    ╎    ╎    ╎    ╎  100  @NeighbourLists/…:196  _pairlist_(clist::NeighbourLi…
+Total snapshots: 5048. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+
+######## FLAT PROFILE: emb16_D6 (256 atoms) ########
+ Count  Overhead File                    Line Function
+ =====  ======== ====                    ==== ========
+    20         0 @Base/rounding.jl       489 _round_convert
+    20        20 @Base/float.jl          920 Int64
+    21         0 @Base/simdloop.jl        76 macro expansion
+    21         0 @Base/simdloop.jl        54 simd_index
+    22         0 @ACEpotentials/…models/Rnl_splines.jl   36 evaluate(basis::ACEpotentials.Mod…
+    22         0 @Base/essentials.jl     969 getindex
+    22         0 @Base/rounding.jl       484 floor
+    22         0 @Base/rounding.jl       488 round
+    22         0 @Base/number.jl           7 convert
+    23         0 @Base/broadcast.jl      359 #flatten##0
+    23         0 @ForwardDiff/src/dual.jl  285 *
+    24        24 @Base/int.jl             87 +
+    24         0 @Base/reduce.jl         306 mapreduce
+    24         0 @Base/reduce.jl         306 #mapreduce#275
+    24         0 @Base/reduce.jl         173 mapfoldl
+    24         0 @Base/reduce.jl         173 #mapfoldl#271
+    24         0 @Base/reduce.jl          42 mapfoldl_impl
+    24         0 @Base/reduce.jl          46 foldl_impl
+    24         0 @Base/essentials.jl     389 checkbounds
+    25         0 @ForwardDiff/src/dual.jl  569 ^
+    25         0 @LinearAlgebra/src/matmul.jl  270 mul!
+    25         0 @LinearAlgebra/src/matmul.jl   73 mul!
+    25         0 @LinearAlgebra/src/matmul.jl   76 _mul!
+    25         0 @SparseArrays/src/linalg.jl   91 mul!
+    26         2 @NeighbourLists/src/cell_list.jl   47 position_to_cell_index
+    26         0 @ForwardDiff/src/dual.jl  217 dual_definition_retval
+    26         0 @ForwardDiff/src/partials.jl   96 _mul_partials
+    26         0 @ForwardDiff/src/partials.jl  222 mul_tuples
+    27         0 @NeighbourLists/src/cell_list.jl  262 _find_neighbours_!(i::Int64, clis…
+    28         0 @ACEpotentials/…models/Rnl_splines.jl  104 evaluate_ed_batched!(Rnl::Matrix{…
+    29        29 @Base/Base_compiler.jl   57 getproperty
+    29         0 @ACEpotentials/…/radial_transforms.jl   31 evaluate(t::ACEpotentials.Models.…
+    29         0 @EquivariantTensors/…ace/sparseprodpool.jl  197 macro expansion
+    31         0 @LinearAlgebra/src/matmul.jl   62 *
+    31         0 @ACEpotentials/…/radial_transforms.jl   66 evaluate
+    31         0 @ACEpotentials/…/radial_transforms.jl   12 GeneralizedAgnesiTransform
+    31        31 @Base/float.jl          497 muladd
+    31         0 @EquivariantTensors/…/sparsesymmprod_ka.jl   19 ka_evaluate
+    31         5 @EquivariantTensors/…/sparsesymmprod_ka.jl   44 _ka_evaluate_launcher!(AA::Vector…
+    33         0 @EquivariantTensors/…e/sparse_ace_basis.jl  103 evaluate
+    33         0 @EquivariantTensors/…/sparsesymmprod_ka.jl   18 ka_evaluate
+    34         0 @ACEpotentials/…models/Rnl_splines.jl   41 evaluate(basis::ACEpotentials.Mod…
+    34         0 @ACEpotentials/…/radial_transforms.jl   63 NormalizedTransform
+    34        29 @AtomsBase/…on/flexible_system.jl  127 species(sys::FlexibleSystem{3, At…
+    35         0 @ACEpotentials/src/models/ace.jl  351 macro expansion
+    35         0 @EquivariantTensors/…ace/sparseprodpool.jl  187 evaluate!
+    35         0 @EquivariantTensors/…ace/sparseprodpool.jl  194 evaluate!(A::Vector{Float64}, bas…
+    37         0 @ForwardDiff/src/dual.jl  284 *
+    37         0 @EquivariantTensors/…ace/sparseprodpool.jl  325 macro expansion
+    38         2 @Base/special/pow.jl     62 ^
+    41        41 @StaticArrays/src/indexing.jl   11 getindex(::SMatrix{5, 5, Interpol…
+    45        39 @AtomsCalculatorsUtilities/…otentials/assembly.jl   84 (::AtomsCalculatorsUtilities.Site…
+    48         0 @Base/abstractarray.jl 1391 _getindex
+    48        48 @Base/abstractarray.jl  728 checkbounds_indices
+    49         0 @Base/abstractarray.jl  684 checkbounds
+    51        51 @Base/essentials.jl     970 getindex
+    52         0 @StaticArrays/src/linalg.jl   22 *
+    52         0 @StaticArrays/src/linalg.jl   22 #*##2
+    52         1 @Base/abstractarray.jl  702 checkbounds
+    53         0 @ACEpotentials/…models/Rnl_splines.jl   91 evaluate_ed
+    59         0 @ACEpotentials/…models/Rnl_splines.jl   92 evaluate_ed
+    59         0 @ForwardDiff/src/derivative.jl   88 extract_derivative
+    59        21 @AtomsBase/…/utils/chemspecies.jl  338 atomic_number(sys::FlexibleSystem…
+    60         1 @AtomsCalculatorsUtilities/…tentials/interface.jl   90 get_id
+    61         0 @AtomsCalculatorsUtilities/…ials/neighbourlist.jl   17 get_neighbours!(out::@NamedTuple{…
+    70         0 @EquivariantTensors/…ace/sparseprodpool.jl  324 pullback!(∂BB::Tuple{Matrix{Float…
+    75         0 @Base/array.jl          627 zeros
+    75         1 @AtomsCalculatorsUtilities/…ials/neighbourlist.jl   44 get_neighbours(sys::FlexibleSyste…
+    78         0 @Interpolations/src/Interpolations.jl  316 _weight_itp(w::ForwardDiff.Dual{F…
+    78         0 @EquivariantTensors/…ace/sparseprodpool.jl  317 pullback!(∂BB::Tuple{Matrix{Float…
+    83         0 @ForwardDiff/src/partials.jl   82 +
+    83         0 @ForwardDiff/src/partials.jl  210 add_tuples
+    84         0 @StaticArrays/src/broadcast.jl  119 _broadcast
+    84         0 @StaticArrays/src/broadcast.jl  123 __broadcast
+    84        52 @StaticArrays/src/broadcast.jl  135 macro expansion
+    85         0 @EquivariantTensors/…/sparseprodpool_ka.jl   52 macro expansion
+    85         0 @EquivariantTensors/…/sparseprodpool_ka.jl   52 #cpu__ka_evaluate_PooledSparsePro…
+    85         0 @Base/abstractarray.jl 1392 _getindex
+    85         0 @StaticArrays/src/broadcast.jl   60 copy
+    85         2 @Base/array.jl         1024 _setindex!
+    86         0 @Base/ntuple.jl          19 ntuple
+    86        86 @ACEpotentials/…models/Rnl_splines.jl   34 evaluate(basis::ACEpotentials.Mod…
+    87         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   78 (::AtomsCalculatorsUtilities.Site…
+    90         0 @UnsafeArrays/src/unsafe_array.jl   57 getindex
+    91        91 @Base/pointer.jl        151 unsafe_load
+    94         0 @ACEpotentials/src/models/ace.jl  308 _assemble_grad_ed!(∇Ei::Vector{SV…
+    95         0 @KernelAbstractions/src/cpu.jl  147 __thread_run
+    95         0 none                      ? cpu__ka_evaluate_PooledSparseProd…
+    98         0 @EquivariantTensors/…/sparseprodpool_ka.jl   25 ka_evaluate
+    98         0 @EquivariantTensors/…/sparseprodpool_ka.jl   33 ka_evaluate!
+    98         0 @EquivariantTensors/…/sparseprodpool_ka.jl   43 _ka_evaluate_launcher!(A::Vector{…
+    99         0 @EquivariantTensors/…e/sparse_ace_basis.jl  102 evaluate
+    99         0 @EquivariantTensors/…/sparseprodpool_ka.jl   24 ka_evaluate
+    99         0 @ACEpotentials/…models/Rnl_splines.jl  109 evaluate_ed_batched!(Rnl::UnsafeA…
+   101         0 @Base/broadcast.jl      899 materialize
+   103         0 @Base/essentials.jl      11 length
+   104         0 @NeighbourLists/src/cell_list.jl  295 _pairlist_(X::Vector{SVector{3, F…
+   104         0 @NeighbourLists/src/cell_list.jl  196 _pairlist_(clist::NeighbourLists.…
+   106         0 @Base/simdloop.jl        77 macro expansion
+   107         0 @KernelAbstractions/src/macros.jl  314 macro expansion
+   108         0 @KernelAbstractions/src/cpu.jl  112 __run(obj::KernelAbstractions.Ker…
+   108         5 @Base/essentials.jl     385 checkbounds
+   109         0 @NeighbourLists/src/atoms_base.jl   35 PairList(ab::FlexibleSystem{3, At…
+   109         0 @NeighbourLists/src/cell_list.jl    5 kwcall(::@NamedTuple{int_type::Da…
+   109         0 @NeighbourLists/src/cell_list.jl    5 #PairList#1
+   110       110 @Base/essentials.jl      10 size
+   115         6 @KernelAbstractions/src/cpu.jl   46 (::KernelAbstractions.Kernel{Kern…
+   116         0 @ForwardDiff/src/partials.jl  159 macro expansion
+   119        75 @ACEpotentials/…models/Rnl_splines.jl   38 evaluate(basis::ACEpotentials.Mod…
+   121         0 @NeighbourLists/src/atoms_base.jl    6 PairList
+   122         0 @ForwardDiff/src/dual.jl  289 *
+   124         0 @KernelAbstractions/src/cpu.jl   39 Kernel
+   124         0 @StaticArrays/src/indexing.jl   13 getindex(::SMatrix{5, 5, Interpol…
+   124         0 @StaticArrays/src/indexing.jl   16 _getindex_scalar
+   124         0 @StaticArrays/src/indexing.jl   36 macro expansion
+   124         0 @StaticArrays/src/SArray.jl   65 getindex
+   124       124 @Base/tuple.jl           33 getindex
+   124         0 @ACEpotentials/src/models/ace.jl  309 _assemble_grad_ed!(∇Ei::Vector{SV…
+   131         0 @StaticArrays/src/linalg.jl   21 #*##0
+   136         0 @Base/abstractarray.jl 1363 getindex
+   147         0 @ACEpotentials/src/models/ace.jl  353 macro expansion
+   149       134 @Base/range.jl          928 iterate
+   151         0 @EquivariantTensors/…e/sparse_ace_basis.jl  154 macro expansion
+   153         0 @Base/array.jl          359 fill!
+   153         0 @Base/array.jl          363 _fill!
+   160         0 @ACEpotentials/…models/Rnl_splines.jl  108 evaluate_ed_batched!(Rnl::UnsafeA…
+   162       161 @Base/array.jl         1025 _setindex!
+   174         0 @StaticArrays/src/linalg.jl   21 *
+   182         0 @EquivariantTensors/…e/sparse_ace_basis.jl  130 pullback!(∂Rnl::Matrix{Float64}, …
+   184         1 @EquivariantTensors/…e/sparse_ace_basis.jl  176 pullback(∂BB::Vector{SubArray{Flo…
+   190       190 @Base/float.jl          494 *
+   224         0 @ForwardDiff/src/dual.jl  503 +
+   234         0 @Base/abstractarray.jl 1487 _setindex!
+   236         0 @Base/boot.jl           662 Array
+   236         0 @Base/boot.jl           652 Array
+   236         0 @Base/boot.jl           605 new_as_memoryref
+   236         0 @Base/cartesian.jl       65 macro expansion
+   236         0 @Base/multidimensional.jl 1050 macro expansion
+   238         0 @Base/array.jl          626 zeros
+   238         0 @StaticArrays/src/mapreduce.jl   78 macro expansion
+   239       239 @StaticArraysCore/…c/StaticArraysCore.jl  122 SArray
+   239         1 @ACEpotentials/src/models/ace.jl  379 macro expansion
+   241         0 @UnsafeArrays/src/unsafe_array.jl   62 setindex!
+   241       241 @Base/pointer.jl        178 unsafe_store!
+   245         0 @Base/array.jl         1020 setindex!
+   248       248 @Base/boot.jl           588 GenericMemory
+   248         0 @Base/multidimensional.jl 1048 _unsafe_setindex!
+   251         0 @Base/multidimensional.jl 1036 _setindex!
+   259       259 @Base/float.jl          492 +
+   263         0 @Base/abstractarray.jl 1464 setindex!
+   269       140 @ACEpotentials/…models/Rnl_splines.jl   39 evaluate(basis::ACEpotentials.Mod…
+   281         0 @ACEpotentials/…models/Rnl_splines.jl  129 evaluate_ed_batched(basis::ACEpot…
+   285         0 @StaticArrays/src/mapreduce.jl   33 map
+   293         0 @ACEpotentials/src/models/ace.jl  384 macro expansion
+   294         1 @EquivariantTensors/…e/sparse_ace_basis.jl  174 pullback(∂BB::Vector{SubArray{Flo…
+   300         0 @Base/array.jl          622 zeros(::Type{Float64}, ::Int64, :…
+   415         0 @Interpolations/src/Interpolations.jl  306 interp_getindex
+   422         0 @StaticArrays/src/linalg.jl   12 +
+   429         0 @StaticArrays/src/mapreduce.jl   39 map
+   476        59 @StaticArrays/src/mapreduce.jl   77 macro expansion
+   502         0 @ACEpotentials/src/models/ace.jl  365 macro expansion
+   509         0 @Interpolations/src/Interpolations.jl  314 _weight_itp(w::ForwardDiff.Dual{F…
+   587         0 @Interpolations/src/Interpolations.jl  307 interp_getindex
+   595         0 @Interpolations/…b-splines/indexing.jl    8 BSplineInterpolation
+   595         0 @Interpolations/src/Interpolations.jl  289 getindex
+   611         0 @Interpolations/…rc/scaling/scaling.jl   82 ScaledInterpolation
+   614         0 @Interpolations/…tion/extrapolation.jl   54 Extrapolation
+   714         0 @StaticArrays/src/mapreduce.jl   42 _map
+   752        80 @ACEpotentials/…models/Rnl_splines.jl   44 evaluate(basis::ACEpotentials.Mod…
+  1329         1 @ACEpotentials/…models/Rnl_splines.jl   90 evaluate_ed
+  1413         0 @ACEpotentials/…models/Rnl_splines.jl  107 evaluate_ed_batched!(Rnl::UnsafeA…
+  1432         0 @ACEpotentials/src/models/ace.jl  341 macro expansion
+  1450         0 @WithAlloc/src/WithAlloc.jl   11 macro expansion
+  1450         0 @WithAlloc/src/WithAlloc.jl   17 withalloc
+  1450         0 none                      ? _genwithalloc
+  1450         0 none                      ? macro expansion
+  1450         0 @WithAlloc/src/WithAlloc.jl   37 macro expansion
+  2668         0 @ACEpotentials/src/models/ace.jl  331 evaluate_ed(model::ACEpotentials.…
+  2668         0 @Bumper/src/internals.jl   76 macro expansion
+  2670         1 @ACEpotentials/…models/calculators.jl   82 eval_grad_site(V::ACEpotentials.M…
+  2673         1 @AtomsCalculatorsUtilities/…otentials/assembly.jl   79 (::AtomsCalculatorsUtilities.Site…
+  2813         0 @Folds/src/reduce.jl    131 kwcall(::@NamedTuple{init::Vector…
+  2813         0 @Folds/src/reduce.jl    131 #_#13
+  2813         0 @Folds/src/reduce.jl    118 exec
+  2813         0 @Folds/src/reduce.jl     19 mapreduce
+  2813         0 @Folds/src/reduce.jl     26 #mapreduce#6
+  2813         0 @Transducers/src/executors.jl  157 fold
+  2813         0 @Transducers/src/executors.jl  157 #fold#72
+  2813         0 @Transducers/src/executors.jl  152 transduce
+  2813         0 @Transducers/src/reduce.jl   84 transduce_assoc
+  2813         0 @Transducers/src/reduce.jl  108 transduce_assoc(xform::Transducer…
+  2813         0 @Transducers/src/reduce.jl  131 _transduce_assoc_nocomplete
+  2813         0 @Transducers/src/reduce.jl  139 _reduce(ctx::Transducers.Cancella…
+  2813         0 @Transducers/…rc/threading_utils.jl   58 _reduce_basecase(rf::Transducers.…
+  2813         0 @Transducers/src/processes.jl  361 foldl_basecase
+  2813         0 @Transducers/src/processes.jl  182 __foldl__
+  2813         0 @Transducers/src/processes.jl  187 _foldl_array
+  2813         0 @Transducers/src/core.jl  181 macro expansion
+  2813         0 @Transducers/src/simd.jl    8 next
+  2813         0 @Transducers/src/core.jl  775 next(rf::Transducers.Reduction{Tr…
+  2813         1 @Transducers/src/library.jl   54 next
+  2821         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   66 energy_forces_virial(sys::Flexibl…
+  2943         0 @Base/client.jl         577 _start()
+  2943         0 @Base/client.jl         344 exec_options(opts::Base.JLOptions)
+  2943         0 @Base/Base.jl           309 include(mod::Module, _path::Strin…
+  2943         0 @Base/loading.jl       3076 _include(mapexpr::Function, mod::…
+  2943         0 @Base/loading.jl       3016 include_string(mapexpr::typeof(id…
+  2943         0 @Base/boot.jl           489 eval(m::Module, e::Any)
+  2943         0 @ACEpotentials/…forward/02_profile.jl   97 run_profile(name::String, m::ACEp…
+  2943         0 @ACEpotentials/…forward/02_profile.jl  101 run_profile(name::String, m::ACEp…
+  2943         0 @Profile/src/Profile.jl   60 macro expansion
+  2943         0 @ACEpotentials/…forward/02_profile.jl  101 macro expansion
+  2943         0 @ACEpotentials/…ile_forward/common.jl   84 efv
+  2943         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   56 energy_forces_virial(sys::Flexibl…
+Total snapshots: 7156. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+
+######## TREE PROFILE: emb16_D6 (256 atoms) ########
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎2943 @Base/client.jl:577  _start()
+    ╎ 2943 @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  2943 @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   2943 @Base/loading.jl:3076  _include(mapexpr::Function, mod::Module, _p…
+    ╎    2943 @Base/loading.jl:3016  include_string(mapexpr::typeof(identity), …
+    ╎     2943 @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 2943 @ACEpotentials/…e.jl:97  run_profile(name::String, m::ACEpotent…
+    ╎    ╎  2943 @ACEpotentials/…e.jl:101  run_profile(name::String, m::ACEpote…
+    ╎    ╎   2943 @Profile/…Profile.jl:60  macro expansion
+    ╎    ╎    2943 @ACEpotentials/….jl:101  macro expansion
+    ╎    ╎     2943 @ACEpotentials/….jl:84  efv
+    ╎    ╎    ╎ 2943 @AtomsCalculatorsUtilities/…:56  energy_forces_virial(sys:…
+    ╎    ╎    ╎  2821 @AtomsCalculatorsUtilities/…:66  energy_forces_virial(sys…
+    ╎    ╎    ╎   2813 @Folds/…reduce.jl:131  kwcall(::@NamedTuple{init::Vector…
+    ╎    ╎    ╎    2813 @Folds/…reduce.jl:131  #_#13
+    ╎    ╎    ╎     2813 @Folds/…educe.jl:118  exec
+    ╎    ╎    ╎    ╎ 2813 @Folds/…educe.jl:19  mapreduce
+    ╎    ╎    ╎    ╎  2813 @Folds/…educe.jl:26  #mapreduce#6
+    ╎    ╎    ╎    ╎   2813 @Transducers/…l:157  fold
+    ╎    ╎    ╎    ╎    2813 @Transducers/…l:157  #fold#72
+    ╎    ╎    ╎    ╎     2813 @Transducers/…:152  transduce
+    ╎    ╎    ╎    ╎    ╎ 2813 @Transducers/…:84  transduce_assoc
+    ╎    ╎    ╎    ╎    ╎  2813 @Transducers/…:108  transduce_assoc(xform::Tran…
+    ╎    ╎    ╎  121  @NeighbourLists/…l:6  PairList
+    ╎    ╎    ╎   109  @NeighbourLists/…l:35  PairList(ab::FlexibleSystem{3, At…
+    ╎    ╎    ╎    109  @NeighbourLists/…l:5  kwcall(::@NamedTuple{int_type::Da…
+    ╎    ╎    ╎     109  @NeighbourLists/…:5  #PairList#1
+    ╎    ╎    ╎    ╎ 104  @NeighbourLists/…:295  _pairlist_(X::Vector{SVector{3…
+    ╎    ╎    ╎    ╎  104  @NeighbourLists/…:196  _pairlist_(clist::NeighbourLi…
+Total snapshots: 7156. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+
+######## FLAT PROFILE: Si_D10 (512 atoms) ########
+ Count  Overhead File                    Line Function
+ =====  ======== ====                    ==== ========
+    20         0 @Base/abstractarray.jl 1391 _getindex
+    20         0 @EquivariantTensors/…ace/sparseprodpool.jl  324 pullback!(∂BB::Tuple{Matrix{Float…
+    20         0 @Base/threadingconstructs.jl  178 (::Base.Threads.var"#threading_ru…
+    20         0 @Base/threadingconstructs.jl  246 #sort_neigs!##0
+    20         0 @Base/threadingconstructs.jl  279 (::NeighbourLists.var"#sort_neigs…
+    21         0 @EquivariantTensors/…ace/sparsesymmprod.jl  179 _pb_evaluate_pbAA!(gA::UnsafeArra…
+    21         0 @ACEpotentials/…models/Rnl_splines.jl  128 evaluate_ed_batched(basis::ACEpot…
+    23         0 @EquivariantTensors/…e/sparse_ace_basis.jl  151 macro expansion
+    23         0 @EquivariantTensors/…ace/sparsesymmprod.jl  156 pullback!(∂A::UnsafeArrays.Unsafe…
+    23         0 @EquivariantTensors/…ace/sparsesymmprod.jl  161 macro expansion
+    23         0 @SparseArrays/src/linalg.jl   97 spdensemul!
+    23         0 @ACEpotentials/src/models/ace.jl  308 _assemble_grad_ed!(∇Ei::Vector{SV…
+    24         0 @EquivariantTensors/…/sparseprodpool_ka.jl   52 macro expansion
+    24         0 @EquivariantTensors/…/sparseprodpool_ka.jl   52 #cpu__ka_evaluate_PooledSparsePro…
+    24         0 @Base/array.jl          858 _collect(c::UnitRange{Int64}, itr…
+    24         0 @Base/array.jl          864 collect_to_with_first!(dest::Vect…
+    24         0 @Base/array.jl          886 collect_to!(dest::Vector{SVector{…
+    24         0 @Base/abstractarray.jl 1392 _getindex
+    24         0 @Base/multidimensional.jl 1036 _setindex!
+    24         0 @Base/multidimensional.jl 1048 _unsafe_setindex!
+    24         0 @Base/cartesian.jl       65 macro expansion
+    24         0 @Base/multidimensional.jl 1050 macro expansion
+    25         0 @Base/ntuple.jl          19 ntuple
+    25         0 @EquivariantTensors/…e/sparse_ace_basis.jl  105 evaluate
+    25         0 @Base/broadcast.jl     1129 copy
+    25         0 @Base/ntuple.jl          65 ntuple
+    25         0 @Base/ntuple.jl          68 macro expansion
+    25         0 @Base/broadcast.jl     1129 #copy##0
+    25         0 @NeighbourLists/src/atoms_base.jl    7 PairList(ab::FlexibleSystem{3, At…
+    25         0 @Base/abstractarray.jl 3396 map(f::Function, A::UnitRange{Int…
+    25         0 @Base/array.jl          763 collect_similar(cont::UnitRange{I…
+    25         0 @Base/generator.jl       48 iterate
+    25         7 @NeighbourLists/src/atoms_base.jl   10 (::NeighbourLists.var"#21#22"{Uni…
+    25         0 @Base/abstractarray.jl 1487 _setindex!
+    26         0 @EquivariantTensors/…e/sparse_ace_basis.jl  173 pullback(∂BB::Vector{SubArray{Flo…
+    26        12 @EquivariantTensors/…e/sparse_ace_basis.jl  168 whatalloc
+    26         0 @KernelAbstractions/src/cpu.jl  147 __thread_run
+    26         0 none                      ? cpu__ka_evaluate_PooledSparseProd…
+    26         1 @ACEpotentials/…models/Rnl_splines.jl   42 evaluate(basis::ACEpotentials.Mod…
+    26         0 @Base/essentials.jl     969 getindex
+    26         0 @ForwardDiff/src/dual.jl  573 ^
+    27         0 @Base/abstractarray.jl  684 checkbounds
+    27        27 @Base/abstractarray.jl  728 checkbounds_indices
+    27         0 @Base/broadcast.jl      677 _broadcast_getindex
+    27         0 @Base/broadcast.jl      704 _broadcast_getindex_evalf
+    27         0 @LinearAlgebra/src/matmul.jl  270 mul!
+    27         0 @LinearAlgebra/src/matmul.jl   73 mul!
+    27         0 @LinearAlgebra/src/matmul.jl   76 _mul!
+    27         0 @SparseArrays/src/linalg.jl   91 mul!
+    27         0 @Base/essentials.jl     389 checkbounds
+    27         0 @Base/rounding.jl       489 _round_convert
+    27        27 @Base/float.jl          920 Int64
+    28         0 @Base/rounding.jl       484 floor
+    28         0 @Base/rounding.jl       488 round
+    28         0 @Base/number.jl           7 convert
+    29         0 @EquivariantTensors/…/sparseprodpool_ka.jl   25 ka_evaluate
+    29         0 @EquivariantTensors/…/sparseprodpool_ka.jl   33 ka_evaluate!
+    29         0 @EquivariantTensors/…/sparseprodpool_ka.jl   43 _ka_evaluate_launcher!(A::Vector{…
+    29         0 @EquivariantTensors/…ace/sparseprodpool.jl  317 pullback!(∂BB::Tuple{Matrix{Float…
+    29         0 @Base/broadcast.jl      359 #flatten##0
+    29         4 @EquivariantTensors/…e/sparse_ace_basis.jl  175 pullback(∂BB::Vector{SubArray{Flo…
+    30         0 @EquivariantTensors/…e/sparse_ace_basis.jl  102 evaluate
+    30         0 @EquivariantTensors/…/sparseprodpool_ka.jl   24 ka_evaluate
+    30         0 @StaticArrays/src/mapreduce.jl   78 macro expansion
+    30         0 @ForwardDiff/src/dual.jl  503 +
+    30         0 @NeighbourLists/src/cell_list.jl  262 _find_neighbours_!(i::Int64, clis…
+    30         1 @NeighbourLists/src/cell_list.jl   47 position_to_cell_index
+    30         0 @UnsafeArrays/src/unsafe_array.jl   57 getindex
+    30        30 @Base/pointer.jl        151 unsafe_load
+    31         0 @Base/array.jl          622 zeros
+    31         1 @Base/abstractarray.jl  702 checkbounds
+    31        31 @StaticArraysCore/…c/StaticArraysCore.jl  122 SArray
+    31         0 @SpheriCart/src/spherical.jl  149 macro expansion
+    31         0 @SpheriCart/src/spherical.jl  113 _rescale_∇Z2∇Y!(∇Z::UnsafeArrays.…
+    31         0 @ACEpotentials/…/radial_transforms.jl   31 evaluate(t::ACEpotentials.Models.…
+    33         0 @ACEpotentials/…/radial_transforms.jl   66 evaluate
+    33         0 @ACEpotentials/…/radial_transforms.jl   12 GeneralizedAgnesiTransform
+    34         3 @Base/array.jl         1024 _setindex!
+    34         0 @ACEpotentials/…models/Rnl_splines.jl   41 evaluate(basis::ACEpotentials.Mod…
+    34         0 @ACEpotentials/…/radial_transforms.jl   63 NormalizedTransform
+    34         0 @ForwardDiff/src/dual.jl  289 *
+    35         0 @SpheriCart/src/spherical.jl  148 macro expansion
+    35         0 @SpheriCart/src/api.jl  151 compute_with_gradients!(Z::Unsafe…
+    35         0 @SpheriCart/src/api.jl  164 macro expansion
+    35         0 @Base/array.jl         1197 _growend!
+    35         4 @EquivariantTensors/…e/sparse_ace_basis.jl  174 pullback(∂BB::Vector{SubArray{Flo…
+    36        34 @AtomsCalculatorsUtilities/…otentials/assembly.jl   84 (::AtomsCalculatorsUtilities.Site…
+    36        32 @Base/range.jl          928 iterate
+    36         0 @Base/simdloop.jl        76 macro expansion
+    36         0 @Base/simdloop.jl        54 simd_index
+    36         0 @NeighbourLists/src/cell_list.jl  273 _find_neighbours_!(i::Int64, clis…
+    36         0 @StaticArrays/src/linalg.jl   21 #*##0
+    37         0 @Base/abstractarray.jl 1464 setindex!
+    37        37 @Base/int.jl             87 +
+    38         0 @Base/array.jl         1345 push!
+    38         0 @Base/array.jl         1348 _push!
+    38        38 @Base/Base_compiler.jl   57 getproperty
+    39         0 @UnsafeArrays/src/unsafe_array.jl   62 setindex!
+    39        39 @Base/pointer.jl        178 unsafe_store!
+    39         0 @KernelAbstractions/src/cpu.jl  112 __run(obj::KernelAbstractions.Ker…
+    39         0 @KernelAbstractions/src/macros.jl  314 macro expansion
+    40        40 @Base/essentials.jl     970 getindex
+    40         0 @EquivariantTensors/…e/sparse_ace_basis.jl  103 evaluate
+    40         0 @EquivariantTensors/…/sparsesymmprod_ka.jl   18 ka_evaluate
+    40         0 @EquivariantTensors/…/sparsesymmprod_ka.jl   19 ka_evaluate
+    40         7 @EquivariantTensors/…/sparsesymmprod_ka.jl   44 _ka_evaluate_launcher!(AA::Vector…
+    40         5 @Base/special/pow.jl     62 ^
+    41         0 @Base/array.jl          627 zeros
+    42         0 @StaticArrays/src/broadcast.jl  119 _broadcast
+    42         0 @StaticArrays/src/broadcast.jl  123 __broadcast
+    42         5 @StaticArrays/src/broadcast.jl  135 macro expansion
+    42         0 @StaticArrays/src/linalg.jl   21 *
+    43         0 @StaticArrays/src/broadcast.jl   60 copy
+    44         5 @KernelAbstractions/src/cpu.jl   46 (::KernelAbstractions.Kernel{Kern…
+    46         0 @Base/abstractarray.jl 1363 getindex
+    46        44 @ACEpotentials/…models/Rnl_splines.jl   37 evaluate(basis::ACEpotentials.Mod…
+    46         0 @Base/boot.jl           662 Array
+    46         0 @Base/boot.jl           652 Array
+    46         0 @Base/boot.jl           605 new_as_memoryref
+    47         0 @Base/array.jl          626 zeros
+    49         0 @EquivariantTensors/…e/sparse_ace_basis.jl  154 macro expansion
+    50        47 @AtomsBase/…on/flexible_system.jl  127 species(sys::FlexibleSystem{3, At…
+    53         0 @Base/essentials.jl      11 length
+    54        48 @ACEpotentials/…models/Rnl_splines.jl   39 evaluate(basis::ACEpotentials.Mod…
+    55        55 @Base/float.jl          492 +
+    55         0 @Base/subarray.jl        67 similar
+    55        55 @Base/boot.jl           649 Array
+    57         0 @Base/abstractarray.jl  827 similar
+    57         0 @Base/abstractarray.jl  836 similar
+    57         0 @Base/array.jl          407 similar
+    57         0 @Base/array.jl          622 zeros(::Type{Float64}, ::Int64, :…
+    58         0 @StaticArrays/src/linalg.jl   12 +
+    59         0 @EquivariantTensors/…e/sparse_ace_basis.jl  144 macro expansion
+    59         0 none                      ? #pullback!##20
+    59         6 @Base/essentials.jl     385 checkbounds
+    59        59 @Base/essentials.jl      10 size
+    59         0 @Base/boot.jl           661 Array
+    60         0 @Base/reduce.jl          56 _foldl_impl(op::Base.MappingRF{Eq…
+    61        61 @Base/float.jl          494 *
+    62         0 @KernelAbstractions/src/cpu.jl   39 Kernel
+    63         2 @ACEpotentials/src/models/ace.jl  379 macro expansion
+    63         0 @Base/reduce.jl         564 sum
+    63         0 @Base/reduce.jl         564 #sum#279
+    63         0 @Base/reduce.jl         535 sum
+    63         0 @Base/reduce.jl         535 #sum#278
+    63         0 @Base/reduce.jl         306 mapreduce
+    63         0 @Base/reduce.jl         306 #mapreduce#275
+    63         0 @Base/reduce.jl         173 mapfoldl
+    63         0 @Base/reduce.jl         173 #mapfoldl#271
+    63         0 @Base/reduce.jl          42 mapfoldl_impl
+    63         0 @Base/reduce.jl          46 foldl_impl
+    63         0 @Base/reduce.jl          98 MappingRF
+    63         0 @Base/simdloop.jl        77 macro expansion
+    64        64 @Base/array.jl         1025 _setindex!
+    64         0 @StaticArrays/src/mapreduce.jl   33 map
+    64         0 @StaticArrays/src/mapreduce.jl   39 map
+    65        65 @Base/boot.jl           588 GenericMemory
+    68         0 @ACEpotentials/src/models/ace.jl  345 macro expansion
+    68         0 @Polynomials4ML/src/sphericart.jl  139 evaluate_ed!
+    68         0 @SpheriCart/src/spherical.jl  143 compute_with_gradients!(Y::Unsafe…
+    71         0 @Base/array.jl          359 fill!
+    71         0 @Base/array.jl          363 _fill!
+    73         0 @Base/broadcast.jl      899 materialize
+    78         0 @Interpolations/src/Interpolations.jl  306 interp_getindex
+    81         0 @AtomsCalculatorsUtilities/…ials/neighbourlist.jl   17 get_neighbours!(out::@NamedTuple{…
+    81         0 @Interpolations/src/Interpolations.jl  314 _weight_itp(w::ForwardDiff.Dual{F…
+    84         0 @LinearAlgebra/src/matmul.jl   62 *
+    85        28 @AtomsBase/…/utils/chemspecies.jl  338 atomic_number(sys::FlexibleSystem…
+    86         1 @AtomsCalculatorsUtilities/…tentials/interface.jl   90 get_id
+    90        83 @ACEpotentials/…models/Rnl_splines.jl   38 evaluate(basis::ACEpotentials.Mod…
+    93         0 @Interpolations/src/Interpolations.jl  307 interp_getindex
+    95         0 @ACEpotentials/src/models/ace.jl  353 macro expansion
+    97         0 @Interpolations/…b-splines/indexing.jl    8 BSplineInterpolation
+    97         0 @Interpolations/src/Interpolations.jl  289 getindex
+    98         0 @Base/array.jl         1020 setindex!
+    98        11 @StaticArrays/src/mapreduce.jl   77 macro expansion
+   100         3 @AtomsCalculatorsUtilities/…ials/neighbourlist.jl   44 get_neighbours(sys::FlexibleSyste…
+   115         0 @Interpolations/…rc/scaling/scaling.jl   82 ScaledInterpolation
+   117         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   78 (::AtomsCalculatorsUtilities.Site…
+   118         0 @Interpolations/…tion/extrapolation.jl   54 Extrapolation
+   128         0 @StaticArrays/src/mapreduce.jl   42 _map
+   130         0 @NeighbourLists/src/cell_list.jl  196 _pairlist_(clist::NeighbourLists.…
+   132         0 @EquivariantTensors/…e/sparse_ace_basis.jl  130 pullback!(∂Rnl::Matrix{Float64}, …
+   133         0 @EquivariantTensors/…e/sparse_ace_basis.jl  176 pullback(∂BB::Vector{SubArray{Flo…
+   143         0 @NeighbourLists/src/cell_list.jl  295 _pairlist_(X::Vector{SVector{3, F…
+   145         0 @NeighbourLists/src/atoms_base.jl   35 PairList(ab::FlexibleSystem{3, At…
+   145         0 @NeighbourLists/src/cell_list.jl    5 kwcall(::@NamedTuple{int_type::Da…
+   145         0 @NeighbourLists/src/cell_list.jl    5 #PairList#1
+   146        15 @ACEpotentials/…models/Rnl_splines.jl   44 evaluate(basis::ACEpotentials.Mod…
+   170         0 @NeighbourLists/src/atoms_base.jl    6 PairList
+   189         0 @ACEpotentials/…models/Rnl_splines.jl  129 evaluate_ed_batched(basis::ACEpot…
+   221         0 @ACEpotentials/src/models/ace.jl  384 macro expansion
+   224         0 @ACEpotentials/src/models/ace.jl  365 macro expansion
+   287         0 @ACEpotentials/src/models/ace.jl  341 macro expansion
+   356         0 @WithAlloc/src/WithAlloc.jl   11 macro expansion
+   356         0 @WithAlloc/src/WithAlloc.jl   17 withalloc
+   356         0 none                      ? _genwithalloc
+   356         0 none                      ? macro expansion
+   356         0 @WithAlloc/src/WithAlloc.jl   37 macro expansion
+   421         5 @ACEpotentials/…models/Rnl_splines.jl   90 evaluate_ed
+   422         0 @ACEpotentials/…models/Rnl_splines.jl  107 evaluate_ed_batched!(Rnl::Matrix{…
+   977         0 @ACEpotentials/src/models/ace.jl  331 evaluate_ed(model::ACEpotentials.…
+   977         0 @Bumper/src/internals.jl   76 macro expansion
+   981         0 @ACEpotentials/…models/calculators.jl   82 eval_grad_site(V::ACEpotentials.M…
+   983         1 @AtomsCalculatorsUtilities/…otentials/assembly.jl   79 (::AtomsCalculatorsUtilities.Site…
+  1156         0 @Transducers/src/processes.jl  187 _foldl_array
+  1156         0 @Transducers/src/core.jl  181 macro expansion
+  1156         0 @Transducers/src/simd.jl    8 next
+  1156         0 @Transducers/src/core.jl  775 next(rf::Transducers.Reduction{Tr…
+  1156         3 @Transducers/src/library.jl   54 next
+  1157         0 @Folds/src/reduce.jl    131 kwcall(::@NamedTuple{init::Vector…
+  1157         0 @Folds/src/reduce.jl    131 #_#13
+  1157         0 @Folds/src/reduce.jl    118 exec
+  1157         0 @Folds/src/reduce.jl     19 mapreduce
+  1157         0 @Folds/src/reduce.jl     26 #mapreduce#6
+  1157         0 @Transducers/src/executors.jl  157 fold
+  1157         0 @Transducers/src/executors.jl  157 #fold#72
+  1157         0 @Transducers/src/executors.jl  152 transduce
+  1157         0 @Transducers/src/reduce.jl   84 transduce_assoc
+  1157         0 @Transducers/src/reduce.jl  108 transduce_assoc(xform::Transducer…
+  1157         0 @Transducers/src/reduce.jl  131 _transduce_assoc_nocomplete
+  1157         0 @Transducers/src/reduce.jl  139 _reduce(ctx::Transducers.Cancella…
+  1157         0 @Transducers/…rc/threading_utils.jl   58 _reduce_basecase(rf::Transducers.…
+  1157         0 @Transducers/src/processes.jl  361 foldl_basecase
+  1157         0 @Transducers/src/processes.jl  182 __foldl__
+  1162         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   66 energy_forces_virial(sys::Flexibl…
+  1332         0 @Base/client.jl         577 _start()
+  1332         0 @Base/client.jl         344 exec_options(opts::Base.JLOptions)
+  1332         0 @Base/Base.jl           309 include(mod::Module, _path::Strin…
+  1332         0 @Base/loading.jl       3076 _include(mapexpr::Function, mod::…
+  1332         0 @Base/loading.jl       3016 include_string(mapexpr::typeof(id…
+  1332         0 @Base/boot.jl           489 eval(m::Module, e::Any)
+  1332         0 @ACEpotentials/…forward/02_profile.jl   97 run_profile(name::String, m::ACEp…
+  1332         0 @ACEpotentials/…forward/02_profile.jl  101 run_profile(name::String, m::ACEp…
+  1332         0 @Profile/src/Profile.jl   60 macro expansion
+  1332         0 @ACEpotentials/…forward/02_profile.jl  101 macro expansion
+  1332         0 @ACEpotentials/…ile_forward/common.jl   84 efv
+  1332         0 @AtomsCalculatorsUtilities/…otentials/assembly.jl   56 energy_forces_virial(sys::Flexibl…
+Total snapshots: 3162. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+
+######## TREE PROFILE: Si_D10 (512 atoms) ########
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎1332 @Base/client.jl:577  _start()
+    ╎ 1332 @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  1332 @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   1332 @Base/loading.jl:3076  _include(mapexpr::Function, mod::Module, _p…
+    ╎    1332 @Base/loading.jl:3016  include_string(mapexpr::typeof(identity), …
+    ╎     1332 @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 1332 @ACEpotentials/…e.jl:97  run_profile(name::String, m::ACEpotent…
+    ╎    ╎  1332 @ACEpotentials/…e.jl:101  run_profile(name::String, m::ACEpote…
+    ╎    ╎   1332 @Profile/…Profile.jl:60  macro expansion
+    ╎    ╎    1332 @ACEpotentials/….jl:101  macro expansion
+    ╎    ╎     1332 @ACEpotentials/….jl:84  efv
+    ╎    ╎    ╎ 1332 @AtomsCalculatorsUtilities/…:56  energy_forces_virial(sys:…
+    ╎    ╎    ╎  1162 @AtomsCalculatorsUtilities/…:66  energy_forces_virial(sys…
+    ╎    ╎    ╎   1157 @Folds/…reduce.jl:131  kwcall(::@NamedTuple{init::Vector…
+    ╎    ╎    ╎    1157 @Folds/…reduce.jl:131  #_#13
+    ╎    ╎    ╎     1157 @Folds/…educe.jl:118  exec
+    ╎    ╎    ╎    ╎ 1157 @Folds/…educe.jl:19  mapreduce
+    ╎    ╎    ╎    ╎  1157 @Folds/…educe.jl:26  #mapreduce#6
+    ╎    ╎    ╎    ╎   1157 @Transducers/…l:157  fold
+    ╎    ╎    ╎    ╎    1157 @Transducers/…l:157  #fold#72
+    ╎    ╎    ╎    ╎     1157 @Transducers/…:152  transduce
+    ╎    ╎    ╎    ╎    ╎ 1157 @Transducers/…:84  transduce_assoc
+    ╎    ╎    ╎    ╎    ╎  1157 @Transducers/…:108  transduce_assoc(xform::Tran…
+    ╎    ╎    ╎  170  @NeighbourLists/…l:6  PairList
+    ╎    ╎    ╎   145  @NeighbourLists/…l:35  PairList(ab::FlexibleSystem{3, At…
+    ╎    ╎    ╎    145  @NeighbourLists/…l:5  kwcall(::@NamedTuple{int_type::Da…
+    ╎    ╎    ╎     145  @NeighbourLists/…:5  #PairList#1
+    ╎    ╎    ╎    ╎ 143  @NeighbourLists/…:295  _pairlist_(X::Vector{SVector{3…
+    ╎    ╎    ╎    ╎  130  @NeighbourLists/…:196  _pairlist_(clist::NeighbourLi…
+    ╎    ╎    ╎    ╎   30   @NeighbourLists/…:262  _find_neighbours_!(i::Int64,…
+    ╎    ╎    ╎    ╎   36   @NeighbourLists/…:273  _find_neighbours_!(i::Int64,…
+    ╎    ╎    ╎    ╎    36   @Base/array.jl:1345  push!
+    ╎    ╎    ╎    ╎     36   @Base/array.jl:1348  _push!
+    ╎    ╎    ╎    ╎    ╎ 35   @Base/array.jl:1197  _growend!
+  35╎    ╎    ╎    ╎    ╎  35   @Base/…iler.jl:57  getproperty
+Total snapshots: 3162. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.

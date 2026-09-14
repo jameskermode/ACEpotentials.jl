@@ -1,0 +1,17 @@
+threads = 4 (M3 Pro: 6 performance + 6 efficiency cores; load avg 2.23193359375)
+cat_D6    cantor 2x2x2  nat= 256 production (Folds, 4 threads, nlist reused):    8.167 ms  3.135e+04 atom-steps/s
+cat_D6    cantor 2x2x2  nat= 256 fast ntasks=1:    8.367 ms  3.060e+04 atom-steps/s  (1.00x vs 1 task)
+cat_D6    cantor 2x2x2  nat= 256 fast ntasks=2:    4.428 ms  5.782e+04 atom-steps/s  (NaNx vs 1 task)
+cat_D6    cantor 2x2x2  nat= 256 fast ntasks=4:    2.416 ms  1.060e+05 atom-steps/s  (NaNx vs 1 task)
+cat_D6    cantor 3x3x3  nat= 864 production (Folds, 4 threads, nlist reused):   27.388 ms  3.155e+04 atom-steps/s
+cat_D6    cantor 3x3x3  nat= 864 fast ntasks=1:   28.752 ms  3.005e+04 atom-steps/s  (1.00x vs 1 task)
+cat_D6    cantor 3x3x3  nat= 864 fast ntasks=2:   14.775 ms  5.848e+04 atom-steps/s  (NaNx vs 1 task)
+cat_D6    cantor 3x3x3  nat= 864 fast ntasks=4:    7.764 ms  1.113e+05 atom-steps/s  (NaNx vs 1 task)
+emb16_D6  cantor 2x2x2  nat= 256 production (Folds, 4 threads, nlist reused):   11.384 ms  2.249e+04 atom-steps/s
+emb16_D6  cantor 2x2x2  nat= 256 fast ntasks=1:    9.504 ms  2.693e+04 atom-steps/s  (1.00x vs 1 task)
+emb16_D6  cantor 2x2x2  nat= 256 fast ntasks=2:    4.904 ms  5.220e+04 atom-steps/s  (NaNx vs 1 task)
+emb16_D6  cantor 2x2x2  nat= 256 fast ntasks=4:    2.624 ms  9.757e+04 atom-steps/s  (NaNx vs 1 task)
+emb16_D6  cantor 3x3x3  nat= 864 production (Folds, 4 threads, nlist reused):   37.959 ms  2.276e+04 atom-steps/s
+emb16_D6  cantor 3x3x3  nat= 864 fast ntasks=1:   31.913 ms  2.707e+04 atom-steps/s  (1.00x vs 1 task)
+emb16_D6  cantor 3x3x3  nat= 864 fast ntasks=2:   16.468 ms  5.247e+04 atom-steps/s  (NaNx vs 1 task)
+emb16_D6  cantor 3x3x3  nat= 864 fast ntasks=4:    8.524 ms  1.014e+05 atom-steps/s  (NaNx vs 1 task)

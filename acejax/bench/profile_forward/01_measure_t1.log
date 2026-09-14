@@ -1,0 +1,27 @@
+threads = 1, julia 1.13.0
+small: 32 atoms, big: 256 atoms, Si: 64 / 512
+cat_D6     n_B/elem= 1348  NZ=5  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25 rbasis=SplineRnlrzzBasis
+emb16_D6   n_B/elem=  323  NZ=5  nR=224 nY=  9 nA=  177 nAA=   415 npair=6 rcut=6.25 rbasis=SplineRnlrzzBasis
+cat_D8     n_B/elem= 3824  NZ=5  nR=126 nY= 25 nA=  157 nAA=  7600 npair=40 rcut=6.25 rbasis=SplineRnlrzzBasis
+emb16_D8   n_B/elem=  753  NZ=5  nR=384 nY= 25 nA=  380 nAA=  1217 npair=8 rcut=6.25 rbasis=SplineRnlrzzBasis
+Si_D10     n_B/elem=  110  NZ=1  nR= 37 nY= 25 nA=   43 nAA=   230 npair=10 rcut=6.00 rbasis=SplineRnlrzzBasis
+cat_D6 cantor (nneigh=78.9)                  nat=  32      3.994 ms  8.012e+03 atom-steps/s      6.95 MB   36969 allocs  GC  0.0%
+cat_D6 cantor 2x2x2 (nneigh=78.9)            nat= 256     30.390 ms  8.424e+03 atom-steps/s     55.48 MB  293946 allocs  GC  0.0%
+emb16_D6 cantor (nneigh=78.9)                nat=  32      6.196 ms  5.165e+03 atom-steps/s      7.97 MB   36937 allocs  GC  0.0%
+emb16_D6 cantor 2x2x2 (nneigh=78.9)          nat= 256     46.881 ms  5.461e+03 atom-steps/s     63.68 MB  293690 allocs  GC  0.0%
+cat_D8 cantor (nneigh=78.9)                  nat=  32      6.612 ms  4.840e+03 atom-steps/s     12.70 MB   37033 allocs  GC  0.0%
+cat_D8 cantor 2x2x2 (nneigh=78.9)            nat= 256     51.037 ms  5.016e+03 atom-steps/s    101.53 MB  294458 allocs  GC  0.0%
+emb16_D8 cantor (nneigh=78.9)                nat=  32     10.093 ms  3.171e+03 atom-steps/s     12.14 MB   37097 allocs  GC  0.0%
+emb16_D8 cantor 2x2x2 (nneigh=78.9)          nat= 256     77.658 ms  3.296e+03 atom-steps/s     97.04 MB  294970 allocs  GC  0.0%
+Si_D10 Si (nneigh=43.4)                      nat=  64      3.028 ms  2.113e+04 atom-steps/s      5.61 MB   43887 allocs  GC  0.0%
+Si_D10 Si 2x2x2 (nneigh=43.4)                nat= 512     20.169 ms  2.539e+04 atom-steps/s     41.37 MB  349423 allocs  GC  0.0%
+
+neighbour list (PairList) cost:
+  cantor           nat=  32     0.303 ms    0.48 MB  1031 allocs
+  cantor 2x2x2     nat= 256     2.145 ms    3.80 MB  7531 allocs
+
+nlist reuse (energy_forces_virial with nlist kwarg) vs default:
+  cat_D6     cantor         default    3.928 ms   reuse    3.593 ms  (8.5% saved)
+  cat_D6     cantor 2x2x2   default   29.783 ms   reuse   27.585 ms  (7.4% saved)
+  emb16_D6   cantor         default    6.072 ms   reuse    5.759 ms  (5.2% saved)
+  emb16_D6   cantor 2x2x2   default   46.351 ms   reuse   44.094 ms  (4.9% saved)

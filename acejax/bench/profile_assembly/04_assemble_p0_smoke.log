@@ -1,0 +1,7 @@
+procs: 1  workers: 1  threads/proc: 1  structures: 8  rows: 920
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+   serialised model: 2.4 MB, serialize 0.001 s
+   GC.gc() (full) on master: 0.145 s per call
+   assemble[orig            ] 8 structs, 1 procs:    56.26 s wall =  7.033 s/structure (x nworkers =   7.03 worker-s/structure)  size (920, 6890)
+   assemble[pushfwd         ] 8 structs, 1 procs:     1.88 s wall =  0.235 s/structure (x nworkers =   0.24 worker-s/structure)  size (920, 6890)
+   max |A_orig - A_pushfwd| = 6.25e-13  (max|A| = 8.42e+02);  Y equal: true;  W equal: true

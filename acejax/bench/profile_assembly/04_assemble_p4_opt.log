@@ -1,0 +1,15 @@
+procs: 5  workers: 4  threads/proc: 1  structures: 32  rows: 3968
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+   serialised model: 2.4 MB, serialize 0.002 s
+   remotecall with captured model: 0.008 s/call; with worker-global model: 0.0011 s/call
+   GC.gc() (full) on master: 0.154 s per call
+   assemble[pushfwd         ] 32 structs, 5 procs:    14.80 s wall =  0.463 s/structure (x nworkers =   1.85 worker-s/structure)  size (3968, 6890)
+   assemble[pushfwd_ws      ] 32 structs, 5 procs:     5.04 s wall =  0.157 s/structure (x nworkers =   0.63 worker-s/structure)  size (3968, 6890)
+   max |A_pushfwd - A_pushfwd_ws| = 7.11e-15
+emb16_D8   n_B/elem=  753  NZ=5  length_basis=  3805  nR=384 nY= 25 nA=  380 nAA=  1217 npair=8 rcut=6.25
+   serialised model: 7.9 MB, serialize 0.004 s
+   remotecall with captured model: 0.015 s/call; with worker-global model: 0.0004 s/call
+   GC.gc() (full) on master: 0.155 s per call
+   assemble[pushfwd         ] 32 structs, 5 procs:    10.88 s wall =  0.340 s/structure (x nworkers =   1.36 worker-s/structure)  size (3968, 3805)
+   assemble[pushfwd_ws      ] 32 structs, 5 procs:     4.06 s wall =  0.127 s/structure (x nworkers =   0.51 worker-s/structure)  size (3968, 3805)
+   max |A_pushfwd - A_pushfwd_ws| = 7.11e-15

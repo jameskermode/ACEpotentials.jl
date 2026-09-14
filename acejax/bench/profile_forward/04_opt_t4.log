@@ -1,0 +1,81 @@
+threads = 4
+
+=== cat_D6: radial LEN=74 -> NU=7 distinct columns; pair LEN=30 -> NU=7
+  exactness cantor         |ΔE|=4.26e-14  max|ΔF|=1.64e-14  max|ΔV|=2.56e-13  OK
+  production cat_D6 cantor                   nat=  32      1.430 ms  2.237e+04 atom-steps/s      7.01 MB   37946 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor     nat=  32      1.367 ms  2.341e+04 atom-steps/s      0.83 MB    1301 allocs  GC  0.0%
+  fast serial (ws reused) cantor             nat=  32      1.363 ms  2.348e+04 atom-steps/s      0.49 MB    1233 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor       nat=  32      1.032 ms  3.099e+04 atom-steps/s      0.01 MB     187 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor  [ΔF=1.5e-14] nat=  32      0.658 ms  4.865e+04 atom-steps/s      0.50 MB    1326 allocs  GC  0.0%
+  speed-up serial: 1.05x (ws reused: 1.05x, +nlist: 1.39x)
+  exactness cantor 2x2x2   |ΔE|=1.71e-13  max|ΔF|=2.54e-14  max|ΔV|=5.23e-12  OK
+  production cat_D6 cantor 2x2x2             nat= 256     10.284 ms  2.489e+04 atom-steps/s     55.86 MB  299188 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor 2x2x2 nat= 256     10.436 ms  2.453e+04 atom-steps/s      4.20 MB    8924 allocs  GC  0.0%
+  fast serial (ws reused) cantor 2x2x2       nat= 256     10.508 ms  2.436e+04 atom-steps/s      3.86 MB    8856 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor 2x2x2 nat= 256      8.509 ms  3.009e+04 atom-steps/s      0.05 MB    1310 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor 2x2x2  [ΔF=2.5e-14] nat= 256      4.396 ms  5.824e+04 atom-steps/s      3.89 MB    8952 allocs  GC  0.0%
+  speed-up serial: 0.99x (ws reused: 0.98x, +nlist: 1.21x)
+
+=== emb16_D6: radial LEN=224 -> NU=6 distinct columns; pair LEN=6 -> NU=2
+  exactness cantor         |ΔE|=1.42e-14  max|ΔF|=8.53e-15  max|ΔV|=3.27e-13  OK
+  production emb16_D6 cantor                 nat=  32      1.863 ms  1.718e+04 atom-steps/s      8.00 MB   37306 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor     nat=  32      1.477 ms  2.167e+04 atom-steps/s      1.07 MB    1299 allocs  GC  0.0%
+  fast serial (ws reused) cantor             nat=  32      1.464 ms  2.186e+04 atom-steps/s      0.49 MB    1233 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor       nat=  32      1.150 ms  2.782e+04 atom-steps/s      0.01 MB     187 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor  [ΔF=8.7e-15] nat=  32      0.693 ms  4.620e+04 atom-steps/s      0.50 MB    1326 allocs  GC  0.0%
+  speed-up serial: 1.26x (ws reused: 1.27x, +nlist: 1.62x)
+  exactness cantor 2x2x2   |ΔE|=3.41e-13  max|ΔF|=9.73e-15  max|ΔV|=3.30e-12  OK
+  production emb16_D6 cantor 2x2x2           nat= 256     13.342 ms  1.919e+04 atom-steps/s     63.76 MB  294068 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor 2x2x2 nat= 256     11.541 ms  2.218e+04 atom-steps/s      4.44 MB    8922 allocs  GC  0.0%
+  fast serial (ws reused) cantor 2x2x2       nat= 256     11.528 ms  2.221e+04 atom-steps/s      3.86 MB    8856 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor 2x2x2 nat= 256      9.454 ms  2.708e+04 atom-steps/s      0.05 MB    1310 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor 2x2x2  [ΔF=9.7e-15] nat= 256      4.705 ms  5.441e+04 atom-steps/s      3.89 MB    8952 allocs  GC  0.0%
+  speed-up serial: 1.16x (ws reused: 1.16x, +nlist: 1.41x)
+
+=== cat_D8: radial LEN=126 -> NU=9 distinct columns; pair LEN=40 -> NU=9
+  exactness cantor         |ΔE|=5.68e-14  max|ΔF|=3.80e-14  max|ΔV|=2.84e-13  OK
+  production cat_D8 cantor                   nat=  32      2.078 ms  1.540e+04 atom-steps/s     12.80 MB   38362 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor     nat=  32      2.494 ms  1.283e+04 atom-steps/s      1.07 MB    1301 allocs  GC  0.0%
+  fast serial (ws reused) cantor             nat=  32      2.516 ms  1.272e+04 atom-steps/s      0.49 MB    1233 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor       nat=  32      2.180 ms  1.468e+04 atom-steps/s      0.01 MB     187 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor  [ΔF=3.9e-14] nat=  32      0.972 ms  3.293e+04 atom-steps/s      0.50 MB    1326 allocs  GC  0.0%
+  speed-up serial: 0.83x (ws reused: 0.83x, +nlist: 0.95x)
+  exactness cantor 2x2x2   |ΔE|=6.25e-13  max|ΔF|=3.96e-14  max|ΔV|=3.68e-11  OK
+  production cat_D8 cantor 2x2x2             nat= 256     15.136 ms  1.691e+04 atom-steps/s    102.15 MB  302516 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor 2x2x2 nat= 256     19.468 ms  1.315e+04 atom-steps/s      4.44 MB    8924 allocs  GC  0.0%
+  fast serial (ws reused) cantor 2x2x2       nat= 256     19.491 ms  1.313e+04 atom-steps/s      3.86 MB    8856 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor 2x2x2 nat= 256     17.482 ms  1.464e+04 atom-steps/s      0.05 MB    1310 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor 2x2x2  [ΔF=3.8e-14] nat= 256      6.890 ms  3.716e+04 atom-steps/s      3.89 MB    8952 allocs  GC  0.0%
+  speed-up serial: 0.78x (ws reused: 0.78x, +nlist: 0.87x)
+
+=== emb16_D8: radial LEN=384 -> NU=8 distinct columns; pair LEN=8 -> NU=3
+  exactness cantor         |ΔE|=0.00e+00  max|ΔF|=3.38e-14  max|ΔV|=4.55e-13  OK
+  production emb16_D8 cantor                 nat=  32      2.977 ms  1.075e+04 atom-steps/s     12.17 MB   37466 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor     nat=  32      2.357 ms  1.357e+04 atom-steps/s      1.50 MB    1303 allocs  GC  0.0%
+  fast serial (ws reused) cantor             nat=  32      2.325 ms  1.376e+04 atom-steps/s      0.49 MB    1233 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor       nat=  32      2.031 ms  1.576e+04 atom-steps/s      0.01 MB     187 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor  [ΔF=3.5e-14] nat=  32      0.924 ms  3.462e+04 atom-steps/s      0.50 MB    1326 allocs  GC  0.0%
+  speed-up serial: 1.26x (ws reused: 1.28x, +nlist: 1.47x)
+  exactness cantor 2x2x2   |ΔE|=1.14e-13  max|ΔF|=3.61e-14  max|ΔV|=1.23e-11  OK
+  production emb16_D8 cantor 2x2x2           nat= 256     21.903 ms  1.169e+04 atom-steps/s     97.11 MB  295348 allocs  GC  0.0%
+  fast serial (nlist+ws per call) cantor 2x2x2 nat= 256     18.170 ms  1.409e+04 atom-steps/s      4.87 MB    8926 allocs  GC  0.0%
+  fast serial (ws reused) cantor 2x2x2       nat= 256     18.142 ms  1.411e+04 atom-steps/s      3.86 MB    8856 allocs  GC  0.0%
+  fast serial (ws+nlist reused) cantor 2x2x2 nat= 256     16.136 ms  1.587e+04 atom-steps/s      0.05 MB    1310 allocs  GC  0.0%
+  fast 4 tasks (ws reused) cantor 2x2x2  [ΔF=3.4e-14] nat= 256      6.446 ms  3.971e+04 atom-steps/s      3.89 MB    8952 allocs  GC  0.0%
+  speed-up serial: 1.21x (ws reused: 1.21x, +nlist: 1.36x)
+
+=== Si_D10: radial LEN=37 -> NU=10 distinct columns; pair LEN=10 -> NU=10
+  exactness Si             |ΔE|=1.14e-13  max|ΔF|=2.29e-14  max|ΔV|=1.71e-12  OK
+  production Si_D10 Si                       nat=  64      1.417 ms  4.516e+04 atom-steps/s      5.64 MB   44256 allocs  GC  0.0%
+  fast serial (nlist+ws per call) Si         nat=  64      1.611 ms  3.974e+04 atom-steps/s      1.23 MB    2385 allocs  GC  0.0%
+  fast serial (ws reused) Si                 nat=  64      1.605 ms  3.987e+04 atom-steps/s      1.06 MB    2321 allocs  GC  0.0%
+  fast serial (ws+nlist reused) Si           nat=  64      0.823 ms  7.778e+04 atom-steps/s      0.02 MB     347 allocs  GC  0.0%
+  fast 4 tasks (ws reused) Si  [ΔF=2.3e-14]  nat=  64      1.043 ms  6.139e+04 atom-steps/s      1.07 MB    2414 allocs  GC  0.0%
+  speed-up serial: 0.88x (ws reused: 0.88x, +nlist: 1.72x)
+  exactness Si 2x2x2       |ΔE|=1.36e-12  max|ΔF|=2.86e-14  max|ΔV|=5.82e-11  OK
+  production Si_D10 Si 2x2x2                 nat= 512      7.428 ms  6.893e+04 atom-steps/s     41.50 MB  349804 allocs  GC  0.0%
+  fast serial (nlist+ws per call) Si 2x2x2   nat= 512      9.428 ms  5.431e+04 atom-steps/s      5.18 MB   17630 allocs  GC  0.0%
+  fast serial (ws reused) Si 2x2x2           nat= 512      9.439 ms  5.424e+04 atom-steps/s      5.01 MB   17566 allocs  GC  0.0%
+  fast serial (ws+nlist reused) Si 2x2x2     nat= 512      6.726 ms  7.613e+04 atom-steps/s      0.10 MB    2593 allocs  GC  0.0%
+  fast 4 tasks (ws reused) Si 2x2x2  [ΔF=2.9e-14] nat= 512      4.606 ms  1.112e+05 atom-steps/s      5.05 MB   17661 allocs  GC  0.0%
+  speed-up serial: 0.79x (ws reused: 0.79x, +nlist: 1.10x)

@@ -1,0 +1,23 @@
+procs: 5  workers: 4  threads/proc: 1  structures: 32  rows: 3968
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+   serialised model: 2.4 MB, serialize 0.002 s
+   remotecall with captured model: 0.050 s/call; with worker-global model: 0.0017 s/call
+   GC.gc() (full) on master: 0.142 s per call
+      From worker 2:	┌ Warning: Cannot transfer global variable FEATURE_MODE; it already has a value.
+      From worker 2:	└ @ Distributed ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Distributed/src/clusterserialize.jl:166
+      From worker 3:	┌ Warning: Cannot transfer global variable FEATURE_MODE; it already has a value.
+      From worker 3:	└ @ Distributed ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Distributed/src/clusterserialize.jl:166
+      From worker 4:	┌ Warning: Cannot transfer global variable FEATURE_MODE; it already has a value.
+      From worker 4:	└ @ Distributed ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Distributed/src/clusterserialize.jl:166
+      From worker 5:	┌ Warning: Cannot transfer global variable FEATURE_MODE; it already has a value.
+      From worker 5:	└ @ Distributed ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Distributed/src/clusterserialize.jl:166
+   assemble[orig            ] 32 structs, 5 procs:   171.26 s wall =  5.352 s/structure (x nworkers =  21.41 worker-s/structure)  size (3968, 6890)
+   assemble[pushfwd         ] 32 structs, 5 procs:    14.38 s wall =  0.449 s/structure (x nworkers =   1.80 worker-s/structure)  size (3968, 6890)
+   max |A_orig - A_pushfwd| = 9.66e-13  (max|A| = 8.42e+02);  Y equal: true;  W equal: true
+emb16_D8   n_B/elem=  753  NZ=5  length_basis=  3805  nR=384 nY= 25 nA=  380 nAA=  1217 npair=8 rcut=6.25
+   serialised model: 7.9 MB, serialize 0.004 s
+   remotecall with captured model: 0.013 s/call; with worker-global model: 0.0003 s/call
+   GC.gc() (full) on master: 0.263 s per call
+   assemble[orig            ] 32 structs, 5 procs:   148.67 s wall =  4.646 s/structure (x nworkers =  18.58 worker-s/structure)  size (3968, 3805)
+   assemble[pushfwd         ] 32 structs, 5 procs:    12.21 s wall =  0.381 s/structure (x nworkers =   1.53 worker-s/structure)  size (3968, 3805)
+   max |A_orig - A_pushfwd| = 4.43e-12  (max|A| = 1.39e+03);  Y equal: true;  W equal: true

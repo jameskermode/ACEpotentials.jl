@@ -1,0 +1,13 @@
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+procs: 5
+ACEfit.assemble: 40.11 s wall for 32; feature_matrix calls: n=32, sum=67.92 s, mean=2.123 s, max=18.431 s
+assemble_instrumented(gc=true, capture=true): pmap 24.39 s wall; feature_matrix sum 43.97 s (mean 1.374); GC.gc sum 44.15 s (mean 1.380, n=32)
+assemble_instrumented(gc=true, capture=true): pmap 22.76 s wall; feature_matrix sum 34.66 s (mean 1.083); GC.gc sum 50.03 s (mean 1.564, n=32)
+assemble_instrumented(gc=false, capture=true): pmap 17.48 s wall; feature_matrix sum 63.50 s (mean 1.984); GC.gc sum 0.00 s (mean 0.000, n=0)
+assemble_instrumented(gc=false, capture=false): pmap 16.67 s wall; feature_matrix sum 55.70 s (mean 1.741); GC.gc sum 0.00 s (mean 0.000, n=0)
+assemble_instrumented(gc=true, capture=false): pmap 26.50 s wall; feature_matrix sum 32.34 s (mean 1.011); GC.gc sum 64.39 s (mean 2.012, n=32)
+A equal across variants: true
+pmap of 32 trivial tasks capturing the model: 1.302 s (0.0407 s/task)
+pmap of 32 trivial tasks, no capture:         0.166 s (0.0052 s/task)
+make_atoms_data (32): 0.011 s
+assemble_weights (32): 0.160 s

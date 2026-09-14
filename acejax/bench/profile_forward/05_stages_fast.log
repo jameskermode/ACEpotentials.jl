@@ -1,0 +1,75 @@
+
+=== cat_D6 (fast evaluator), site 1 with 80 neighbours ===
+  gather (nlist -> Rs, jzs)                                      0.33 µs    1.1%
+  radial_ed! (Rnl, LEN=74, NU=7)                                 9.08 µs   29.9%
+    of which per-edge scalars (transform/envelope/weights)       3.12 µs   10.3%
+  Ylm ed                                                         1.38 µs    4.5%
+  A evaluate!                                                    0.50 µs    1.6%
+  AA evaluate!                                                   1.08 µs    3.6%
+  Ei = wAA ⋅ AA                                                  0.17 µs    0.5%
+  ∂A pullback!(AA)                                               5.96 µs   19.6%
+  ∂Rnl,∂Ylm pullback!(A)                                         1.71 µs    5.6%
+  assemble ∇Ei (production loop)                                 5.17 µs   17.0%
+  assemble ∇Ei (reduce-first)                                    1.58 µs    5.2%
+  pair radial_ed! (LEN=30, NU=7)                                 5.42 µs   17.9%
+  site_ed! TOTAL                                                30.33 µs  100.0%
+
+=== emb16_D6 (fast evaluator), site 1 with 80 neighbours ===
+  gather (nlist -> Rs, jzs)                                      0.29 µs    0.8%
+  radial_ed! (Rnl, LEN=224, NU=6)                               16.54 µs   46.2%
+    of which per-edge scalars (transform/envelope/weights)       3.29 µs    9.2%
+  Ylm ed                                                         0.67 µs    1.9%
+  A evaluate!                                                    1.29 µs    3.6%
+  AA evaluate!                                                   0.17 µs    0.5%
+  Ei = wAA ⋅ AA                                                  0.00 µs    0.0%
+  ∂A pullback!(AA)                                               0.54 µs    1.5%
+  ∂Rnl,∂Ylm pullback!(A)                                         5.88 µs   16.4%
+  assemble ∇Ei (production loop)                                14.38 µs   40.1%
+  assemble ∇Ei (reduce-first)                                    4.04 µs   11.3%
+  pair radial_ed! (LEN=6, NU=2)                                  3.08 µs    8.6%
+  site_ed! TOTAL                                                35.83 µs  100.0%
+
+=== cat_D8 (fast evaluator), site 1 with 80 neighbours ===
+  gather (nlist -> Rs, jzs)                                      0.29 µs    0.4%
+  radial_ed! (Rnl, LEN=126, NU=9)                               13.33 µs   19.9%
+    of which per-edge scalars (transform/envelope/weights)       3.08 µs    4.6%
+  Ylm ed                                                         4.21 µs    6.3%
+  A evaluate!                                                    1.17 µs    1.7%
+  AA evaluate!                                                   4.92 µs    7.3%
+  Ei = wAA ⋅ AA                                                  0.83 µs    1.2%
+  ∂A pullback!(AA)                                              21.25 µs   31.6%
+  ∂Rnl,∂Ylm pullback!(A)                                         3.96 µs    5.9%
+  assemble ∇Ei (production loop)                                 9.50 µs   14.1%
+  assemble ∇Ei (reduce-first)                                    3.71 µs    5.5%
+  pair radial_ed! (LEN=40, NU=9)                                 6.38 µs    9.5%
+  site_ed! TOTAL                                                67.17 µs  100.0%
+
+=== emb16_D8 (fast evaluator), site 1 with 80 neighbours ===
+  gather (nlist -> Rs, jzs)                                      0.33 µs    0.5%
+  radial_ed! (Rnl, LEN=384, NU=8)                               28.17 µs   45.7%
+    of which per-edge scalars (transform/envelope/weights)       3.08 µs    5.0%
+  Ylm ed                                                         2.04 µs    3.3%
+  A evaluate!                                                    3.08 µs    5.0%
+  AA evaluate!                                                   0.58 µs    0.9%
+  Ei = wAA ⋅ AA                                                  0.08 µs    0.1%
+  ∂A pullback!(AA)                                               1.83 µs    3.0%
+  ∂Rnl,∂Ylm pullback!(A)                                        11.62 µs   18.9%
+  assemble ∇Ei (production loop)                                25.04 µs   40.6%
+  assemble ∇Ei (reduce-first)                                    7.67 µs   12.4%
+  pair radial_ed! (LEN=8, NU=3)                                  3.33 µs    5.4%
+  site_ed! TOTAL                                                61.67 µs  100.0%
+
+=== Si_D10 (fast evaluator), site 1 with 45 neighbours ===
+  gather (nlist -> Rs, jzs)                                      0.17 µs    1.4%
+  radial_ed! (Rnl, LEN=37, NU=10)                                3.29 µs   27.5%
+    of which per-edge scalars (transform/envelope/weights)       1.71 µs   14.3%
+  Ylm ed                                                         2.25 µs   18.8%
+  A evaluate!                                                    0.17 µs    1.4%
+  AA evaluate!                                                   0.08 µs    0.7%
+  Ei = wAA ⋅ AA                                                  0.00 µs    0.0%
+  ∂A pullback!(AA)                                               0.50 µs    4.2%
+  ∂Rnl,∂Ylm pullback!(A)                                         0.75 µs    6.3%
+  assemble ∇Ei (production loop)                                 2.12 µs   17.8%
+  assemble ∇Ei (reduce-first)                                    1.17 µs    9.8%
+  pair radial_ed! (LEN=10, NU=10)                                2.46 µs   20.6%
+  site_ed! TOTAL                                                11.96 µs  100.0%

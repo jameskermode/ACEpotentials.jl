@@ -1,0 +1,41 @@
+structure 1: 32 atoms; 32 structs: 1248 atoms
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+   neighbours/site: mean 78.9  max 80
+   PairList                   0.0004 s       0.5 MB
+   energy_forces_virial       0.0042 s       6.5 MB  gc  0.0%  (nthreads=1)
+   energy_forces_virial_ser   0.0041 s       6.7 MB  gc  0.0%
+   evaluate_basis (1 site)   0.00010 s      0.19 MB
+   evaluate_ed    (1 site)   0.00017 s      0.17 MB
+   evaluate_basis_ed (1 site)   0.0192 s     120.5 MB  gc  0.0%
+   energy_forces_virial_basis    6.296 s    9558.9 MB  gc 22.7%   ratio to efv: 1545x ; per-site ed sum 0.614 s (10% of total)
+   ACEfit.feature_matrix       5.726 s    9589.7 MB  gc 19.7%   overhead over efv_basis: -0.570 s (-9.1%)
+emb16_D6   n_B/elem=  323  NZ=5  length_basis=  1645  nR=224 nY=  9 nA=  177 nAA=   415 npair=6 rcut=6.25
+   neighbours/site: mean 78.9  max 80
+   PairList                   0.0003 s       0.5 MB
+   energy_forces_virial       0.0064 s       7.5 MB  gc  0.0%  (nthreads=1)
+   energy_forces_virial_ser   0.0062 s       7.7 MB  gc  0.0%
+   evaluate_basis (1 site)   0.00011 s      0.20 MB
+   evaluate_ed    (1 site)   0.00024 s      0.20 MB
+   evaluate_basis_ed (1 site)   0.0266 s      60.5 MB  gc  0.0%
+   energy_forces_virial_basis    2.207 s    3295.7 MB  gc 13.8%   ratio to efv: 356x ; per-site ed sum 0.852 s (39% of total)
+   ACEfit.feature_matrix       2.233 s    3299.3 MB  gc 10.9%   overhead over efv_basis: 0.026 s (1.2%)
+cat_D8     n_B/elem= 3824  NZ=5  length_basis= 19320  nR=126 nY= 25 nA=  157 nAA=  7600 npair=40 rcut=6.25
+   neighbours/site: mean 78.9  max 80
+   PairList                   0.0003 s       0.5 MB
+   energy_forces_virial       0.0066 s      12.0 MB  gc  0.0%  (nthreads=1)
+   energy_forces_virial_ser   0.0129 s      12.2 MB  gc  0.0%
+   evaluate_basis (1 site)   0.00013 s      0.39 MB
+   evaluate_ed    (1 site)   0.00023 s      0.34 MB
+   evaluate_basis_ed (1 site)   0.0647 s     271.3 MB  gc  1.1%
+   energy_forces_virial_basis   16.402 s   26373.3 MB  gc 24.1%   ratio to efv: 1273x ; per-site ed sum 2.069 s (13% of total)
+   ACEfit.feature_matrix      17.010 s   26384.2 MB  gc 27.0%   overhead over efv_basis: 0.607 s (3.7%)
+emb16_D8   n_B/elem=  753  NZ=5  length_basis=  3805  nR=384 nY= 25 nA=  380 nAA=  1217 npair=8 rcut=6.25
+   neighbours/site: mean 78.9  max 80
+   PairList                   0.0004 s       0.5 MB
+   energy_forces_virial       0.0175 s      11.5 MB  gc  0.0%  (nthreads=1)
+   energy_forces_virial_ser   0.0103 s      11.7 MB  gc  0.0%
+   evaluate_basis (1 site)   0.00019 s      0.32 MB
+   evaluate_ed    (1 site)   0.00038 s      0.33 MB
+   evaluate_basis_ed (1 site)   0.1357 s     119.1 MB  gc  0.0%
+   energy_forces_virial_basis    6.406 s    7014.9 MB  gc 13.1%   ratio to efv: 621x ; per-site ed sum 4.343 s (68% of total)
+   ACEfit.feature_matrix       6.222 s    7014.5 MB  gc 11.5%   overhead over efv_basis: -0.185 s (-2.9%)

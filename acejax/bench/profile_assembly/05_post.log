@@ -1,0 +1,38 @@
+BLAS threads: 4
+
+=== synthetic (A, Y, W) of size 20000 x 4000 = 0.6 GiB ===
+(i)   serialize to disk:               1.35 s   (0.47 GB/s)
+      deserialize from disk:           0.80 s
+(ii)  in-place scaling A/P, W*A:       0.33 s
+(iii) TikhonovFactor( 10000 x 4000):    28.71 s  (qr alone 8.53 s; 37.5 GFLOP/s on qr)
+      one tikhonov_solve:            0.0438 s
+(iii) TikhonovFactor( 20000 x 4000):    36.57 s  (qr alone 11.71 s; 54.7 GFLOP/s on qr)
+      one tikhonov_solve:            0.0333 s
+cat_D6     n_B/elem= 1348  NZ=5  length_basis=  6890  nR= 74 nY=  9 nA=   72 nAA=  1964 npair=30 rcut=6.25
+   32 structs  E: compute_errors 1.330516112471e+01  design 1.330516112471e+01  |diff| 3.55e-15  rel 2.67e-16
+   32 structs  F: compute_errors 1.475092852056e+00  design 1.475092852056e+00  |diff| 1.33e-15  rel 9.03e-16
+   32 structs  V: compute_errors 1.446019100167e+00  design 1.446019100167e+00  |diff| 4.44e-16  rel 3.07e-16
+   100 structs: compute_errors 1.35 s (1 threads) | assemble-once (pushfwd) 38.31 s | residual per lambda 0.0156 s
+   extrapolated 19 lambdas x 200 test structs: compute_errors 51 s  vs  assemble 200 once 77 s + 19 residuals 0.6 s
+   extrapolated 19 lambdas x 1000 structs:     compute_errors 256 s  vs  assemble 1000 once 383 s + 19 residuals 3.0 s
+emb16_D6   n_B/elem=  323  NZ=5  length_basis=  1645  nR=224 nY=  9 nA=  177 nAA=   415 npair=6 rcut=6.25
+   32 structs  E: compute_errors 1.408137647004e+01  design 1.408137647004e+01  |diff| 0.00e+00  rel 0.00e+00
+   32 structs  F: compute_errors 8.754715651908e-01  design 8.754715651908e-01  |diff| 1.22e-15  rel 1.39e-15
+   32 structs  V: compute_errors 6.142658055596e-01  design 6.142658055596e-01  |diff| 2.22e-16  rel 3.61e-16
+   100 structs: compute_errors 1.40 s (1 threads) | assemble-once (pushfwd) 25.35 s | residual per lambda 0.0025 s
+   extrapolated 19 lambdas x 200 test structs: compute_errors 53 s  vs  assemble 200 once 51 s + 19 residuals 0.1 s
+   extrapolated 19 lambdas x 1000 structs:     compute_errors 267 s  vs  assemble 1000 once 253 s + 19 residuals 0.5 s
+cat_D8     n_B/elem= 3824  NZ=5  length_basis= 19320  nR=126 nY= 25 nA=  157 nAA=  7600 npair=40 rcut=6.25
+   32 structs  E: compute_errors 1.390456692373e+01  design 1.390456692373e+01  |diff| 0.00e+00  rel 0.00e+00
+   32 structs  F: compute_errors 2.463841523801e+00  design 2.463841523801e+00  |diff| 0.00e+00  rel 0.00e+00
+   32 structs  V: compute_errors 1.239078565205e+00  design 1.239078565205e+00  |diff| 2.22e-16  rel 1.79e-16
+   100 structs: compute_errors 1.92 s (1 threads) | assemble-once (pushfwd) 50.92 s | residual per lambda 0.0234 s
+   extrapolated 19 lambdas x 200 test structs: compute_errors 73 s  vs  assemble 200 once 102 s + 19 residuals 0.9 s
+   extrapolated 19 lambdas x 1000 structs:     compute_errors 364 s  vs  assemble 1000 once 509 s + 19 residuals 4.5 s
+emb16_D8   n_B/elem=  753  NZ=5  length_basis=  3805  nR=384 nY= 25 nA=  380 nAA=  1217 npair=8 rcut=6.25
+   32 structs  E: compute_errors 1.256203491646e+01  design 1.256203491646e+01  |diff| 1.78e-15  rel 1.41e-16
+   32 structs  F: compute_errors 1.521197792491e+00  design 1.521197792491e+00  |diff| 2.22e-16  rel 1.46e-16
+   32 structs  V: compute_errors 2.284507887721e+00  design 2.284507887721e+00  |diff| 8.88e-16  rel 3.89e-16
+   100 structs: compute_errors 1.78 s (1 threads) | assemble-once (pushfwd) 29.20 s | residual per lambda 0.0073 s
+   extrapolated 19 lambdas x 200 test structs: compute_errors 68 s  vs  assemble 200 once 58 s + 19 residuals 0.3 s
+   extrapolated 19 lambdas x 1000 structs:     compute_errors 339 s  vs  assemble 1000 once 292 s + 19 residuals 1.4 s
