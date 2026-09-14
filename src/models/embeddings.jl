@@ -238,7 +238,7 @@ or `:truncate` (first `d` columns); see `embedding_rows`.
 function ace_embedding_model(; elements, order, totaldegree,
                                embedding::ElementEmbedding,
                                d_max = nothing,
-                               wL = 1.5, maxl = nothing, Ytype = :solid,
+                               wL = 1.5, maxl = nothing, Ytype = nothing,
                                rcut = nothing, E0s = nothing, ZBL = false,
                                pair_maxn = nothing, ace1_compat = true,
                                normalise = true, reduction = :pca,
@@ -246,16 +246,36 @@ function ace_embedding_model(; elements, order, totaldegree,
                                rng = Random.default_rng())
    zlist = _convert_zlist(elements)
    S = length(zlist)
+   # ace1_model uses spherical harmonics; the solid-harmonic basis differs by
+   # r^l for l >= 1 and is a different model, not a reparameterisation
+   # (21% oracle residual on the l = 1 blocks; FINDINGS_tt_spike.md)
+   Ytype = Ytype === nothing ? (ace1_compat ? :spherical : :solid) : Ytype
    widths = embedding_widths(S, order; d_max = d_max)
    d = maximum(widths)
    emb = embedding_rows(embedding, [Int(z) for z in zlist]; d = d,
                         reduction = reduction, normalise = normalise)
 
-   # single-channel one-particle spec, then widened by d
-   level1 = TotalDegree(1.0, 1 / wL)
-   r1 = oneparticle_spec(level1, totaldegree)
-   maxl === nothing || (r1 = [b for b in r1 if b.l <= maxl])
+   # `ace1_model` counts degree on the species-FOLDED radial index,
+   # n = (n'-1)*NZ + z', with `TotalDegree(NZ, 1/wL)`: level = n' - 1 + z'/NZ
+   # + wL*l.  So the set of (n', l) blocks it admits is the union over species
+   # assignments, i.e. the z' = 1 case, which is more generous than the plain
+   # single-channel rule n' + wL*l by (1 - 1/NZ) per factor -- 40-45% more
+   # blocks at S = 5, order 3.  Enumerate the single-channel spec with exactly
+   # that rule (fold with z' = 1, then unfold) so that the embedded model's
+   # block set is the categorical one and only the species tensor is
+   # compressed.  Found by the TT spike's oracle (FINDINGS_tt_spike.md).
+   NZ = S
+   level_cat = TotalDegree(1.0 * NZ, 1 / wL)
+   _fold1(b) = (n = (b.n - 1) * NZ + 1, l = b.l)
+   _unfold(b) = (n = (b.n - 1) ÷ NZ + 1, l = b.l)
+   r1_folded = [ b for b in oneparticle_spec(level_cat, totaldegree)
+                 if mod(b.n - 1, NZ) == 0 ]
+   maxl === nothing || (r1_folded = [b for b in r1_folded if b.l <= maxl])
+   r1 = _unfold.(r1_folded)
    rspec = [ (n = (b.n - 1) * d + k, l = b.l) for b in r1 for k = 1:d ]
+   # level on the widened radial index that ignores the channel: the prior
+   # and the model's own degree bookkeeping must not see k as a degree
+   level1 = ChannelLevel(d, 1.0, 1 / wL)
 
    if uniform_cutoffs
       # ONE transform for all species pairs, which is what makes the radial
@@ -322,20 +342,31 @@ function ace_embedding_model(; elements, order, totaldegree,
 
    # channel-diagonal many-body spec: every factor of a product shares one k,
    # and order ν only draws on its own d_ν channels
-   AA1 = sparse_AA_spec(; order = order, r_spec = r1,
-                          level = level1, max_level = totaldegree)
+   AA1_folded = sparse_AA_spec(; order = order, r_spec = r1_folded,
+                                 level = level_cat, max_level = totaldegree)
+   AA1 = [ [ (n = (b.n - 1) ÷ NZ + 1, l = b.l, m = b.m) for b in bb ] for bb in AA1_folded ]
    AA_spec = [ [ (n = (b.n - 1) * d + k, l = b.l, m = b.m) for b in bb ]
                for bb in AA1 for k = 1:widths[length(bb)] ]
    # sparse_equivariant_tensor mis-couples a spec that is not grouped by
    # correlation order; see N1 in FINDINGS_embedding_spike.md
    AA_spec = sort(AA_spec, by = length)
 
-   pmaxn = pair_maxn === nothing ? totaldegree : pair_maxn
-   pair_basis = ace_learnable_Rnlrzz(; elements = zlist, level = TotalDegree(),
-                     max_level = pmaxn, maxl = 0, maxn = pmaxn,
-                     rin0cuts = rbasis.rin0cuts,
-                     transforms = (:agnesi, 1, 4), envelopes = :poly1sr)
-   pair_basis.meta["Winit"] = "onehot"
+   # Pair basis exactly as `ace1_model` builds it (ace1_compat.jl `_pair_basis`):
+   # species-resolved one-hot spec n = 1..maxq*NZ (decoded by
+   # `set_onehot_weights!` as (n', z')), Legendre, (:agnesi, 1, 3) transform,
+   # ACE1's r-envelope.  The previous spec n = 1..maxq was read as (n', z') =
+   # (1, n): at S = 5 that gave four pair functions per centre and none for
+   # the fifth neighbour species (FINDINGS_tt_spike.md).  The many-body radial
+   # keeps the uniform cutoffs above; the pair basis is exported per pair
+   # anyway, so per-pair cutoffs cost nothing there.
+   maxq = ceil(Int, pair_maxn === nothing ? totaldegree : pair_maxn)
+   pair_spec = [ (n = n, l = 0) for n in 1:(maxq * NZ) ]
+   pair_rin0cuts = uniform_cutoffs ? rin0cuts : _default_rin0cuts(zlist)
+   pair_basis = ace_learnable_Rnlrzz(; spec = pair_spec, maxq = maxq,
+                     elements = zlist, rin0cuts = pair_rin0cuts,
+                     transforms = agnesi_transform.(pair_rin0cuts, 1, 3),
+                     envelopes = (:r_ace1, 2), polys = :legendre,
+                     Winit = :onehot)
    pair_basis = splinify(pair_basis, initialparameters(rng, pair_basis))
 
    rcut_max = maximum([x.rcut for x in rin0cuts])

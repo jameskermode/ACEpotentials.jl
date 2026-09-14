@@ -165,11 +165,41 @@ if isempty(EMB_JSON) || !isfile(EMB_JSON)
 else
    emb_real = M.read_mace_embedding(EMB_JSON)
 
-   # n_B must match the standalone per-order calculation (scripts/spike_perorder_widths.jl)
+   # lossless widths, and the block set is the categorical one (the model
+   # enumerates blocks with ace1_model's species-folded degree rule, so at
+   # S=3, degree 8 it has 800 functions where the plain single-channel rule
+   # gave 392 -- see FINDINGS_tt_spike.md, "the tail blocks matter")
    mdl = M.ace_embedding_model(elements = (:Si, :C, :O), order = 3,
                                totaldegree = 8, embedding = emb_real)
-   println_slim(@test size(mdl.ps.WB, 1) == 392)
+   println_slim(@test size(mdl.ps.WB, 1) == 800)
    println_slim(@test mdl.model.meta["embedding"]["widths"] == [3, 6, 10])
+
+   # exact oracles against ace1_model: identical block set, pair basis and
+   # harmonics, so (a) at S=1 the embedded model IS ace1_model up to column
+   # scaling, and (b) at S=2 the lossless model spans the same site-basis
+   # space block by block.  Both were false before the TT spike's oracle
+   # exposed solid-vs-spherical harmonics, a truncated species-blind pair
+   # basis and a smaller block set.
+   let rng2 = MersenneTwister(3)
+      for (els, D) in [((:Si,), 6), ((:Si, :C), 5)]
+         cat = ace1_model(elements = collect(els), order = 3, totaldegree = D)
+         e2 = M.ace_embedding_model(elements = els, order = 3, totaldegree = D,
+                                    embedding = emb_real, uniform_cutoffs = false)
+         Zall = Int.(M.atomic_number.(collect(els)))
+         nenv = 40
+         Cm = zeros(nenv, M.length_basis(cat.model)); Em = zeros(nenv, M.length_basis(e2.model))
+         for t = 1:nenv
+            n = rand(rng2, 8:20)
+            Rs2 = [ (u = SVector{3, Float64}(randn(rng2, 3)); u * (2.2 + 2.5 * rand(rng2)) / norm(u)) for _ = 1:n ]
+            Zs2 = rand(rng2, Zall, n); z02 = rand(rng2, Zall)
+            Cm[t, :] = M.evaluate_basis(cat.model, Rs2, Zs2, z02, cat.ps, cat.st)
+            Em[t, :] = M.evaluate_basis(e2.model, Rs2, Zs2, z02, e2.ps, e2.st)
+         end
+         println_slim(@test norm(Cm - Em * (Em \ Cm)) / norm(Cm) < 1e-10)
+         println_slim(@test norm(Em - Cm * (Cm \ Em)) / norm(Em) < 1e-10)
+         println_slim(@test length(cat.model.pairbasis.spec) == length(e2.model.pairbasis.spec))
+      end
+   end
 
    # --- equivariance: the site energy is invariant under rotation and permutation
    rng = MersenneTwister(11)

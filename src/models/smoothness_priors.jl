@@ -19,6 +19,23 @@ TotalDegree() = TotalDegree(1.0, 2/3)
 (l::TotalDegree)(bb::AbstractVector{<: NamedTuple}) = sum(l(b) for b in bb)
 
 
+"""
+   ChannelLevel(d, wn, wl)
+
+`TotalDegree`-style level on a radial index that carries a folded channel,
+`n = (n'-1)*d + k`: `level = n'/wn + l/wl`, independent of `k`.  Used by the
+embedded model so that neither its degree bookkeeping nor the smoothness
+prior treats the channel as a degree.
+"""
+struct ChannelLevel <: AbstractLevel
+   d::Int
+   wn::Float64
+   wl::Float64
+end
+(l::ChannelLevel)(b::NamedTuple) = ((b.n - 1) ÷ l.d + 1) / l.wn + b.l / l.wl
+(l::ChannelLevel)(bb::AbstractVector{<: NamedTuple}) = sum(l(b) for b in bb)
+
+
 struct EuclideanDegree <: AbstractLevel
    wn::Float64
    wl::Float64
@@ -87,6 +104,17 @@ smoothness_prior(model::ACEPotential, f; kwargs...) =
 
 function smoothness_prior(model, f)
    nnll = _nnll_basis(model)
+   # An embedded model carries a channel k folded into its radial index,
+   # n = (n'-1)*d + k, and k is not a degree: the prior must see n', or the
+   # channels of one radial function get penalised by up to d^p apart.
+   if haskey(model.meta, "embedding")
+      d = model.meta["embedding"]["d_max"]
+      for iz = 1:_get_nz(model)
+         for i in get_basis_inds(model, _i2z(model, iz))     # tensor block only;
+            nnll[i] = [ (n = (b.n - 1) ÷ d + 1, l = b.l) for b in nnll[i] ]
+         end                                                # the pair block is categorical
+      end
+   end
    γ = zeros(length(nnll))
    for (i, bb) in enumerate(nnll)
       γ[i] = f(bb)
