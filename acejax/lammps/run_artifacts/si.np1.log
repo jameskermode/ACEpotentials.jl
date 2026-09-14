@@ -1,0 +1,200 @@
+LAMMPS (4 Jul 2026)
+I0909 16:50:12.194745  181649 service.cc:154] XLA service 0x433cc70 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0909 16:50:12.194769  181649 service.cc:170]   StreamExecutor [0]: NVIDIA RTX A4500, Compute Capability 8.6 (Driver: 13.3.0[610.57.4]; Runtime: 12.9.0; Toolkit: 12.9.0; DNN: 9.24.0)
+I0909 16:50:12.196453  181649 se_gpu_pjrt_client.cc:1450] Using BFC allocator.
+I0909 16:50:12.196501  181649 gpu_helpers.cc:165] XLA backend will use up to 14.67GiB (15755902976 bytes) on device 0 for BFCAllocator.
+I0909 16:50:12.196524  181649 gpu_helpers.cc:206] XLA backend will use up to 5253365760 bytes on device 0 for CollectiveBFCAllocator.
+I0909 16:50:12.217880  181649 se_gpu_pjrt_compiler.cc:382] Found GPU target config and a PjRtClient with matching configuration. Performing a JIT compilation.
+I0909 16:50:13.499805  181681 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 1080 bytes spill stores, 1256 bytes spill loads
+
+I0909 16:50:13.568326  181702 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 32 bytes spill stores, 32 bytes spill loads
+
+I0909 16:50:13.576948  181679 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 1952 bytes spill stores, 1696 bytes spill loads
+
+I0909 16:50:13.959124  181703 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 2032 bytes spill stores, 3040 bytes spill loads
+
+I0909 16:50:14.057926  181691 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 2208 bytes spill stores, 2152 bytes spill loads
+
+I0909 16:50:14.113180  181705 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 3732 bytes spill stores, 3700 bytes spill loads
+
+I0909 16:50:14.409247  181700 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 12432 bytes spill stores, 12248 bytes spill loads
+
+I0909 16:50:14.464819  181701 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 12484 bytes spill stores, 12212 bytes spill loads
+
+I0909 16:50:15.137233  181688 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_general_11', 21496 bytes spill stores, 45636 bytes spill loads
+
+I0909 16:50:15.191389  181649 cuda_dnn.cc:442] Loaded cuDNN version 92400
+I0909 16:50:16.853851  181700 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'input_add_and_clamp_multiply_reduce_select_slice_sqrt_subtract_fusion', 8616 bytes spill stores, 9636 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_dblrcp_rn_slowpath_v3', 28 bytes spill stores, 28 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_div_rn_f64_full', 148 bytes spill stores, 200 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__internal_accurate_pow', 148 bytes spill stores, 148 bytes spill loads
+
+I0909 16:50:18.760635  181702 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'input_add_multiply_reduce_select_fusion', 2264 bytes spill stores, 2620 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_div_rn_f64_full', 80 bytes spill stores, 96 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__internal_accurate_pow', 44 bytes spill stores, 44 bytes spill loads
+
+I0909 16:50:19.640421  181674 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_4', 32 bytes spill stores, 32 bytes spill loads
+
+I0909 16:50:19.794448  181703 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 520 bytes spill stores, 352 bytes spill loads
+
+I0909 16:50:19.935605  181689 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 480 bytes spill stores, 448 bytes spill loads
+
+I0909 16:50:20.033791  181683 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 512 bytes spill stores, 376 bytes spill loads
+
+I0909 16:50:20.037857  181697 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 512 bytes spill stores, 368 bytes spill loads
+
+I0909 16:50:20.078683  181676 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 480 bytes spill stores, 448 bytes spill loads
+
+I0909 16:50:20.093713  181693 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 2960 bytes spill stores, 5736 bytes spill loads
+
+I0909 16:50:20.177699  181694 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_4', 688 bytes spill stores, 688 bytes spill loads
+
+I0909 16:50:20.307402  181700 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_4', 4848 bytes spill stores, 4848 bytes spill loads
+
+I0909 16:50:20.425808  181688 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 1584 bytes spill stores, 1564 bytes spill loads
+
+I0909 16:50:20.444833  181680 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 4652 bytes spill stores, 10364 bytes spill loads
+
+I0909 16:50:20.478767  181695 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 4164 bytes spill stores, 9508 bytes spill loads
+
+I0909 16:50:20.528068  181690 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 1468 bytes spill stores, 1436 bytes spill loads
+
+I0909 16:50:20.566550  181679 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 1504 bytes spill stores, 1488 bytes spill loads
+
+I0909 16:50:20.573673  181704 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 1520 bytes spill stores, 1492 bytes spill loads
+
+I0909 16:50:20.580686  181685 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 7128 bytes spill stores, 7064 bytes spill loads
+
+I0909 16:50:20.634251  181682 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 6936 bytes spill stores, 6928 bytes spill loads
+
+I0909 16:50:20.825390  181687 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 6888 bytes spill stores, 6880 bytes spill loads
+
+I0909 16:50:20.825441  181699 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 1464 bytes spill stores, 1464 bytes spill loads
+
+I0909 16:50:21.434647  181677 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_5', 24800 bytes spill stores, 42504 bytes spill loads
+
+I0909 16:50:21.444495  181678 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_6', 24648 bytes spill stores, 42408 bytes spill loads
+
+I0909 16:50:22.639337  181687 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'input_add_clamp_multiply_reduce_select_subtract_fusion', 1024 bytes spill stores, 1264 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_div_rn_f64_full', 56 bytes spill stores, 72 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__internal_accurate_pow', 108 bytes spill stores, 108 bytes spill loads
+
+I0909 16:50:23.989383  181699 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 480 bytes spill stores, 448 bytes spill loads
+
+I0909 16:50:24.010659  181698 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 2968 bytes spill stores, 5744 bytes spill loads
+
+I0909 16:50:24.041364  181704 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 520 bytes spill stores, 352 bytes spill loads
+
+I0909 16:50:24.041370  181693 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 480 bytes spill stores, 448 bytes spill loads
+
+I0909 16:50:24.234304  181676 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 512 bytes spill stores, 384 bytes spill loads
+
+I0909 16:50:24.236496  181701 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 512 bytes spill stores, 392 bytes spill loads
+
+I0909 16:50:24.326026  181702 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 1520 bytes spill stores, 1492 bytes spill loads
+
+I0909 16:50:24.432216  181700 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 1584 bytes spill stores, 1564 bytes spill loads
+
+I0909 16:50:24.527232  181685 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 5016 bytes spill stores, 10600 bytes spill loads
+
+I0909 16:50:24.529101  181679 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 4296 bytes spill stores, 9648 bytes spill loads
+
+I0909 16:50:24.589544  181697 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 1464 bytes spill stores, 1444 bytes spill loads
+
+I0909 16:50:24.591296  181680 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 1464 bytes spill stores, 1444 bytes spill loads
+
+I0909 16:50:24.617685  181674 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 1504 bytes spill stores, 1488 bytes spill loads
+
+I0909 16:50:24.626544  181696 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 6928 bytes spill stores, 6800 bytes spill loads
+
+I0909 16:50:24.659900  181681 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 7080 bytes spill stores, 7068 bytes spill loads
+
+I0909 16:50:24.681704  181689 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 7128 bytes spill stores, 7084 bytes spill loads
+
+I0909 16:50:25.499040  181682 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_7', 24916 bytes spill stores, 41916 bytes spill loads
+
+I0909 16:50:25.739079  181695 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_8', 24464 bytes spill stores, 41440 bytes spill loads
+
+I0909 16:50:27.182028  181695 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'input_add_and_clamp_multiply_reduce_select_slice_sqrt_subtract_fusion', 2416 bytes spill stores, 3004 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_dblrcp_rn_slowpath_v3', 28 bytes spill stores, 28 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_div_rn_f64_full', 176 bytes spill stores, 228 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__internal_accurate_pow', 132 bytes spill stores, 132 bytes spill loads
+
+I0909 16:50:28.781599  181691 subprocess_compilation.cc:349] ptxas warning : Registers are spilled to local memory in function 'input_add_multiply_reduce_select_fusion', 2140 bytes spill stores, 2476 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_dblrcp_rn_slowpath_v3', 40 bytes spill stores, 64 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__cuda_sm20_div_rn_f64_full', 32 bytes spill stores, 32 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function '__internal_accurate_pow', 72 bytes spill stores, 72 bytes spill loads
+
+KOKKOS mode with Kokkos version 5.1.99 is enabled
+  using double precision
+  using view layout = legacy
+  will use up to 1 GPU(s) per node
+  using 1 OpenMP thread(s) per MPI task
+Loaded 1 plugins from /storage/eng/essswb/lammps-jax-build/build-plugin-shared-cudart
+Reading data file ...
+  orthogonal box = (0 0 0) to (16.29 16.29 16.29)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  216 atoms
+  reading velocities ...
+  216 velocities
+  read_data CPU = 0.007 seconds
+
+CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE
+
+Your simulation uses code contributions which should be cited:
+- KOKKOS package: https://doi.org/10.1145/3731599.3767498
+The log file lists these citations in BibTeX format.
+
+CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE
+
+WARNING: No fixes with time integration, atoms won't move
+For more information see https://docs.lammps.org/err0028 (src/verlet.cpp:60)
+LAMMPS-JAX: using newton pair on with a Kokkos full neighbor list; ghost force rows are accumulated for LAMMPS reverse communication.
+Neighbor list info ...
+  update: every = 1 steps, delay = 0 steps, check = yes
+  max neighbors/atom: 512, page size: 500000
+  master list distance cutoff = 7
+  ghost atom cutoff = 7
+  binsize = 7, bins = 3 3 3
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair jax/kk, perpetual
+      attributes: full, newton on, kokkos_device
+      pair build: full/bin/kk/device
+      stencil: full/bin/3d
+      bin: kk/device
+Setting up Verlet run ...
+  Unit style    : metal
+  Current step  : 0
+  Time step     : 0.001
+Per MPI rank memory allocation (min/avg/max) = 4.89 | 4.89 | 4.89 Mbytes
+   Step        Atoms        PotEng         Press     
+         0         216  -35238.76853368402 -96113.14063961615
+Loop time of 4.5258e-05 on 1 procs for 0 steps with 216 atoms
+
+119.3% CPU use with 1 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0          | 0          | 0          |   0.0 |  0.00
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 0          | 0          | 0          |   0.0 |  0.00
+Output  | 0          | 0          | 0          |   0.0 |  0.00
+Modify  | 0          | 0          | 0          |   0.0 |  0.00
+Other   |            | 4.526e-05  |            |       |100.00
+
+Nlocal:            216 ave         216 max         216 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:           1314 ave        1314 max        1314 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:              0 ave           0 max           0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+FullNghs:        15466 ave       15466 max       15466 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 15466
+Ave neighs/atom = 71.601852
+Neighbor list builds = 0
+Dangerous builds = 0
+Total wall time: 0:00:17

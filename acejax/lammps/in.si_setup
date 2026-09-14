@@ -1,0 +1,14 @@
+# Build the rattled Si configuration ONCE and write it to a data file.
+# `displace_atoms random` is domain-decomposition dependent, so generating the
+# geometry inside each run would give the 1-rank and 2-rank runs different
+# systems -- which is exactly what a rank-comparison must not do.
+units metal
+atom_style atomic
+boundary p p p
+lattice diamond 5.43
+region box block 0 3 0 3 0 3
+create_box 1 box
+create_atoms 1 box
+mass 1 28.0855
+displace_atoms all random 0.05 0.05 0.05 12345 units box
+write_data si.data
