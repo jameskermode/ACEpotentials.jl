@@ -1,0 +1,73 @@
+
+==== D=4  (nace=1950) ====
+linear ACE                           ncol= 1950  test F=0.1201 E=0.00622 V=0.0414  train F=0.1094  lam=1e-07
+sqrt only [ref]                      ncol= 1965  test F=0.1144 E=0.00595 V=0.0352  train F=0.1037  lam=1e-08  dF(vs linear)=-4.7%  cond(X)=3.6e+03  [4s]
+sqrt + rho^1/8                       ncol= 1980  test F=0.1139 E=0.00605 V=0.0348  train F=0.1034  lam=1e-08  dF(vs sqrt)=-0.5% CI[-0.8,-0.3]  cond(X)=3.6e+05  [4s]
+sqrt + rho^1/4                       ncol= 1980  test F=0.1138 E=0.00606 V=0.0349  train F=0.1034  lam=1e-08  dF(vs sqrt)=-0.5% CI[-0.8,-0.3]  cond(X)=3.1e+05  [4s]
+sqrt + rho^3/4                       ncol= 1980  test F=0.1135 E=0.00607 V=0.0356  train F=0.1031  lam=1e-08  dF(vs sqrt)=-0.8% CI[-1.2,-0.5]  cond(X)=1.6e+05  [4s]
+sqrt + rho^1 (in span)               ncol= 1980  test F=0.1135 E=0.00590 V=0.0347  train F=0.1028  lam=1e-08  dF(vs sqrt)=-0.8% CI[-1.2,-0.5]  cond(X)=7.4e+04  [4s]
+sqrt + rho^2                         ncol= 1980  test F=0.1138 E=0.00601 V=0.0345  train F=0.1033  lam=1e-07  dF(vs sqrt)=-0.6% CI[-0.8,-0.3]  cond(X)=2.2e+04  [4s]
+all powers 1/8..2                    ncol= 2025  test F=0.1132 E=0.00608 V=0.0336  train F=0.1024  lam=1e-08  dF(vs sqrt)=-1.1% CI[-1.5,-0.7]  cond(X)=2.2e+10  [5s]
+cheb[sqrt] Kc=4                      ncol= 2010  test F=0.1133 E=0.00608 V=0.0337  train F=0.1024  lam=1e-08  dF(vs sqrt)=-0.9% CI[-1.4,-0.5]  cond(X)=1.1e+03  [4s]
+cheb[sqrt] Kc=6                      ncol= 2040  test F=0.1132 E=0.00609 V=0.0335  train F=0.1023  lam=1e-08  dF(vs sqrt)=-1.0% CI[-1.5,-0.6]  cond(X)=2.3e+03  [5s]
+cheb[sqrt] Kc=8                      ncol= 2070  test F=0.1316 E=0.00627 V=0.0504  train F=0.1022  lam=1e-08  dF(vs sqrt)=+15.0% CI[-1.1,+43.3]  cond(X)=6.5e+03  [8s]
+cheb[log] Kc=4                       ncol= 2010  test F=0.1133 E=0.00611 V=0.0337  train F=0.1025  lam=1e-07  dF(vs sqrt)=-1.0% CI[-1.5,-0.5]  cond(X)=1.1e+03  [5s]
+cheb[log] Kc=6                       ncol= 2040  test F=0.1136 E=0.00607 V=0.0342  train F=0.1023  lam=1e-08  dF(vs sqrt)=-0.7% CI[-1.3,-0.0]  cond(X)=1.9e+03  [5s]
+cheb[log] Kc=8                       ncol= 2070  test F=0.1162 E=0.00617 V=0.0389  train F=0.1022  lam=1e-08  dF(vs sqrt)=+1.6% CI[-1.1,+6.6]  cond(X)=4.7e+03  [5s]
+sqrt + cross sqrt(rho_k1 rho_k2)     ncol= 1980  test F=0.1139 E=0.00595 V=0.0342  train F=0.1030  lam=1e-08  dF(vs sqrt)=-0.5% CI[-0.8,-0.1]  cond(X)=1.0e+05  [4s]
+sqrt + 4 weighted sqrt               ncol= 1985  test F=0.1140 E=0.00597 V=0.0350  train F=0.1034  lam=1e-08  dF(vs sqrt)=-0.4% CI[-0.6,-0.1]  cond(X)=8.6e+07  [4s]
+
+==== D=5  (nace=3795) ====
+linear ACE                           ncol= 3795  test F=0.1119 E=0.00674 V=0.0358  train F=0.0911  lam=1e-07
+sqrt only [ref]                      ncol= 3810  test F=0.1075 E=0.00694 V=0.0354  train F=0.0882  lam=1e-07  dF(vs linear)=-3.9%  cond(X)=3.6e+03  [20s]
+sqrt + rho^1/8                       ncol= 3825  test F=0.1069 E=0.00695 V=0.0352  train F=0.0880  lam=1e-07  dF(vs sqrt)=-0.6% CI[-0.9,-0.3]  cond(X)=3.6e+05  [21s]
+sqrt + rho^1/4                       ncol= 3825  test F=0.1069 E=0.00695 V=0.0353  train F=0.0880  lam=1e-07  dF(vs sqrt)=-0.6% CI[-0.9,-0.3]  cond(X)=3.1e+05  [21s]
+sqrt + rho^3/4                       ncol= 3825  test F=0.1068 E=0.00695 V=0.0353  train F=0.0880  lam=1e-07  dF(vs sqrt)=-0.6% CI[-1.0,-0.3]  cond(X)=1.6e+05  [20s]
+sqrt + rho^1 (in span)               ncol= 3825  test F=0.1074 E=0.00691 V=0.0353  train F=0.0881  lam=1e-07  dF(vs sqrt)=-0.1% CI[-0.2,-0.0]  cond(X)=7.4e+04  [20s]
+sqrt + rho^2                         ncol= 3825  test F=0.1070 E=0.00696 V=0.0353  train F=0.0880  lam=1e-07  dF(vs sqrt)=-0.5% CI[-0.8,-0.2]  cond(X)=2.2e+04  [22s]
+all powers 1/8..2                    ncol= 3870  test F=0.1069 E=0.00697 V=0.0342  train F=0.0878  lam=1e-07  dF(vs sqrt)=-0.6% CI[-0.9,-0.1]  cond(X)=2.2e+10  [23s]
+cheb[sqrt] Kc=4                      ncol= 3855  test F=0.1068 E=0.00700 V=0.0323  train F=0.0908  lam=0.0001  dF(vs sqrt)=-0.7% CI[-1.6,+0.1]  cond(X)=1.1e+03  [23s]
+cheb[sqrt] Kc=6                      ncol= 3885  test F=0.1068 E=0.00703 V=0.0324  train F=0.0907  lam=0.0001  dF(vs sqrt)=-0.7% CI[-1.7,+0.3]  cond(X)=2.3e+03  [23s]
+cheb[sqrt] Kc=8                      ncol= 3915  test F=0.1073 E=0.00704 V=0.0328  train F=0.0906  lam=0.0001  dF(vs sqrt)=-0.2% CI[-1.4,+1.4]  cond(X)=6.5e+03  [24s]
+cheb[log] Kc=4                       ncol= 3855  test F=0.1067 E=0.00699 V=0.0324  train F=0.0908  lam=0.0001  dF(vs sqrt)=-0.7% CI[-1.6,+0.1]  cond(X)=1.1e+03  [22s]
+cheb[log] Kc=6                       ncol= 3885  test F=0.1067 E=0.00700 V=0.0324  train F=0.0907  lam=0.0001  dF(vs sqrt)=-0.8% CI[-1.6,+0.1]  cond(X)=1.9e+03  [21s]
+cheb[log] Kc=8                       ncol= 3915  test F=0.1086 E=0.00700 V=0.0368  train F=0.0875  lam=1e-07  dF(vs sqrt)=+1.0% CI[-0.9,+4.1]  cond(X)=4.7e+03  [23s]
+sqrt + cross sqrt(rho_k1 rho_k2)     ncol= 3825  test F=0.1071 E=0.00697 V=0.0350  train F=0.0879  lam=1e-07  dF(vs sqrt)=-0.4% CI[-0.6,-0.2]  cond(X)=1.0e+05  [20s]
+sqrt + 4 weighted sqrt               ncol= 3830  test F=0.1068 E=0.00694 V=0.0347  train F=0.0877  lam=1e-08  dF(vs sqrt)=-0.6% CI[-1.0,-0.3]  cond(X)=8.6e+07  [19s]
+
+==== D=6  (nace=6890) ====
+linear ACE                           ncol= 6890  test F=0.1133 E=0.00738 V=0.0427  train F=0.0754  lam=1e-07
+sqrt only [ref]                      ncol= 6905  test F=0.1111 E=0.00742 V=0.0424  train F=0.0744  lam=1e-07  dF(vs linear)=-1.9%  cond(X)=3.6e+03  [88s]
+sqrt + rho^1/8                       ncol= 6920  test F=0.1106 E=0.00741 V=0.0425  train F=0.0742  lam=1e-07  dF(vs sqrt)=-0.4% CI[-0.6,-0.2]  cond(X)=3.6e+05  [83s]
+sqrt + rho^1/4                       ncol= 6920  test F=0.1106 E=0.00741 V=0.0425  train F=0.0742  lam=1e-07  dF(vs sqrt)=-0.5% CI[-0.7,-0.3]  cond(X)=3.1e+05  [83s]
+sqrt + rho^3/4                       ncol= 6920  test F=0.1106 E=0.00742 V=0.0426  train F=0.0742  lam=1e-07  dF(vs sqrt)=-0.4% CI[-0.6,-0.3]  cond(X)=1.6e+05  [81s]
+sqrt + rho^1 (in span)               ncol= 6920  test F=0.1110 E=0.00742 V=0.0424  train F=0.0743  lam=1e-07  dF(vs sqrt)=-0.0% CI[-0.1,-0.0]  cond(X)=7.4e+04  [83s]
+sqrt + rho^2                         ncol= 6920  test F=0.1101 E=0.00700 V=0.0424  train F=0.0816  lam=0.0001  dF(vs sqrt)=-0.9% CI[-2.5,+1.0]  cond(X)=2.2e+04  [81s]
+all powers 1/8..2                    ncol= 6965  test F=0.1099 E=0.00699 V=0.0421  train F=0.0814  lam=0.0001  dF(vs sqrt)=-1.1% CI[-2.6,+0.8]  cond(X)=2.2e+10  [86s]
+cheb[sqrt] Kc=4                      ncol= 6950  test F=0.1067 E=0.00686 V=0.0357  train F=0.0795  lam=0.0001  dF(vs sqrt)=-3.9% CI[-5.2,-2.6]  cond(X)=1.1e+03  [84s]
+cheb[sqrt] Kc=6                      ncol= 6980  test F=0.1067 E=0.00690 V=0.0348  train F=0.0794  lam=0.0001  dF(vs sqrt)=-3.9% CI[-5.3,-2.6]  cond(X)=2.3e+03  [82s]
+cheb[sqrt] Kc=8                      ncol= 7010  test F=0.1073 E=0.00691 V=0.0348  train F=0.0793  lam=0.0001  dF(vs sqrt)=-3.4% CI[-5.0,-1.5]  cond(X)=6.5e+03  [83s]
+cheb[log] Kc=4                       ncol= 6950  test F=0.1067 E=0.00686 V=0.0359  train F=0.0795  lam=0.0001  dF(vs sqrt)=-3.9% CI[-5.2,-2.6]  cond(X)=1.1e+03  [84s]
+cheb[log] Kc=6                       ncol= 6980  test F=0.1066 E=0.00689 V=0.0351  train F=0.0794  lam=0.0001  dF(vs sqrt)=-4.0% CI[-5.3,-2.7]  cond(X)=1.9e+03  [90s]
+cheb[log] Kc=8                       ncol= 7010  test F=0.1078 E=0.00694 V=0.0359  train F=0.0793  lam=0.0001  dF(vs sqrt)=-3.0% CI[-5.0,-0.2]  cond(X)=4.7e+03  [93s]
+sqrt + cross sqrt(rho_k1 rho_k2)     ncol= 6920  test F=0.1110 E=0.00747 V=0.0422  train F=0.0742  lam=1e-07  dF(vs sqrt)=-0.1% CI[-0.2,+0.1]  cond(X)=1.0e+05  [79s]
+sqrt + 4 weighted sqrt               ncol= 6925  test F=0.1107 E=0.00742 V=0.0425  train F=0.0742  lam=1e-07  dF(vs sqrt)=-0.3% CI[-0.5,-0.1]  cond(X)=8.6e+07  [91s]
+[ Info: training range of sqrt(rho_k): [2.818, 2.411, 2.17] .. [3.497, 3.4, 3.558]
+[ Info: training range of log(rho_k):  [2.073, 1.763, 1.555] .. [2.504, 2.449, 2.542]
+[ Info:   columns sqrt only [ref]                    ncol= 15  3.8 s
+[ Info:   columns sqrt + rho^1/8                     ncol= 30  3.9 s
+[ Info:   columns sqrt + rho^1/4                     ncol= 30  3.9 s
+[ Info:   columns sqrt + rho^3/4                     ncol= 30  3.9 s
+[ Info:   columns sqrt + rho^1 (in span)             ncol= 30  3.9 s
+[ Info:   columns sqrt + rho^2                       ncol= 30  4.0 s
+[ Info:   columns all powers 1/8..2                  ncol= 75  5.7 s
+[ Info:   columns cheb[sqrt] Kc=4                    ncol= 60  5.2 s
+[ Info:   columns cheb[sqrt] Kc=6                    ncol= 90  6.3 s
+[ Info:   columns cheb[sqrt] Kc=8                    ncol=120  7.4 s
+[ Info:   columns cheb[log] Kc=4                     ncol= 60  5.1 s
+[ Info:   columns cheb[log] Kc=6                     ncol= 90  6.2 s
+[ Info:   columns cheb[log] Kc=8                     ncol=120  7.4 s
+[ Info:   columns sqrt + cross sqrt(rho_k1 rho_k2)   ncol= 30  4.0 s
+[ Info:   columns sqrt + 4 weighted sqrt             ncol= 35  4.2 s
+┌ Warning: Assignment to `base` in soft scope is ambiguous because a global variable by the same name exists: `base` will be treated as a new local. Disambiguate by using `local base` to suppress this warning or `global base` to assign to the existing global variable.
+└ @ ~/.julia/dev/ACEpotentials/acejax/spike_fs/embed_spike.jl:126

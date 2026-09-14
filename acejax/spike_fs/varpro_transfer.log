@@ -1,0 +1,60 @@
+split1: train rows 25352, test rows 12652; overlap with split0 structures: 0 (by construction 0)
+learned perwidth P=1 on split1: 46 it, 17 s, L 2.7037e+02 -> 2.4293e+02, non-monotone 0
+learned perwidth P=2 on split1: 151 it, 139 s, L 2.4893e+02 -> 2.3164e+02, non-monotone 0
+learned perwidth P=3 on split1: 151 it, 337 s, L 2.4225e+02 -> 2.3059e+02, non-monotone 0
+
+==== evaluation on split1  (lambda fixed = 1.0e-8; 'best' = best of the lambda sweep) ====
+variant                                               ncol  train F   test F   test E   test V |   best F |  vs lin vs sqrt vs tilt  CI vs lin
+linear ACE                                            1950   0.1082   0.1197  0.00648   0.0407 |   0.1197 |   +0.0%   +4.6%  +11.9%  [+0.0,+0.0]
+sqrt(rho_tot) K=3 [ref]                               1965   0.1025   0.1144  0.00607   0.0375 |   0.1144 |   -4.4%   +0.0%   +7.0%  [-5.2,-3.6]
+ref + 5 hand tilts                                    2040   0.0958   0.1070  0.00560   0.0341 |   0.1070 |  -10.6%   -6.5%   +0.0%  [-11.7,-9.5]
+split0-learned perwidth P=1 (frozen)                  1965   0.0972   0.1080  0.00558   0.0355 |   0.1080 |   -9.7%   -5.6%   +1.0%  [-10.8,-8.6]
+split0-learned perwidth P=2 (frozen)                  1980   0.0953   0.1063  0.00554   0.0341 |   0.1063 |  -11.2%   -7.1%   -0.6%  [-12.3,-10.0]
+split0-learned perwidth P=3 (frozen)                  1995   0.0944   0.1052  0.00530   0.0336 |   0.1052 |  -12.1%   -8.0%   -1.6%  [-13.2,-10.9]
+split0-learned P=1 early-stopped 150/50 (frozen)      1965   0.0972   0.1082  0.00557   0.0359 |   0.1082 |   -9.6%   -5.5%   +1.1%  [-10.7,-8.5]
+split0-learned P=2 early-stopped 150/50 (frozen)      1980   0.0957   0.1068  0.00533   0.0341 |   0.1068 |  -10.8%   -6.6%   -0.1%  [-11.9,-9.6]
+split0-learned P=3 early-stopped 150/50 (frozen)      1995   0.0948   0.1057  0.00540   0.0338 |   0.1057 |  -11.7%   -7.6%   -1.2%  [-12.8,-10.5]
+split1-learned perwidth P=1 (in-split)                1965   0.0972   0.1089  0.00533   0.0372 |   0.1089 |   -9.0%   -4.9%   +1.8%  [-10.1,-7.9]
+split1-learned perwidth P=2 (in-split)                1980   0.0951   0.1063  0.00558   0.0349 |   0.1063 |  -11.2%   -7.1%   -0.7%  [-12.3,-10.1]
+split1-learned perwidth P=3 (in-split)                1995   0.0949   0.1060  0.00543   0.0342 |   0.1060 |  -11.5%   -7.4%   -0.9%  [-12.6,-10.3]
+
+==== evaluation on split0  (lambda fixed = 1.0e-8; 'best' = best of the lambda sweep) ====
+variant                                               ncol  train F   test F   test E   test V |   best F |  vs lin vs sqrt vs tilt  CI vs lin
+linear ACE                                            1950   0.1094   0.1201  0.00622   0.0414 |   0.1201 |   +0.0%   +4.9%  +12.5%  [+0.0,+0.0]
+sqrt(rho_tot) K=3 [ref]                               1965   0.1037   0.1144  0.00595   0.0352 |   0.1144 |   -4.7%   +0.0%   +7.2%  [-5.6,-3.8]
+ref + 5 hand tilts                                    2040   0.0969   0.1067  0.00539   0.0309 |   0.1067 |  -11.1%   -6.8%   +0.0%  [-12.5,-9.7]
+split0-learned perwidth P=1 (frozen)                  1965   0.0983   0.1078  0.00523   0.0329 |   0.1078 |  -10.2%   -5.7%   +1.1%  [-11.4,-9.0]
+split0-learned perwidth P=2 (frozen)                  1980   0.0963   0.1056  0.00503   0.0312 |   0.1056 |  -12.0%   -7.7%   -1.0%  [-13.3,-10.7]
+split0-learned perwidth P=3 (frozen)                  1995   0.0955   0.1051  0.00520   0.0301 |   0.1051 |  -12.4%   -8.1%   -1.5%  [-13.7,-11.1]
+split0-learned P=1 early-stopped 150/50 (frozen)      1965   0.0984   0.1079  0.00525   0.0331 |   0.1079 |  -10.1%   -5.7%   +1.1%  [-11.3,-9.0]
+split0-learned P=2 early-stopped 150/50 (frozen)      1980   0.0967   0.1061  0.00505   0.0316 |   0.1061 |  -11.6%   -7.3%   -0.6%  [-13.0,-10.3]
+split0-learned P=3 early-stopped 150/50 (frozen)      1995   0.0958   0.1055  0.00521   0.0310 |   0.1055 |  -12.2%   -7.8%   -1.2%  [-13.5,-10.8]
+split1-learned perwidth P=1 (in-split)                1965   0.0989   0.1087  0.00525   0.0341 |   0.1087 |   -9.5%   -5.0%   +1.9%  [-10.5,-8.4]
+split1-learned perwidth P=2 (in-split)                1980   0.0965   0.1060  0.00500   0.0322 |   0.1060 |  -11.7%   -7.4%   -0.7%  [-12.9,-10.5]
+split1-learned perwidth P=3 (in-split)                1995   0.0963   0.1060  0.00507   0.0313 |   0.1060 |  -11.7%   -7.4%   -0.7%  [-13.0,-10.4]
+
+split1-learned weights:
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 0.65/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.72/ 0.00/ 0.00  Co: 0.43/ 0.00/ 0.00  Ni: 0.39/ 0.00/ 0.00 | species share 20.6% 31.4% 22.5% 13.5% 12.1%
+  density p=1, width k=2       Cr: 0.00/ 0.95/ 0.00  Mn: 0.00/ 0.46/ 0.00  Fe: 0.00/ 0.74/ 0.00  Co: 0.00/ 1.00/ 0.00  Ni: 0.00/ 0.82/ 0.00 | species share 23.9% 11.5% 18.6% 25.2% 20.7%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.49  Fe: 0.00/ 0.00/ 0.82  Co: 0.00/ 0.00/ 0.96  Ni: 0.00/ 0.00/ 0.67 | species share 25.4% 12.3% 21.0% 24.4% 16.9%
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 1.00/ 0.00/ 0.00  Mn: 0.78/ 0.00/ 0.00  Fe: 0.74/ 0.00/ 0.00  Co: 0.67/ 0.00/ 0.00  Ni: 0.59/ 0.00/ 0.00 | species share 26.5% 20.7% 19.5% 17.8% 15.6%
+  density p=1, width k=2       Cr: 0.00/ 1.00/ 0.00  Mn: 0.00/ 0.82/ 0.00  Fe: 0.00/ 0.80/ 0.00  Co: 0.00/ 0.87/ 0.00  Ni: 0.00/ 0.84/ 0.00 | species share 23.1% 18.9% 18.5% 20.2% 19.4%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 0.95  Mn: 0.00/ 0.00/ 1.00  Fe: 0.00/ 0.00/ 0.91  Co: 0.00/ 0.00/ 0.74  Ni: 0.00/ 0.00/ 0.59 | species share 22.7% 23.9% 21.7% 17.6% 14.0%
+  density p=2, width k=1       Cr: 0.27/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.80/ 0.00/ 0.00  Co: 0.40/ 0.00/ 0.00  Ni: 0.31/ 0.00/ 0.00 | species share  9.7% 36.0% 28.7% 14.5% 11.2%
+  density p=2, width k=2       Cr: 0.00/ 0.32/ 0.00  Mn: 0.00/ 0.46/ 0.00  Fe: 0.00/ 0.21/ 0.00  Co: 0.00/ 0.32/ 0.00  Ni: 0.00/ 1.00/ 0.00 | species share 14.0% 19.9%  9.0% 13.7% 43.4%
+  density p=2, width k=3       Cr: 0.00/ 0.00/ 0.94  Mn: 0.00/ 0.00/ 1.00  Fe: 0.00/ 0.00/ 0.90  Co: 0.00/ 0.00/ 0.72  Ni: 0.00/ 0.00/ 0.57 | species share 22.6% 24.2% 21.8% 17.5% 13.9%
+split0-learned weights (for comparison):
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 0.79/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.98/ 0.00/ 0.00  Co: 0.79/ 0.00/ 0.00  Ni: 0.65/ 0.00/ 0.00 | species share 18.8% 23.7% 23.3% 18.8% 15.3%
+  density p=1, width k=2       Cr: 0.00/ 0.71/ 0.00  Mn: 0.00/ 1.00/ 0.00  Fe: 0.00/ 0.83/ 0.00  Co: 0.00/ 0.55/ 0.00  Ni: 0.00/ 0.43/ 0.00 | species share 20.2% 28.4% 23.6% 15.6% 12.3%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 0.78  Mn: 0.00/ 0.00/ 1.00  Fe: 0.00/ 0.00/ 0.88  Co: 0.00/ 0.00/ 0.55  Ni: 0.00/ 0.00/ 0.38 | species share 21.7% 27.9% 24.5% 15.3% 10.6%
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 1.00/ 0.00/ 0.00  Mn: 0.71/ 0.00/ 0.00  Fe: 0.59/ 0.00/ 0.00  Co: 0.67/ 0.00/ 0.00  Ni: 0.73/ 0.00/ 0.00 | species share 27.0% 19.3% 16.0% 18.1% 19.6%
+  density p=1, width k=2       Cr: 0.00/ 1.00/ 0.00  Mn: 0.00/ 0.67/ 0.00  Fe: 0.00/ 0.65/ 0.00  Co: 0.00/ 0.77/ 0.00  Ni: 0.00/ 0.72/ 0.00 | species share 26.3% 17.6% 17.0% 20.1% 18.9%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.85  Fe: 0.00/ 0.00/ 0.76  Co: 0.00/ 0.00/ 0.67  Ni: 0.00/ 0.00/ 0.53 | species share 26.3% 22.3% 19.9% 17.6% 13.9%
+  density p=2, width k=1       Cr: 0.47/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.93/ 0.00/ 0.00  Co: 0.27/ 0.00/ 0.00  Ni: 0.19/ 0.00/ 0.00 | species share 16.5% 34.8% 32.5%  9.5%  6.6%
+  density p=2, width k=2       Cr: 0.00/ 0.60/ 0.00  Mn: 0.00/ 1.00/ 0.00  Fe: 0.00/ 0.80/ 0.00  Co: 0.00/ 0.56/ 0.00  Ni: 0.00/ 0.45/ 0.00 | species share 17.5% 29.4% 23.5% 16.3% 13.3%
+  density p=2, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.87  Fe: 0.00/ 0.00/ 0.76  Co: 0.00/ 0.00/ 0.65  Ni: 0.00/ 0.00/ 0.51 | species share 26.3% 22.9% 20.1% 17.2% 13.5%
+P=1 species-share max |split0 - split1| over widths: 0.168

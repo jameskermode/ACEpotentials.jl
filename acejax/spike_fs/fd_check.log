@@ -1,0 +1,11 @@
+structure 1: natoms=32 species=[24, 25, 28, 27, 26]
+phi=sqrt    shared=false ncol= 75  |F|max=2.651e+00  |V|max=1.165e+01   FD err F=1.259e-10  V=1.520e-09
+phi=sqrt    shared=true  ncol= 15  |F|max=1.538e+00  |V|max=4.611e+01   FD err F=1.006e-09  V=3.468e-09
+phi=linear  shared=false ncol= 75  |F|max=6.892e+00  |V|max=2.838e+01   FD err F=2.717e-10  V=6.490e-09
+phi=linear  shared=true  ncol= 15  |F|max=5.271e+00  |V|max=1.092e+02   FD err F=1.146e-09  V=1.999e-08
+h=1e-02  FD err F=3.069e-05  V=1.350e-03
+h=1e-03  FD err F=3.069e-07  V=1.350e-05
+h=1e-04  FD err F=3.066e-09  V=1.350e-07
+h=1e-05  FD err F=1.259e-10  V=1.520e-09
+max |sum_j F_j| over columns = 1.3777505409863063e-15
+E (first 6 cols) = [9.104301421346031, 7.586256686420093, 6.761195305960867, 9.736232618950401, 8.903653950656057, 8.534466739987641]

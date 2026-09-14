@@ -1,0 +1,13 @@
+sqrt(rho) ranges per width: [2.88, 2.496, 2.292] .. [3.441, 3.285, 3.372]
+log(rho)  ranges per width: [2.116, 1.831, 1.662] .. [2.472, 2.38, 2.433]
+powers m in {1/8,1/4,1/2,3/4,1,2} ncol= 90  |F|max=6.922e+01 |V|max=1.517e+03   FD err F=1.130e-08  V=8.131e-07
+cheb sqrt Kc=8                   ncol=120  |F|max=1.410e+01 |V|max=3.677e+02   FD err F=1.287e-08  V=3.125e-05
+cheb log Kc=8                    ncol=120  |F|max=1.819e+01 |V|max=3.683e+02   FD err F=1.336e-08  V=3.316e-05
+cross sqrt(rho_k1 rho_k2)        ncol= 15  |F|max=4.286e+00 |V|max=1.008e+02   FD err F=9.175e-10  V=1.494e-08
+weighted sqrt                    ncol= 10  |F|max=1.047e+00 |V|max=2.994e+01   FD err F=4.351e-10  V=1.827e-09
+max |EmbedSpec sqrt - FSSpec(total) sqrt| = 3.552713678800501e-15
+cheb sqrt Kc=8  h=1e-03  FD err F=7.587e-05  V=3.123e-01
+cheb sqrt Kc=8  h=1e-04  FD err F=7.587e-07  V=3.124e-03
+cheb sqrt Kc=8  h=1e-05  FD err F=7.862e-09  V=3.125e-05
+cheb sqrt Kc=8  h=1e-06  FD err F=1.452e-08  V=3.487e-07
+cheb sqrt Kc=4  h=1e-05  |V|max=1.475e+02  FD err F=2.349e-09  V=4.298e-06

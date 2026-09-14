@@ -1,0 +1,15 @@
+pair data: 200 structures, 665266 pairs, 1.34 s
+extra_X (P=2, 200 structures): 0.14 s
+builder vs fs_embed.jl (single-width sqrt(rho_tot) and sqrt(rho_tot + rho^Cr)): max |diff| = 2.13e-14
+ACE block QR (25544 x 1950 + lam I): 4.96 s
+projected inner solve (nX=10): 0.16 s   L=2.85074060e+02
+smallest / largest singular value of [A X] (weighted, prior-scaled): 4.15e-13 / 4.28e+03
+full TikhonovFactor of [A X]: 3.87 s   L=2.85074060e+02   rel diff L=1.13e-11   max|c diff|/max|c|=2.27e-03
+train F at init (rho_tot + tilt Cr, lam=1e-08): 0.10489
+ForwardDiff gradient (30 params): 0.99 s   |g|=3.448e+01
+component   analytic        FD(h=1e-4)      FD(h=1e-5)      rel err(1e-5)
+theta[ 3]   +8.01945698e-01  +8.01945540e-01  +8.01944040e-01  2.07e-06
+theta[20]   +4.37830891e-01  +4.37830560e-01  +4.37825628e-01  1.20e-05
+theta[26]   -7.53327690e-02  -7.53327083e-02  -7.53301265e-02  3.51e-05
+full gradient: max rel err = 1.22e-04   |g - gfd|/|g| = 5.04e-07
+gradient along the overall-scale direction of density 1: 9.11e-07 (|g| = 3.45e+01)

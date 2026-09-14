@@ -1,0 +1,14 @@
+FD check (per-species channels, both tilts, 165 cols): |F|max=2.26e+00 |V|max=2.69e+01  err F=3.90e-10 V=1.43e-09
+max |per-species-channel sqrt(rho_tot) - FSSpec(total)| = 7.105427357601002e-15
+
+==== D=4  (nace=1950) ====
+sqrt(rho_tot) [ref]            ncol= 1965  test F=0.1144 E=0.00595 V=0.0352  train F=0.1037  lam=1e-08
++ cheb[sqrt] Kc=4              ncol= 2010  test F=0.1133 E=0.00608 V=0.0337  train F=0.1024  lam=1e-08  dF(vs sqrt)=-0.9% CI[-1.4,-0.5]
++ both tilts                   ncol= 2115  test F=0.1061 E=0.00539 V=0.0305  train F=0.0960  lam=1e-07  dF(vs sqrt)=-7.3% CI[-8.3,-6.2]
++ both tilts + cheb Kc=4       ncol= 2175  test F=0.1047 E=0.00550 V=0.0283  train F=0.0942  lam=1e-08  dF(vs sqrt)=-8.5% CI[-9.5,-7.5]
+
+==== D=5  (nace=3795) ====
+sqrt(rho_tot) [ref]            ncol= 3810  test F=0.1075 E=0.00694 V=0.0354  train F=0.0882  lam=1e-07
++ cheb[sqrt] Kc=4              ncol= 3855  test F=0.1068 E=0.00700 V=0.0323  train F=0.0908  lam=0.0001  dF(vs sqrt)=-0.7% CI[-1.6,+0.1]
++ both tilts                   ncol= 3960  test F=0.1038 E=0.00653 V=0.0323  train F=0.0849  lam=1e-07  dF(vs sqrt)=-3.5% CI[-4.2,-2.7]
++ both tilts + cheb Kc=4       ncol= 4020  test F=0.1031 E=0.00655 V=0.0316  train F=0.0848  lam=1e-06  dF(vs sqrt)=-4.1% CI[-4.9,-3.2]

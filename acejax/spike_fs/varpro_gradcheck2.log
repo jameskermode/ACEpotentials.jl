@@ -1,0 +1,5 @@
+perwidth P=1 alpha=false ntheta=15  ForwardDiff 1.78 s  analytic 0.011 s  |g|=1.931e+01  rel diff 3.99e-14  (alpha part 0.00e+00)
+perwidth P=2 alpha=true  ntheta=33  ForwardDiff 1.27 s  analytic 0.015 s  |g|=1.789e+01  rel diff 1.35e-13  (alpha part 1.71e-13)
+mixed    P=2 alpha=true  ntheta=33  ForwardDiff 0.75 s  analytic 0.014 s  |g|=5.367e+01  rel diff 1.92e-14  (alpha part 1.07e-13)
+full     P=1 alpha=false ntheta=45  ForwardDiff 1.42 s  analytic 0.010 s  |g|=8.000e+01  rel diff 9.06e-15  (alpha part 0.00e+00)
+perwidth P=3 alpha=false ntheta=45  ForwardDiff 2.89 s  analytic 0.011 s  |g|=2.587e+01  rel diff 4.01e-13  (alpha part 0.00e+00)

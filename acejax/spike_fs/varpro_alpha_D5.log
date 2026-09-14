@@ -1,0 +1,53 @@
+
+==== Exp 6a: degree 4, learn alpha too ====
+D=4 nace=1950  ACE factor 4.5 s
+RES D4 linear ACE                                              ncol= 1950  [lam=1e-08] test F=0.1201 E=0.00622 V=0.0414 train F=0.1094 | [best lam=1e-07] test F=0.1201
+RES D4 sqrt(rho_tot) [ref]                                     ncol= 1965  [lam=1e-08] test F=0.1144 E=0.00595 V=0.0352 train F=0.1037 | [best lam=1e-08] test F=0.1144
+RES D4 VarPro perwidth P=1 (alphas fixed, from varpro_learn)   ncol= 1965  [lam=1e-08] test F=0.1078 E=0.00523 V=0.0329 train F=0.0983 | [best lam=1e-08] test F=0.1078
+---- D4 perwidth P=1 + alpha, init equal / (2,4,6): 151 it, 47 s, L 2.7769e+02 -> 2.4511e+02 (-11.73%), non-monotone 0
+RES D4 VarPro perwidth P=1 + learned alpha                     ncol= 1965  [lam=1e-08] test F=0.1065 E=0.00522 V=0.0327 train F=0.0974 | [best lam=1e-08] test F=0.1065
+  alphas = 7.901, 7.851, 7.500
+  density p=1, width k=1       Cr: 0.91/ 0.00/ 0.00  Mn: 0.99/ 0.00/ 0.00  Fe: 1.00/ 0.00/ 0.00  Co: 0.84/ 0.00/ 0.00  Ni: 0.63/ 0.00/ 0.00 | species share 20.7% 22.7% 22.9% 19.3% 14.4%
+  density p=1, width k=2       Cr: 0.00/ 0.90/ 0.00  Mn: 0.00/ 0.98/ 0.00  Fe: 0.00/ 1.00/ 0.00  Co: 0.00/ 0.85/ 0.00  Ni: 0.00/ 0.64/ 0.00 | species share 20.6% 22.5% 22.9% 19.5% 14.6%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 0.76  Mn: 0.00/ 0.00/ 1.00  Fe: 0.00/ 0.00/ 0.84  Co: 0.00/ 0.00/ 0.57  Ni: 0.00/ 0.00/ 0.43 | species share 21.1% 27.8% 23.3% 15.9% 11.9%
+---- D4 perwidth P=1 + alpha, init learned-w / (2,4,6): 151 it, 107 s, L 2.4962e+02 -> 2.4509e+02 (-1.82%), non-monotone 0
+RES D4 VarPro perwidth P=1 + learned alpha (init from learned w) ncol= 1965  [lam=1e-08] test F=0.1065 E=0.00522 V=0.0327 train F=0.0974 | [best lam=1e-08] test F=0.1065
+  alphas = 7.681, 7.586, 7.710
+  density p=1, width k=1       Cr: 0.88/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.97/ 0.00/ 0.00  Co: 0.80/ 0.00/ 0.00  Ni: 0.59/ 0.00/ 0.00 | species share 20.8% 23.6% 22.8% 18.8% 14.0%
+  density p=1, width k=2       Cr: 0.00/ 0.79/ 0.00  Mn: 0.00/ 1.00/ 0.00  Fe: 0.00/ 0.86/ 0.00  Co: 0.00/ 0.63/ 0.00  Ni: 0.00/ 0.47/ 0.00 | species share 21.1% 26.7% 23.1% 16.7% 12.4%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 0.87  Mn: 0.00/ 0.00/ 1.00  Fe: 0.00/ 0.00/ 0.96  Co: 0.00/ 0.00/ 0.78  Ni: 0.00/ 0.00/ 0.58 | species share 20.9% 23.9% 22.8% 18.6% 13.9%
+---- D4 perwidth P=2 + alpha, init learned P=2 / (2,4,6): 151 it, 307 s, L 2.3906e+02 -> 2.3722e+02 (-0.77%), non-monotone 0
+RES D4 VarPro perwidth P=2 (alphas fixed, from varpro_learn)   ncol= 1980  [lam=1e-08] test F=0.1056 E=0.00503 V=0.0312 train F=0.0963 | [best lam=1e-08] test F=0.1056
+RES D4 VarPro perwidth P=2 + learned alpha                     ncol= 1980  [lam=1e-08] test F=0.1051 E=0.00518 V=0.0309 train F=0.0958 | [best lam=1e-08] test F=0.1051
+  alphas = 2.495, 6.552, 6.658
+  density p=1, width k=1       Cr: 1.00/ 0.00/ 0.00  Mn: 0.81/ 0.00/ 0.00  Fe: 0.51/ 0.00/ 0.00  Co: 0.55/ 0.00/ 0.00  Ni: 0.53/ 0.00/ 0.00 | species share 29.4% 23.7% 14.9% 16.3% 15.7%
+  density p=1, width k=2       Cr: 0.00/ 1.00/ 0.00  Mn: 0.00/ 0.79/ 0.00  Fe: 0.00/ 0.66/ 0.00  Co: 0.00/ 0.74/ 0.00  Ni: 0.00/ 0.63/ 0.00 | species share 26.2% 20.8% 17.2% 19.3% 16.4%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.81  Fe: 0.00/ 0.00/ 0.66  Co: 0.00/ 0.00/ 0.72  Ni: 0.00/ 0.00/ 0.61 | species share 26.3% 21.3% 17.4% 19.0% 16.0%
+  density p=2, width k=1       Cr: 0.56/ 0.00/ 0.00  Mn: 0.92/ 0.00/ 0.00  Fe: 1.00/ 0.00/ 0.00  Co: 0.30/ 0.00/ 0.00  Ni: 0.18/ 0.00/ 0.00 | species share 18.7% 31.2% 33.7% 10.3%  6.1%
+  density p=2, width k=2       Cr: 0.00/ 0.78/ 0.00  Mn: 0.00/ 1.00/ 0.00  Fe: 0.00/ 0.77/ 0.00  Co: 0.00/ 0.56/ 0.00  Ni: 0.00/ 0.44/ 0.00 | species share 21.9% 28.2% 21.8% 15.7% 12.3%
+  density p=2, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.86  Fe: 0.00/ 0.00/ 0.66  Co: 0.00/ 0.00/ 0.66  Ni: 0.00/ 0.00/ 0.55 | species share 26.8% 23.1% 17.8% 17.6% 14.6%
+
+==== Exp 6b: degree 5 ====
+D=5 nace=3795  ACE factor 35.0 s
+RES D5 linear ACE                                              ncol= 3795  [lam=1e-08] test F=0.1120 E=0.00668 V=0.0358 train F=0.0910 | [best lam=1e-07] test F=0.1119
+RES D5 sqrt(rho_tot) [ref]                                     ncol= 3810  [lam=1e-08] test F=0.1077 E=0.00686 V=0.0353 train F=0.0881 | [best lam=1e-07] test F=0.1075
+RES D5 ref + 5 hand tilts                                      ncol= 3885  [lam=1e-08] test F=0.1044 E=0.00632 V=0.0333 train F=0.0854 | [best lam=1e-07] test F=0.1040
+RES D5 + D4/split0-learned P=1 (frozen)                        ncol= 3810  [lam=1e-08] test F=0.1062 E=0.00640 V=0.0345 train F=0.0867 | [best lam=1e-07] test F=0.1059
+RES D5 + D4/split0-learned P=2 (frozen)                        ncol= 3825  [lam=1e-08] test F=0.1045 E=0.00651 V=0.0334 train F=0.0855 | [best lam=1e-07] test F=0.1042
+RES D5 + D4/split0-learned P=3 (frozen)                        ncol= 3840  [lam=1e-08] test F=0.1040 E=0.00638 V=0.0333 train F=0.0853 | [best lam=1e-07] test F=0.1037
+---- D5 perwidth P=1 from equal: 47 it, 18 s, L 1.9812e+02 -> 1.9118e+02 (-3.50%), non-monotone 0
+RES D5 VarPro perwidth P=1 (learned at D5)                     ncol= 3810  [lam=1e-08] test F=0.1059 E=0.00631 V=0.0344 train F=0.0865 | [best lam=1e-07] test F=0.1056
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 0.84/ 0.00/ 0.00  Mn: 0.85/ 0.00/ 0.00  Fe: 1.00/ 0.00/ 0.00  Co: 0.96/ 0.00/ 0.00  Ni: 0.79/ 0.00/ 0.00 | species share 18.9% 19.1% 22.5% 21.6% 17.9%
+  density p=1, width k=2       Cr: 0.00/ 0.82/ 0.00  Mn: 0.00/ 0.94/ 0.00  Fe: 0.00/ 1.00/ 0.00  Co: 0.00/ 0.80/ 0.00  Ni: 0.00/ 0.65/ 0.00 | species share 19.5% 22.3% 23.7% 18.9% 15.5%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 0.84  Mn: 0.00/ 0.00/ 0.92  Fe: 0.00/ 0.00/ 1.00  Co: 0.00/ 0.00/ 0.75  Ni: 0.00/ 0.00/ 0.57 | species share 20.7% 22.5% 24.5% 18.4% 13.9%
+---- D5 perwidth P=2 from equal + tilt Mn: 151 it, 139 s, L 1.9260e+02 -> 1.8590e+02 (-3.48%), non-monotone 0
+RES D5 VarPro perwidth P=2 (learned at D5)                     ncol= 3825  [lam=1e-08] test F=0.1042 E=0.00631 V=0.0330 train F=0.0853 | [best lam=1e-07] test F=0.1040
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 0.69/ 0.00/ 0.00  Mn: 0.76/ 0.00/ 0.00  Fe: 0.84/ 0.00/ 0.00  Co: 1.00/ 0.00/ 0.00  Ni: 0.86/ 0.00/ 0.00 | species share 16.7% 18.2% 20.3% 24.1% 20.7%
+  density p=1, width k=2       Cr: 0.00/ 0.84/ 0.00  Mn: 0.00/ 0.80/ 0.00  Fe: 0.00/ 0.85/ 0.00  Co: 0.00/ 1.00/ 0.00  Ni: 0.00/ 0.88/ 0.00 | species share 19.1% 18.4% 19.4% 22.9% 20.2%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.89  Fe: 0.00/ 0.00/ 0.84  Co: 0.00/ 0.00/ 0.87  Ni: 0.00/ 0.00/ 0.70 | species share 23.3% 20.6% 19.5% 20.3% 16.3%
+  density p=2, width k=1       Cr: 0.70/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.79/ 0.00/ 0.00  Co: 0.56/ 0.00/ 0.00  Ni: 0.46/ 0.00/ 0.00 | species share 20.0% 28.5% 22.5% 16.0% 13.0%
+  density p=2, width k=2       Cr: 0.00/ 1.00/ 0.00  Mn: 0.00/ 0.69/ 0.00  Fe: 0.00/ 0.52/ 0.00  Co: 0.00/ 0.68/ 0.00  Ni: 0.00/ 0.58/ 0.00 | species share 28.8% 19.9% 15.0% 19.6% 16.6%
+  density p=2, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.89  Fe: 0.00/ 0.00/ 0.83  Co: 0.00/ 0.00/ 0.86  Ni: 0.00/ 0.00/ 0.69 | species share 23.4% 20.8% 19.5% 20.2% 16.1%
+P=1 species-share max |D4-learned - D5-learned| over widths: 0.061

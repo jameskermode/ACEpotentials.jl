@@ -1,0 +1,286 @@
+[ Info: dataset tial: train 230  test 99
+[ Info: degree 6: length_basis=270  rcut=[5.5]
+[ Info: Assembling linear problem.
+[ Info:   - Creating feature matrix with size (4994, 270).
+[ Info:   - Beginning assembly with processor count:  5.
+[ Info:   - Assembly completed.
+[ Info: Assembling full weight vector.
+[ Info:   assembled D6_train230 (4994, 270) in 17 s
+[ Info: Assembling linear problem.
+[ Info:   - Creating feature matrix with size (2577, 270).
+[ Info:   - Beginning assembly with processor count:  5.
+[ Info:   - Assembly completed.
+[ Info: Assembling full weight vector.
+[ Info:   assembled D6_test99 (2577, 270) in 3 s
+[ Info: degree 8: length_basis=648  rcut=[5.5]
+[ Info: Assembling linear problem.
+[ Info:   - Creating feature matrix with size (4994, 648).
+[ Info:   - Beginning assembly with processor count:  5.
+[ Info:   - Assembly completed.
+[ Info: Assembling full weight vector.
+[ Info:   assembled D8_train230 (4994, 648) in 12 s
+[ Info: Assembling linear problem.
+[ Info:   - Creating feature matrix with size (2577, 648).
+[ Info:   - Beginning assembly with processor count:  5.
+[ Info:   - Assembly completed.
+[ Info: Assembling full weight vector.
+[ Info:   assembled D8_test99 (2577, 648) in 4 s
+[ Info: degree 10: length_basis=1428  rcut=[5.5]
+[ Info: Assembling linear problem.
+[ Info:   - Creating feature matrix with size (4994, 1428).
+[ Info:   - Beginning assembly with processor count:  5.
+[ Info:   - Assembly completed.
+[ Info: Assembling full weight vector.
+[ Info:   assembled D10_train230 (4994, 1428) in 17 s
+[ Info: Assembling linear problem.
+[ Info:   - Creating feature matrix with size (2577, 1428).
+[ Info:   - Beginning assembly with processor count:  5.
+[ Info:   - Assembly completed.
+[ Info: Assembling full weight vector.
+[ Info:   assembled D10_test99 (2577, 1428) in 6 s
+[ Info: FS densities: r0=2.9  rcut=5.5
+[ Info:   FS columns + rho, K=3 (control)         ncol= 12  built in 1.9 s
+[ Info:   FS columns + sqrt(rho), K=3             ncol= 12  built in 0.1 s
+[ Info:   FS columns + sqrt(rho), K=1 (a=4)       ncol=  4  built in 0.1 s
+[ Info:   FS columns + sqrt(rho), K=3 shared      ncol=  6  built in 0.1 s
+[ Info:   FS columns + rho, K=3 shared (ctrl)     ncol=  6  built in 0.1 s
+[ Info:     linear ACE                   lam=1      test F=1.5899 E=0.03359 V=0.4174 | train F=1.5627
+[ Info:     linear ACE                   lam=0.1    test F=0.9498 E=0.01456 V=0.1661 | train F=0.8925
+[ Info:     linear ACE                   lam=0.01   test F=0.4640 E=0.01093 V=0.1068 | train F=0.3982
+[ Info:     linear ACE                   lam=0.001  test F=0.4506 E=0.00841 V=0.0944 | train F=0.3724
+[ Info:     linear ACE                   lam=0.0001 test F=0.4494 E=0.00810 V=0.0936 | train F=0.3716
+[ Info:     linear ACE                   lam=1e-05  test F=0.4539 E=0.00828 V=0.0921 | train F=0.3716
+[ Info:     linear ACE                   lam=1e-06  test F=0.4534 E=0.00830 V=0.0922 | train F=0.3714
+[ Info:     linear ACE                   lam=1e-07  test F=0.4552 E=0.00838 V=0.0919 | train F=0.3712
+[ Info:     linear ACE                   lam=1e-08  test F=0.4558 E=0.00844 V=0.0920 | train F=0.3712
+RES linear ACE                       D=6 ncol=  270  test F=0.4494 E=0.00810 V=0.0936  train F=0.3716  lambda=0.0001
+CHECK D=6 compute_errors: F=0.449396 E=0.008097 V=0.093622 | mine: F=0.449396 E=0.008097 V=0.093622 | max diff 1.68e-14
+[ Info:   ACE column norms (weighted, prior-scaled): median 3.54, range 0.0247..5.15e+03
+[ Info:     + rho, K=3 (control)         lam=1      test F=1.5600 E=0.03327 V=0.4120 | train F=1.5327
+[ Info:     + rho, K=3 (control)         lam=0.1    test F=0.7476 E=0.01342 V=0.1437 | train F=0.7077
+[ Info:     + rho, K=3 (control)         lam=0.01   test F=0.4561 E=0.01078 V=0.1051 | train F=0.3888
+[ Info:     + rho, K=3 (control)         lam=0.001  test F=0.4494 E=0.00836 V=0.0943 | train F=0.3722
+[ Info:     + rho, K=3 (control)         lam=0.0001 test F=0.4481 E=0.00807 V=0.0933 | train F=0.3716
+[ Info:     + rho, K=3 (control)         lam=1e-05  test F=0.4534 E=0.00825 V=0.0923 | train F=0.3712
+[ Info:     + rho, K=3 (control)         lam=1e-06  test F=0.4586 E=0.00825 V=0.0920 | train F=0.3710
+[ Info:     + rho, K=3 (control)         lam=1e-07  test F=0.4553 E=0.00843 V=0.0924 | train F=0.3708
+[ Info:     + rho, K=3 (control)         lam=1e-08  test F=0.4542 E=0.00844 V=0.0931 | train F=0.3708
+RES + rho, K=3 (control)             D=6 ncol=  282  test F=0.4481 E=0.00807 V=0.0933  train F=0.3716  lambda=0.0001
+[ Info:     + sqrt(rho), K=3             lam=1      test F=1.5870 E=0.03361 V=0.4172 | train F=1.5598
+[ Info:     + sqrt(rho), K=3             lam=0.1    test F=0.9294 E=0.01452 V=0.1650 | train F=0.8764
+[ Info:     + sqrt(rho), K=3             lam=0.01   test F=0.4612 E=0.01096 V=0.1049 | train F=0.3912
+[ Info:     + sqrt(rho), K=3             lam=0.001  test F=0.4483 E=0.00870 V=0.0964 | train F=0.3642
+[ Info:     + sqrt(rho), K=3             lam=0.0001 test F=0.4488 E=0.00885 V=0.0938 | train F=0.3589
+[ Info:     + sqrt(rho), K=3             lam=1e-05  test F=0.4602 E=0.00912 V=0.0909 | train F=0.3584
+[ Info:     + sqrt(rho), K=3             lam=1e-06  test F=0.4599 E=0.00916 V=0.0913 | train F=0.3583
+[ Info:     + sqrt(rho), K=3             lam=1e-07  test F=0.4583 E=0.00924 V=0.0914 | train F=0.3582
+[ Info:     + sqrt(rho), K=3             lam=1e-08  test F=0.4582 E=0.00928 V=0.0915 | train F=0.3582
+RES + sqrt(rho), K=3                 D=6 ncol=  282  test F=0.4483 E=0.00870 V=0.0964  train F=0.3642  lambda=0.001
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1      test F=0.6754 E=0.02004 V=0.1706 | train F=0.6563
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.1    test F=0.5677 E=0.01301 V=0.1255 | train F=0.4992
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.01   test F=0.4906 E=0.01117 V=0.1112 | train F=0.3996
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.001  test F=0.4529 E=0.00882 V=0.0973 | train F=0.3615
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.0001 test F=0.4519 E=0.00891 V=0.0935 | train F=0.3586
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-05  test F=0.4603 E=0.00912 V=0.0909 | train F=0.3584
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-06  test F=0.4599 E=0.00916 V=0.0913 | train F=0.3583
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-07  test F=0.4583 E=0.00924 V=0.0914 | train F=0.3582
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-08  test F=0.4582 E=0.00928 V=0.0915 | train F=0.3582
+RES + sqrt(rho), K=3 [unscaled]      D=6 ncol=  282  test F=0.4519 E=0.00891 V=0.0935  train F=0.3586  lambda=0.0001
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1      test F=1.5898 E=0.03360 V=0.4174 | train F=1.5626
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.1    test F=0.9498 E=0.01454 V=0.1659 | train F=0.8923
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.01   test F=0.4628 E=0.01089 V=0.1062 | train F=0.3952
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.001  test F=0.4506 E=0.00871 V=0.0961 | train F=0.3656
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.0001 test F=0.4472 E=0.00870 V=0.0957 | train F=0.3639
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-05  test F=0.4533 E=0.00897 V=0.0934 | train F=0.3637
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-06  test F=0.4527 E=0.00899 V=0.0937 | train F=0.3636
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-07  test F=0.4523 E=0.00905 V=0.0936 | train F=0.3634
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-08  test F=0.4527 E=0.00909 V=0.0938 | train F=0.3634
+RES + sqrt(rho), K=1 (a=4)           D=6 ncol=  274  test F=0.4472 E=0.00870 V=0.0957  train F=0.3639  lambda=0.0001
+[ Info:     + sqrt(rho), K=3 shared      lam=1      test F=1.5888 E=0.03359 V=0.4173 | train F=1.5617
+[ Info:     + sqrt(rho), K=3 shared      lam=0.1    test F=0.9418 E=0.01453 V=0.1658 | train F=0.8865
+[ Info:     + sqrt(rho), K=3 shared      lam=0.01   test F=0.4608 E=0.01100 V=0.1062 | train F=0.3934
+[ Info:     + sqrt(rho), K=3 shared      lam=0.001  test F=0.4489 E=0.00874 V=0.0962 | train F=0.3672
+[ Info:     + sqrt(rho), K=3 shared      lam=0.0001 test F=0.4478 E=0.00871 V=0.0959 | train F=0.3648
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-05  test F=0.4564 E=0.00913 V=0.0957 | train F=0.3646
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-06  test F=0.4557 E=0.00915 V=0.0959 | train F=0.3645
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-07  test F=0.4540 E=0.00924 V=0.0956 | train F=0.3643
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-08  test F=0.4541 E=0.00929 V=0.0957 | train F=0.3643
+RES + sqrt(rho), K=3 shared          D=6 ncol=  276  test F=0.4478 E=0.00871 V=0.0959  train F=0.3648  lambda=0.0001
+[ Info:     + rho, K=3 shared (ctrl)     lam=1      test F=1.5758 E=0.03340 V=0.4143 | train F=1.5485
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.1    test F=0.8350 E=0.01374 V=0.1523 | train F=0.7866
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.01   test F=0.4567 E=0.01071 V=0.1050 | train F=0.3898
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.001  test F=0.4501 E=0.00837 V=0.0945 | train F=0.3723
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.0001 test F=0.4487 E=0.00808 V=0.0936 | train F=0.3715
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-05  test F=0.4533 E=0.00827 V=0.0924 | train F=0.3713
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-06  test F=0.4605 E=0.00821 V=0.0917 | train F=0.3711
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-07  test F=0.4597 E=0.00837 V=0.0921 | train F=0.3709
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-08  test F=0.4551 E=0.00843 V=0.0931 | train F=0.3709
+RES + rho, K=3 shared (ctrl)         D=6 ncol=  276  test F=0.4487 E=0.00808 V=0.0936  train F=0.3715  lambda=0.0001
+[ Info:     linear ACE                   lam=1      test F=1.4832 E=0.02954 V=0.3754 | train F=1.4423
+[ Info:     linear ACE                   lam=0.1    test F=0.8327 E=0.01248 V=0.1558 | train F=0.7117
+[ Info:     linear ACE                   lam=0.01   test F=0.4590 E=0.00910 V=0.0928 | train F=0.3410
+[ Info:     linear ACE                   lam=0.001  test F=0.4409 E=0.00793 V=0.0781 | train F=0.2893
+[ Info:     linear ACE                   lam=0.0001 test F=0.4630 E=0.00939 V=0.1048 | train F=0.2898
+[ Info:     linear ACE                   lam=1e-05  test F=0.4787 E=0.00902 V=0.1003 | train F=0.2926
+[ Info:     linear ACE                   lam=1e-06  test F=0.4863 E=0.00916 V=0.1004 | train F=0.2932
+[ Info:     linear ACE                   lam=1e-07  test F=0.4843 E=0.00909 V=0.0998 | train F=0.2928
+[ Info:     linear ACE                   lam=1e-08  test F=0.4845 E=0.00914 V=0.1000 | train F=0.2930
+RES linear ACE                       D=8 ncol=  648  test F=0.4409 E=0.00793 V=0.0781  train F=0.2893  lambda=0.001
+CHECK D=8 compute_errors: F=0.440925 E=0.007933 V=0.078119 | mine: F=0.440925 E=0.007933 V=0.078119 | max diff 9.10e-15
+[ Info:   ACE column norms (weighted, prior-scaled): median 1.14, range 0.00818..5.15e+03
+[ Info:     + rho, K=3 (control)         lam=1      test F=1.4805 E=0.02951 V=0.3750 | train F=1.4396
+[ Info:     + rho, K=3 (control)         lam=0.1    test F=0.8169 E=0.01238 V=0.1535 | train F=0.6987
+[ Info:     + rho, K=3 (control)         lam=0.01   test F=0.4512 E=0.00899 V=0.0906 | train F=0.3344
+[ Info:     + rho, K=3 (control)         lam=0.001  test F=0.4407 E=0.00793 V=0.0781 | train F=0.2893
+[ Info:     + rho, K=3 (control)         lam=0.0001 test F=0.4628 E=0.00940 V=0.1048 | train F=0.2898
+[ Info:     + rho, K=3 (control)         lam=1e-05  test F=0.4788 E=0.00902 V=0.1003 | train F=0.2926
+[ Info:     + rho, K=3 (control)         lam=1e-06  test F=0.4930 E=0.00911 V=0.1002 | train F=0.2931
+[ Info:     + rho, K=3 (control)         lam=1e-07  test F=0.4988 E=0.00905 V=0.1001 | train F=0.2921
+[ Info:     + rho, K=3 (control)         lam=1e-08  test F=0.4942 E=0.00902 V=0.1030 | train F=0.2917
+RES + rho, K=3 (control)             D=8 ncol=  660  test F=0.4407 E=0.00793 V=0.0781  train F=0.2893  lambda=0.001
+[ Info:     + sqrt(rho), K=3             lam=1      test F=1.4829 E=0.02954 V=0.3754 | train F=1.4421
+[ Info:     + sqrt(rho), K=3             lam=0.1    test F=0.8313 E=0.01247 V=0.1557 | train F=0.7107
+[ Info:     + sqrt(rho), K=3             lam=0.01   test F=0.4570 E=0.00904 V=0.0921 | train F=0.3392
+[ Info:     + sqrt(rho), K=3             lam=0.001  test F=0.4397 E=0.00808 V=0.0775 | train F=0.2863
+[ Info:     + sqrt(rho), K=3             lam=0.0001 test F=0.4601 E=0.00969 V=0.1058 | train F=0.2865
+[ Info:     + sqrt(rho), K=3             lam=1e-05  test F=0.4758 E=0.00916 V=0.1054 | train F=0.2902
+[ Info:     + sqrt(rho), K=3             lam=1e-06  test F=0.4784 E=0.00913 V=0.1050 | train F=0.2912
+[ Info:     + sqrt(rho), K=3             lam=1e-07  test F=0.4791 E=0.00914 V=0.1051 | train F=0.2909
+[ Info:     + sqrt(rho), K=3             lam=1e-08  test F=0.4854 E=0.00920 V=0.1052 | train F=0.2910
+RES + sqrt(rho), K=3                 D=8 ncol=  660  test F=0.4397 E=0.00808 V=0.0775  train F=0.2863  lambda=0.001
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1      test F=0.6597 E=0.01862 V=0.1608 | train F=0.6376
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.1    test F=0.5303 E=0.01117 V=0.1030 | train F=0.4364
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.01   test F=0.4761 E=0.00917 V=0.0862 | train F=0.3330
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.001  test F=0.4435 E=0.00872 V=0.0834 | train F=0.2868
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.0001 test F=0.4625 E=0.00998 V=0.1100 | train F=0.2869
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-05  test F=0.4762 E=0.00917 V=0.1058 | train F=0.2904
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-06  test F=0.4784 E=0.00913 V=0.1050 | train F=0.2912
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-07  test F=0.4791 E=0.00914 V=0.1051 | train F=0.2909
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-08  test F=0.4854 E=0.00920 V=0.1052 | train F=0.2910
+RES + sqrt(rho), K=3 [unscaled]      D=8 ncol=  660  test F=0.4435 E=0.00872 V=0.0834  train F=0.2868  lambda=0.001
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1      test F=1.4832 E=0.02954 V=0.3754 | train F=1.4423
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.1    test F=0.8327 E=0.01248 V=0.1558 | train F=0.7117
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.01   test F=0.4588 E=0.00909 V=0.0927 | train F=0.3408
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.001  test F=0.4405 E=0.00798 V=0.0775 | train F=0.2873
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.0001 test F=0.4604 E=0.00951 V=0.1036 | train F=0.2871
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-05  test F=0.4743 E=0.00902 V=0.0994 | train F=0.2904
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-06  test F=0.4791 E=0.00906 V=0.0990 | train F=0.2911
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-07  test F=0.4771 E=0.00906 V=0.0986 | train F=0.2907
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-08  test F=0.4830 E=0.00915 V=0.0988 | train F=0.2908
+RES + sqrt(rho), K=1 (a=4)           D=8 ncol=  652  test F=0.4405 E=0.00798 V=0.0775  train F=0.2873  lambda=0.001
+[ Info:     + sqrt(rho), K=3 shared      lam=1      test F=1.4831 E=0.02953 V=0.3754 | train F=1.4422
+[ Info:     + sqrt(rho), K=3 shared      lam=0.1    test F=0.8321 E=0.01248 V=0.1558 | train F=0.7113
+[ Info:     + sqrt(rho), K=3 shared      lam=0.01   test F=0.4579 E=0.00907 V=0.0925 | train F=0.3402
+[ Info:     + sqrt(rho), K=3 shared      lam=0.001  test F=0.4399 E=0.00802 V=0.0778 | train F=0.2872
+[ Info:     + sqrt(rho), K=3 shared      lam=0.0001 test F=0.4619 E=0.00964 V=0.1065 | train F=0.2871
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-05  test F=0.4769 E=0.00914 V=0.1065 | train F=0.2904
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-06  test F=0.4801 E=0.00916 V=0.1065 | train F=0.2916
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-07  test F=0.4793 E=0.00916 V=0.1068 | train F=0.2913
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-08  test F=0.4832 E=0.00922 V=0.1069 | train F=0.2914
+RES + sqrt(rho), K=3 shared          D=8 ncol=  654  test F=0.4399 E=0.00802 V=0.0778  train F=0.2872  lambda=0.001
+[ Info:     + rho, K=3 shared (ctrl)     lam=1      test F=1.4819 E=0.02952 V=0.3751 | train F=1.4411
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.1    test F=0.8253 E=0.01242 V=0.1547 | train F=0.7056
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.01   test F=0.4547 E=0.00903 V=0.0914 | train F=0.3373
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.001  test F=0.4408 E=0.00793 V=0.0781 | train F=0.2893
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.0001 test F=0.4629 E=0.00940 V=0.1048 | train F=0.2898
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-05  test F=0.4787 E=0.00901 V=0.1003 | train F=0.2926
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-06  test F=0.4889 E=0.00914 V=0.1003 | train F=0.2931
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-07  test F=0.5017 E=0.00902 V=0.0998 | train F=0.2923
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-08  test F=0.4872 E=0.00918 V=0.1027 | train F=0.2918
+RES + rho, K=3 shared (ctrl)         D=8 ncol=  654  test F=0.4408 E=0.00793 V=0.0781  train F=0.2893  lambda=0.001
+[ Info:     linear ACE                   lam=1      test F=1.3878 E=0.02624 V=0.3476 | train F=1.3272
+[ Info:     linear ACE                   lam=0.1    test F=0.7805 E=0.01295 V=0.1530 | train F=0.6413
+[ Info:     linear ACE                   lam=0.01   test F=0.4366 E=0.00940 V=0.0825 | train F=0.2746
+[ Info:     linear ACE                   lam=0.001  test F=0.4673 E=0.00616 V=0.0676 | train F=0.2045
+[ Info:     linear ACE                   lam=0.0001 test F=0.6526 E=0.00570 V=0.0951 | train F=0.2064
+[ Info:     linear ACE                   lam=1e-05  test F=0.7471 E=0.00809 V=0.1305 | train F=0.2073
+[ Info:     linear ACE                   lam=1e-06  test F=0.7660 E=0.00915 V=0.1453 | train F=0.2097
+[ Info:     linear ACE                   lam=1e-07  test F=0.7779 E=0.00937 V=0.1468 | train F=0.2093
+[ Info:     linear ACE                   lam=1e-08  test F=0.7749 E=0.00951 V=0.1483 | train F=0.2090
+RES linear ACE                       D=10 ncol= 1428  test F=0.4366 E=0.00940 V=0.0825  train F=0.2746  lambda=0.01
+CHECK D=10 compute_errors: F=0.436571 E=0.009400 V=0.082465 | mine: F=0.436571 E=0.009400 V=0.082465 | max diff 4.02e-14
+[ Info:   ACE column norms (weighted, prior-scaled): median 0.353, range 0.00338..5.15e+03
+[ Info:     + rho, K=3 (control)         lam=1      test F=1.3876 E=0.02623 V=0.3476 | train F=1.3270
+[ Info:     + rho, K=3 (control)         lam=0.1    test F=0.7793 E=0.01294 V=0.1528 | train F=0.6404
+[ Info:     + rho, K=3 (control)         lam=0.01   test F=0.4354 E=0.00938 V=0.0822 | train F=0.2739
+[ Info:     + rho, K=3 (control)         lam=0.001  test F=0.4673 E=0.00616 V=0.0676 | train F=0.2045
+[ Info:     + rho, K=3 (control)         lam=0.0001 test F=0.6527 E=0.00570 V=0.0951 | train F=0.2064
+[ Info:     + rho, K=3 (control)         lam=1e-05  test F=0.7474 E=0.00809 V=0.1305 | train F=0.2073
+[ Info:     + rho, K=3 (control)         lam=1e-06  test F=0.7660 E=0.00915 V=0.1452 | train F=0.2097
+[ Info:     + rho, K=3 (control)         lam=1e-07  test F=0.7735 E=0.00931 V=0.1463 | train F=0.2092
+[ Info:     + rho, K=3 (control)         lam=1e-08  test F=0.7625 E=0.00937 V=0.1473 | train F=0.2089
+RES + rho, K=3 (control)             D=10 ncol= 1440  test F=0.4354 E=0.00938 V=0.0822  train F=0.2739  lambda=0.01
+[ Info:     + sqrt(rho), K=3             lam=1      test F=1.3878 E=0.02624 V=0.3476 | train F=1.3272
+[ Info:     + sqrt(rho), K=3             lam=0.1    test F=0.7804 E=0.01295 V=0.1530 | train F=0.6413
+[ Info:     + sqrt(rho), K=3             lam=0.01   test F=0.4364 E=0.00939 V=0.0824 | train F=0.2744
+[ Info:     + sqrt(rho), K=3             lam=0.001  test F=0.4667 E=0.00615 V=0.0674 | train F=0.2043
+[ Info:     + sqrt(rho), K=3             lam=0.0001 test F=0.6492 E=0.00577 V=0.0946 | train F=0.2060
+[ Info:     + sqrt(rho), K=3             lam=1e-05  test F=0.7443 E=0.00815 V=0.1335 | train F=0.2065
+[ Info:     + sqrt(rho), K=3             lam=1e-06  test F=0.7615 E=0.00861 V=0.1539 | train F=0.2086
+[ Info:     + sqrt(rho), K=3             lam=1e-07  test F=0.7692 E=0.00877 V=0.1561 | train F=0.2083
+[ Info:     + sqrt(rho), K=3             lam=1e-08  test F=0.7711 E=0.00889 V=0.1577 | train F=0.2079
+RES + sqrt(rho), K=3                 D=10 ncol= 1440  test F=0.4364 E=0.00939 V=0.0824  train F=0.2744  lambda=0.01
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1      test F=0.6515 E=0.01792 V=0.1478 | train F=0.6296
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.1    test F=0.4982 E=0.01114 V=0.0844 | train F=0.3968
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.01   test F=0.4409 E=0.00992 V=0.0835 | train F=0.2590
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.001  test F=0.4773 E=0.00639 V=0.0776 | train F=0.2053
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=0.0001 test F=0.6539 E=0.00543 V=0.1044 | train F=0.2064
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-05  test F=0.7445 E=0.00754 V=0.1383 | train F=0.2068
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-06  test F=0.7622 E=0.00858 V=0.1542 | train F=0.2087
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-07  test F=0.7692 E=0.00877 V=0.1561 | train F=0.2083
+[ Info:     + sqrt(rho), K=3 [unscaled]  lam=1e-08  test F=0.7711 E=0.00889 V=0.1577 | train F=0.2079
+RES + sqrt(rho), K=3 [unscaled]      D=10 ncol= 1440  test F=0.4409 E=0.00992 V=0.0835  train F=0.2590  lambda=0.01
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1      test F=1.3878 E=0.02624 V=0.3476 | train F=1.3272
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.1    test F=0.7805 E=0.01295 V=0.1530 | train F=0.6413
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.01   test F=0.4366 E=0.00940 V=0.0825 | train F=0.2746
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.001  test F=0.4672 E=0.00615 V=0.0676 | train F=0.2044
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=0.0001 test F=0.6509 E=0.00571 V=0.0947 | train F=0.2062
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-05  test F=0.7465 E=0.00824 V=0.1306 | train F=0.2072
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-06  test F=0.7643 E=0.00927 V=0.1455 | train F=0.2096
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-07  test F=0.7754 E=0.00949 V=0.1471 | train F=0.2091
+[ Info:     + sqrt(rho), K=1 (a=4)       lam=1e-08  test F=0.7726 E=0.00965 V=0.1487 | train F=0.2088
+RES + sqrt(rho), K=1 (a=4)           D=10 ncol= 1432  test F=0.4366 E=0.00940 V=0.0825  train F=0.2746  lambda=0.01
+[ Info:     + sqrt(rho), K=3 shared      lam=1      test F=1.3878 E=0.02624 V=0.3476 | train F=1.3272
+[ Info:     + sqrt(rho), K=3 shared      lam=0.1    test F=0.7804 E=0.01295 V=0.1530 | train F=0.6413
+[ Info:     + sqrt(rho), K=3 shared      lam=0.01   test F=0.4365 E=0.00940 V=0.0824 | train F=0.2745
+[ Info:     + sqrt(rho), K=3 shared      lam=0.001  test F=0.4670 E=0.00615 V=0.0675 | train F=0.2044
+[ Info:     + sqrt(rho), K=3 shared      lam=0.0001 test F=0.6531 E=0.00573 V=0.0949 | train F=0.2062
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-05  test F=0.7463 E=0.00820 V=0.1324 | train F=0.2070
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-06  test F=0.7558 E=0.00874 V=0.1533 | train F=0.2092
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-07  test F=0.7628 E=0.00893 V=0.1562 | train F=0.2089
+[ Info:     + sqrt(rho), K=3 shared      lam=1e-08  test F=0.7640 E=0.00903 V=0.1582 | train F=0.2085
+RES + sqrt(rho), K=3 shared          D=10 ncol= 1434  test F=0.4365 E=0.00940 V=0.0824  train F=0.2745  lambda=0.01
+[ Info:     + rho, K=3 shared (ctrl)     lam=1      test F=1.3877 E=0.02623 V=0.3476 | train F=1.3271
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.1    test F=0.7799 E=0.01294 V=0.1529 | train F=0.6409
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.01   test F=0.4360 E=0.00939 V=0.0823 | train F=0.2742
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.001  test F=0.4673 E=0.00616 V=0.0676 | train F=0.2045
+[ Info:     + rho, K=3 shared (ctrl)     lam=0.0001 test F=0.6527 E=0.00570 V=0.0951 | train F=0.2064
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-05  test F=0.7472 E=0.00809 V=0.1305 | train F=0.2073
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-06  test F=0.7661 E=0.00915 V=0.1452 | train F=0.2097
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-07  test F=0.7767 E=0.00931 V=0.1464 | train F=0.2092
+[ Info:     + rho, K=3 shared (ctrl)     lam=1e-08  test F=0.7572 E=0.00935 V=0.1473 | train F=0.2089
+RES + rho, K=3 shared (ctrl)         D=10 ncol= 1434  test F=0.4360 E=0.00939 V=0.0823  train F=0.2742  lambda=0.01
+
+==== SUMMARY (tial, train 230, test 99) ====
+model                                     ncol   test F    test E   test V  train F   lambda
+D=6 linear ACE                             270   0.4494   0.00810   0.0936   0.3716   0.0001
+D=6 + rho, K=3 (control)                   282   0.4481   0.00807   0.0933   0.3716   0.0001
+D=6 + sqrt(rho), K=3                       282   0.4483   0.00870   0.0964   0.3642    0.001
+D=6 + sqrt(rho), K=3 [unscaled]            282   0.4519   0.00891   0.0935   0.3586   0.0001
+D=6 + sqrt(rho), K=1 (a=4)                 274   0.4472   0.00870   0.0957   0.3639   0.0001
+D=6 + sqrt(rho), K=3 shared                276   0.4478   0.00871   0.0959   0.3648   0.0001
+D=6 + rho, K=3 shared (ctrl)               276   0.4487   0.00808   0.0936   0.3715   0.0001
+D=8 linear ACE                             648   0.4409   0.00793   0.0781   0.2893    0.001
+D=8 + rho, K=3 (control)                   660   0.4407   0.00793   0.0781   0.2893    0.001
+D=8 + sqrt(rho), K=3                       660   0.4397   0.00808   0.0775   0.2863    0.001
+D=8 + sqrt(rho), K=3 [unscaled]            660   0.4435   0.00872   0.0834   0.2868    0.001
+D=8 + sqrt(rho), K=1 (a=4)                 652   0.4405   0.00798   0.0775   0.2873    0.001
+D=8 + sqrt(rho), K=3 shared                654   0.4399   0.00802   0.0778   0.2872    0.001
+D=8 + rho, K=3 shared (ctrl)               654   0.4408   0.00793   0.0781   0.2893    0.001
+D=10 linear ACE                           1428   0.4366   0.00940   0.0825   0.2746     0.01
+D=10 + rho, K=3 (control)                 1440   0.4354   0.00938   0.0822   0.2739     0.01
+D=10 + sqrt(rho), K=3                     1440   0.4364   0.00939   0.0824   0.2744     0.01
+D=10 + sqrt(rho), K=3 [unscaled]          1440   0.4409   0.00992   0.0835   0.2590     0.01
+D=10 + sqrt(rho), K=1 (a=4)               1432   0.4366   0.00940   0.0825   0.2746     0.01
+D=10 + sqrt(rho), K=3 shared              1434   0.4365   0.00940   0.0824   0.2745     0.01
+D=10 + rho, K=3 shared (ctrl)             1434   0.4360   0.00939   0.0823   0.2742     0.01

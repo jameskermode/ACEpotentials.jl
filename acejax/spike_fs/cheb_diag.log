@@ -1,0 +1,20 @@
+sqrt only: test F=0.1144 lam=1e-08
+cheb[sqrt] Kc=8 margin=0.02: test F=0.1316 lam=1e-08   dF vs sqrt=+15.0%; excluding worst 3 structures: F=0.1127 vs sqrt 0.1138
+    structure  14 (nat=32): force RMSE sqrt-only 0.166 -> cheb 0.766; max|u| per width [0.9, 0.88, 0.88]; sites with |u|>0.9: 0
+    structure  30 (nat=48): force RMSE sqrt-only 0.124 -> cheb 0.127; max|u| per width [0.49, 0.39, 0.32]; sites with |u|>0.9: 0
+    structure   6 (nat=48): force RMSE sqrt-only 0.115 -> cheb 0.118; max|u| per width [0.62, 0.66, 0.68]; sites with |u|>0.9: 0
+cheb[sqrt] Kc=8 margin=0.10: test F=0.1164 lam=0.0001  dF vs sqrt=+1.7%; excluding worst 3 structures: F=0.1131 vs sqrt 0.1135
+    structure  14 (nat=32): force RMSE sqrt-only 0.166 -> cheb 0.305; max|u| per width [0.78, 0.76, 0.76]; sites with |u|>0.9: 0
+    structure  64 (nat=48): force RMSE sqrt-only 0.144 -> cheb 0.147; max|u| per width [0.35, 0.34, 0.33]; sites with |u|>0.9: 0
+    structure  82 (nat=48): force RMSE sqrt-only 0.110 -> cheb 0.114; max|u| per width [0.51, 0.56, 0.58]; sites with |u|>0.9: 0
+cheb[sqrt] Kc=8 margin=0.30: test F=0.1145 lam=0.0001  dF vs sqrt=+0.1%; excluding worst 3 structures: F=0.1130 vs sqrt 0.1135
+    structure  14 (nat=32): force RMSE sqrt-only 0.166 -> cheb 0.207; max|u| per width [0.58, 0.57, 0.57]; sites with |u|>0.9: 0
+    structure  64 (nat=48): force RMSE sqrt-only 0.144 -> cheb 0.147; max|u| per width [0.26, 0.26, 0.25]; sites with |u|>0.9: 0
+    structure  82 (nat=48): force RMSE sqrt-only 0.110 -> cheb 0.113; max|u| per width [0.38, 0.42, 0.43]; sites with |u|>0.9: 0
+cheb[sqrt] Kc=8 margin=1.00: test F=0.1140 lam=0.0001  dF vs sqrt=-0.3%; excluding worst 3 structures: F=0.1130 vs sqrt 0.1136
+    structure  14 (nat=32): force RMSE sqrt-only 0.166 -> cheb 0.180; max|u| per width [0.31, 0.3, 0.31]; sites with |u|>0.9: 0
+    structure  82 (nat=48): force RMSE sqrt-only 0.110 -> cheb 0.113; max|u| per width [0.2, 0.22, 0.23]; sites with |u|>0.9: 0
+    structure  77 (nat=32): force RMSE sqrt-only 0.149 -> cheb 0.153; max|u| per width [0.15, 0.18, 0.19]; sites with |u|>0.9: 0
+training sites width 1: |u|>0.9: 9 / 8048 (0.11%); |u|>0.8: 0.65%
+training sites width 2: |u|>0.9: 9 / 8048 (0.11%); |u|>0.8: 0.34%
+training sites width 3: |u|>0.9: 7 / 8048 (0.09%); |u|>0.8: 0.30%

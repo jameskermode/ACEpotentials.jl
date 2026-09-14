@@ -1,0 +1,286 @@
+D=4 nace=1950 rows=25544  ACE factor 4.6 s  lambda=1e-08
+
+==== baselines (fixed columns) ====
+RES linear ACE                                   ncol= 1950  [lam=1e-08] test F=0.1201 E=0.00622 V=0.0414 train F=0.1094 | [best lam=1e-07] test F=0.1201 E=0.00622 V=0.0414 train F=0.1094 | 0 it 0 s
+RES sqrt(rho_tot) K=3 [ref, = perwidth P=1 init] ncol= 1965  [lam=1e-08] test F=0.1144 E=0.00595 V=0.0352 train F=0.1037 | [best lam=1e-08] test F=0.1144 E=0.00595 V=0.0352 train F=0.1037 | 0 it 0 s
+RES ref + tilt +Cr (perwidth P=2 fixed)          ncol= 1980  [lam=1e-08] test F=0.1137 E=0.00600 V=0.0347 train F=0.1028 | [best lam=1e-08] test F=0.1137 E=0.00600 V=0.0347 train F=0.1028 | 0 it 0 s
+RES ref + tilt +Mn (perwidth P=2 fixed)          ncol= 1980  [lam=1e-08] test F=0.1098 E=0.00555 V=0.0313 train F=0.0997 | [best lam=1e-08] test F=0.1098 E=0.00555 V=0.0313 train F=0.0997 | 0 it 0 s
+RES ref + tilt +Fe (perwidth P=2 fixed)          ncol= 1980  [lam=1e-08] test F=0.1132 E=0.00574 V=0.0352 train F=0.1028 | [best lam=1e-08] test F=0.1132 E=0.00574 V=0.0352 train F=0.1028 | 0 it 0 s
+RES ref + tilt +Co (perwidth P=2 fixed)          ncol= 1980  [lam=1e-08] test F=0.1124 E=0.00567 V=0.0352 train F=0.1023 | [best lam=1e-08] test F=0.1124 E=0.00567 V=0.0352 train F=0.1023 | 0 it 0 s
+RES ref + tilt +Ni (perwidth P=2 fixed)          ncol= 1980  [lam=1e-08] test F=0.1124 E=0.00561 V=0.0337 train F=0.1018 | [best lam=1e-08] test F=0.1124 E=0.00561 V=0.0337 train F=0.1018 | 0 it 0 s
+RES ref + all 5 tilts sqrt(rho_tot + rho^s) [hand] ncol= 2040  [lam=1e-08] test F=0.1067 E=0.00539 V=0.0309 train F=0.0969 | [best lam=1e-08] test F=0.1067 E=0.00539 V=0.0309 train F=0.0969 | 0 it 0 s
+single tilts ranked by test F: Mn 0.1098, Co 0.1124, Ni 0.1124, Fe 0.1132, Cr 0.1137
+
+==== Exp 2: P=1 ====
+
+---- perwidth P=1 from equal  (mode=perwidth P=1 ntheta=15)
+  init  L=2.776877e+02  train F=0.10373
+  it   1  L=2.776877e+02  train F=0.10373  |g|=4.77e+01
+  it   2  L=2.736760e+02  train F=0.10288  |g|=1.99e+01
+  it   3  L=2.659073e+02  train F=0.10127  |g|=1.59e+01
+  it   4  L=2.639453e+02  train F=0.10091  |g|=7.65e+00
+  it   5  L=2.625324e+02  train F=0.10062  |g|=2.68e+00
+  it   6  L=2.609966e+02  train F=0.10041  |g|=5.89e+00
+  it   7  L=2.601464e+02  train F=0.10021  |g|=2.75e+00
+  it   8  L=2.595622e+02  train F=0.10011  |g|=1.50e+00
+  it   9  L=2.594149e+02  train F=0.10011  |g|=1.35e+00
+  it  10  L=2.591336e+02  train F=0.10007  |g|=1.96e+00
+  it  11  L=2.587258e+02  train F=0.10001  |g|=1.64e+00
+  it  12  L=2.580907e+02  train F=0.09985  |g|=2.47e+00
+  it  13  L=2.576165e+02  train F=0.09971  |g|=4.76e+00
+  it  14  L=2.570729e+02  train F=0.09959  |g|=5.75e+00
+  it  15  L=2.559954e+02  train F=0.09938  |g|=3.17e+00
+  it  16  L=2.553529e+02  train F=0.09928  |g|=2.20e+00
+  it  17  L=2.550968e+02  train F=0.09924  |g|=1.75e+00
+  it  18  L=2.547859e+02  train F=0.09917  |g|=2.08e+00
+  it  19  L=2.547030e+02  train F=0.09915  |g|=1.54e+00
+  it  20  L=2.546589e+02  train F=0.09913  |g|=1.11e+00
+  it  21  L=2.545894e+02  train F=0.09911  |g|=1.16e+00
+  it  22  L=2.539282e+02  train F=0.09897  |g|=5.15e+00
+  it  23  L=2.538447e+02  train F=0.09896  |g|=6.34e+00
+  it  24  L=2.536088e+02  train F=0.09892  |g|=9.91e+00
+  it  25  L=2.535202e+02  train F=0.09890  |g|=1.05e+01
+  it  26  L=2.530809e+02  train F=0.09887  |g|=1.19e+01
+  it  27  L=2.525097e+02  train F=0.09876  |g|=3.87e+00
+  it  28  L=2.522477e+02  train F=0.09872  |g|=4.99e+00
+  it  29  L=2.516671e+02  train F=0.09862  |g|=4.24e+00
+  it  30  L=2.513323e+02  train F=0.09857  |g|=2.71e+00
+  it  31  L=2.511115e+02  train F=0.09855  |g|=4.03e+00
+  it  32  L=2.510039e+02  train F=0.09855  |g|=3.87e+00
+  it  33  L=2.507746e+02  train F=0.09852  |g|=4.65e+00
+  it  34  L=2.503954e+02  train F=0.09847  |g|=5.39e+00
+  it  35  L=2.501726e+02  train F=0.09844  |g|=5.03e+00
+  it  36  L=2.499884e+02  train F=0.09840  |g|=4.97e+00
+  it  37  L=2.498642e+02  train F=0.09838  |g|=4.34e+00
+  it  38  L=2.498279e+02  train F=0.09837  |g|=2.76e+00
+  it  39  L=2.498099e+02  train F=0.09837  |g|=1.73e+00
+  it  40  L=2.497710e+02  train F=0.09835  |g|=3.45e+00
+  it  41  L=2.497168e+02  train F=0.09835  |g|=3.34e+00
+  it  42  L=2.496635e+02  train F=0.09833  |g|=1.87e+00
+  it  43  L=2.496404e+02  train F=0.09833  |g|=9.69e-01
+  it  44  L=2.496326e+02  train F=0.09833  |g|=7.06e-01
+  it  45  L=2.496284e+02  train F=0.09833  |g|=7.63e-01
+  it  46  L=2.496272e+02  train F=0.09833  |g|=2.22e-01
+  it  47  L=2.496264e+02  train F=0.09833  |g|=4.68e-01
+  it  48  L=2.496248e+02  train F=0.09833  |g|=1.32e-01
+  it  49  L=2.496246e+02  train F=0.09833  |g|=1.19e-01
+  it  50  L=2.496244e+02  train F=0.09833  |g|=2.24e-01
+  it  51  L=2.496240e+02  train F=0.09833  |g|=1.57e-01
+  it  52  L=2.496239e+02  train F=0.09833  |g|=4.20e-02
+  it  53  L=2.496239e+02  train F=0.09833  |g|=3.08e-02
+  it  54  L=2.496239e+02  train F=0.09833  |g|=1.28e-02
+  it  55  L=2.496239e+02  train F=0.09833  |g|=3.54e-03
+  it  56  L=2.496239e+02  train F=0.09833  |g|=4.52e-03
+  it  57  L=2.496239e+02  train F=0.09833  |g|=6.19e-03
+  it  58  L=2.496239e+02  train F=0.09833  |g|=5.26e-04
+  it  59  L=2.496239e+02  train F=0.09833  |g|=2.00e-04
+  it  60  L=2.496239e+02  train F=0.09833  |g|=1.66e-04
+  it  61  L=2.496239e+02  train F=0.09833  |g|=1.39e-04
+  it  62  L=2.496239e+02  train F=0.09833  |g|=4.32e-05
+  it  63  L=2.496239e+02  train F=0.09833  |g|=5.40e-05
+  done: 63 iterations, 14 s, L 2.776877e+02 -> 2.496239e+02 (-10.11%), non-monotone steps: 0, |g|=5.40e-05
+RES VarPro perwidth P=1 (init equal)             ncol= 1965  [lam=1e-08] test F=0.1078 E=0.00523 V=0.0329 train F=0.0983 | [best lam=1e-08] test F=0.1078 E=0.00523 V=0.0329 train F=0.0983 | 63 it 14 s
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 0.79/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.98/ 0.00/ 0.00  Co: 0.79/ 0.00/ 0.00  Ni: 0.65/ 0.00/ 0.00 | species share 18.8% 23.7% 23.3% 18.8% 15.3%
+  density p=1, width k=2       Cr: 0.00/ 0.71/ 0.00  Mn: 0.00/ 1.00/ 0.00  Fe: 0.00/ 0.83/ 0.00  Co: 0.00/ 0.55/ 0.00  Ni: 0.00/ 0.43/ 0.00 | species share 20.2% 28.4% 23.6% 15.6% 12.3%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 0.78  Mn: 0.00/ 0.00/ 1.00  Fe: 0.00/ 0.00/ 0.88  Co: 0.00/ 0.00/ 0.55  Ni: 0.00/ 0.00/ 0.38 | species share 21.7% 27.9% 24.5% 15.3% 10.6%
+
+==== Exp 3: P=2, 3 ====
+
+---- perwidth P=2 init equal + tilt Mn  (mode=perwidth P=2 ntheta=30)
+  init  L=2.563561e+02  train F=0.09967
+  done: 121 iterations, 39 s, L 2.563561e+02 -> 2.390611e+02 (-6.75%), non-monotone steps: 0, |g|=3.92e+00
+RES VarPro perwidth P=2 (init equal + tilt Mn)   ncol= 1980  [lam=1e-08] test F=0.1056 E=0.00503 V=0.0312 train F=0.0963 | [best lam=1e-08] test F=0.1056 E=0.00503 V=0.0312 train F=0.0963 | 121 it 39 s
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 1.00/ 0.00/ 0.00  Mn: 0.71/ 0.00/ 0.00  Fe: 0.59/ 0.00/ 0.00  Co: 0.67/ 0.00/ 0.00  Ni: 0.73/ 0.00/ 0.00 | species share 27.0% 19.3% 16.0% 18.1% 19.6%
+  density p=1, width k=2       Cr: 0.00/ 1.00/ 0.00  Mn: 0.00/ 0.67/ 0.00  Fe: 0.00/ 0.65/ 0.00  Co: 0.00/ 0.77/ 0.00  Ni: 0.00/ 0.72/ 0.00 | species share 26.3% 17.6% 17.0% 20.1% 18.9%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.85  Fe: 0.00/ 0.00/ 0.76  Co: 0.00/ 0.00/ 0.67  Ni: 0.00/ 0.00/ 0.53 | species share 26.3% 22.3% 19.9% 17.6% 13.9%
+  density p=2, width k=1       Cr: 0.47/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.93/ 0.00/ 0.00  Co: 0.27/ 0.00/ 0.00  Ni: 0.19/ 0.00/ 0.00 | species share 16.5% 34.8% 32.5%  9.5%  6.6%
+  density p=2, width k=2       Cr: 0.00/ 0.60/ 0.00  Mn: 0.00/ 1.00/ 0.00  Fe: 0.00/ 0.80/ 0.00  Co: 0.00/ 0.56/ 0.00  Ni: 0.00/ 0.45/ 0.00 | species share 17.5% 29.4% 23.5% 16.3% 13.3%
+  density p=2, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.87  Fe: 0.00/ 0.00/ 0.76  Co: 0.00/ 0.00/ 0.65  Ni: 0.00/ 0.00/ 0.51 | species share 26.3% 22.9% 20.1% 17.2% 13.5%
+
+---- perwidth P=3 init equal + tilts Mn,Co  (mode=perwidth P=3 ntheta=45)
+  init  L=2.532811e+02  train F=0.09908
+  done: 121 iterations, 48 s, L 2.532811e+02 -> 2.349132e+02 (-7.25%), non-monotone steps: 0, |g|=1.07e+00
+RES VarPro perwidth P=3 (init equal + tilts Mn,Co) ncol= 1995  [lam=1e-08] test F=0.1051 E=0.00520 V=0.0301 train F=0.0955 | [best lam=1e-08] test F=0.1051 E=0.00520 V=0.0301 train F=0.0955 | 121 it 48 s
+  alphas = 2.000, 4.000, 6.000
+  density p=1, width k=1       Cr: 1.00/ 0.00/ 0.00  Mn: 0.66/ 0.00/ 0.00  Fe: 0.42/ 0.00/ 0.00  Co: 0.34/ 0.00/ 0.00  Ni: 0.28/ 0.00/ 0.00 | species share 37.0% 24.5% 15.5% 12.6% 10.4%
+  density p=1, width k=2       Cr: 0.00/ 1.00/ 0.00  Mn: 0.00/ 0.66/ 0.00  Fe: 0.00/ 0.43/ 0.00  Co: 0.00/ 0.33/ 0.00  Ni: 0.00/ 0.28/ 0.00 | species share 37.0% 24.4% 16.0% 12.2% 10.5%
+  density p=1, width k=3       Cr: 0.00/ 0.00/ 0.63  Mn: 0.00/ 0.00/ 1.00  Fe: 0.00/ 0.00/ 0.81  Co: 0.00/ 0.00/ 0.45  Ni: 0.00/ 0.00/ 0.35 | species share 19.5% 30.8% 25.0% 13.8% 10.9%
+  density p=2, width k=1       Cr: 0.23/ 0.00/ 0.00  Mn: 1.00/ 0.00/ 0.00  Fe: 0.45/ 0.00/ 0.00  Co: 0.36/ 0.00/ 0.00  Ni: 0.25/ 0.00/ 0.00 | species share 10.2% 43.6% 19.5% 15.5% 11.1%
+  density p=2, width k=2       Cr: 0.00/ 0.16/ 0.00  Mn: 0.00/ 0.60/ 0.00  Fe: 0.00/ 0.35/ 0.00  Co: 0.00/ 0.33/ 0.00  Ni: 0.00/ 1.00/ 0.00 | species share  6.6% 24.5% 14.2% 13.7% 41.0%
+  density p=2, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.96  Fe: 0.00/ 0.00/ 0.78  Co: 0.00/ 0.00/ 0.57  Ni: 0.00/ 0.00/ 0.45 | species share 26.6% 25.5% 20.7% 15.2% 12.0%
+  density p=3, width k=1       Cr: 0.52/ 0.00/ 0.00  Mn: 0.72/ 0.00/ 0.00  Fe: 1.00/ 0.00/ 0.00  Co: 0.94/ 0.00/ 0.00  Ni: 0.87/ 0.00/ 0.00 | species share 12.9% 17.7% 24.7% 23.2% 21.5%
+  density p=3, width k=2       Cr: 0.00/ 0.92/ 0.00  Mn: 0.00/ 0.86/ 0.00  Fe: 0.00/ 0.94/ 0.00  Co: 0.00/ 1.00/ 0.00  Ni: 0.00/ 0.94/ 0.00 | species share 19.8% 18.4% 20.2% 21.4% 20.2%
+  density p=3, width k=3       Cr: 0.00/ 0.00/ 1.00  Mn: 0.00/ 0.00/ 0.87  Fe: 0.00/ 0.00/ 0.89  Co: 0.00/ 0.00/ 0.83  Ni: 0.00/ 0.00/ 0.70 | species share 23.3% 20.3% 20.7% 19.3% 16.4%
+
+==== Exp 4: overfitting control, learn on 150 with early stopping on 50, refit c on 200 ====
+
+---- perwidth P=1 on 150, early stop on 50  (mode=perwidth P=1 ntheta=15)
+  init  L=1.958837e+02  train F=0.10051
+  it   1  train150 F=0.10051  val50 F=0.11790  (best 0.11790 @ it 1)
+  it   2  train150 F=0.09844  val50 F=0.11544  (best 0.11544 @ it 2)
+  it   3  train150 F=0.09703  val50 F=0.11415  (best 0.11415 @ it 3)
+  it   4  train150 F=0.09682  val50 F=0.11401  (best 0.11401 @ it 4)
+  it   5  train150 F=0.09673  val50 F=0.11408  (best 0.11401 @ it 4)
+  it   6  train150 F=0.09664  val50 F=0.11420  (best 0.11401 @ it 4)
+  it   7  train150 F=0.09656  val50 F=0.11402  (best 0.11401 @ it 4)
+  it   8  train150 F=0.09645  val50 F=0.11373  (best 0.11373 @ it 8)
+  it   9  train150 F=0.09632  val50 F=0.11346  (best 0.11346 @ it 9)
+  it  10  train150 F=0.09624  val50 F=0.11330  (best 0.11330 @ it 10)
+  it  11  train150 F=0.09619  val50 F=0.11328  (best 0.11328 @ it 11)
+  it  12  train150 F=0.09611  val50 F=0.11294  (best 0.11294 @ it 12)
+  it  13  train150 F=0.09594  val50 F=0.11242  (best 0.11242 @ it 13)
+  it  14  train150 F=0.09580  val50 F=0.11236  (best 0.11236 @ it 14)
+  it  15  train150 F=0.09577  val50 F=0.11234  (best 0.11234 @ it 15)
+  it  16  train150 F=0.09568  val50 F=0.11217  (best 0.11217 @ it 16)
+  it  17  train150 F=0.09555  val50 F=0.11187  (best 0.11187 @ it 17)
+  it  18  train150 F=0.09543  val50 F=0.11162  (best 0.11162 @ it 18)
+  it  19  train150 F=0.09541  val50 F=0.11154  (best 0.11154 @ it 19)
+  it  20  train150 F=0.09533  val50 F=0.11137  (best 0.11137 @ it 20)
+  it  21  train150 F=0.09530  val50 F=0.11129  (best 0.11129 @ it 21)
+  it  22  train150 F=0.09529  val50 F=0.11130  (best 0.11129 @ it 21)
+  it  23  train150 F=0.09527  val50 F=0.11134  (best 0.11129 @ it 21)
+  it  24  train150 F=0.09527  val50 F=0.11140  (best 0.11129 @ it 21)
+  it  25  train150 F=0.09528  val50 F=0.11147  (best 0.11129 @ it 21)
+  it  26  train150 F=0.09527  val50 F=0.11146  (best 0.11129 @ it 21)
+  it  27  train150 F=0.09527  val50 F=0.11144  (best 0.11129 @ it 21)
+  it  28  train150 F=0.09526  val50 F=0.11143  (best 0.11129 @ it 21)
+  it  29  train150 F=0.09526  val50 F=0.11144  (best 0.11129 @ it 21)
+  it  30  train150 F=0.09526  val50 F=0.11145  (best 0.11129 @ it 21)
+  it  31  train150 F=0.09526  val50 F=0.11145  (best 0.11129 @ it 21)
+  done: 31 iterations, 6 s, L 1.958837e+02 -> 1.761327e+02 (-10.08%), non-monotone steps: 0, |g|=8.37e-01
+  early stop: best val50 F=0.11129 at iteration 21 of 31
+RES VarPro perwidth P=1 (learned on 150, early-stopped, c refit on 200) ncol= 1965  [lam=1e-08] test F=0.1079 E=0.00525 V=0.0331 train F=0.0984 | [best lam=1e-08] test F=0.1079 E=0.00525 V=0.0331 train F=0.0984 | 21 it 6 s
+RES VarPro perwidth P=1 (learned on 150, final iterate, c refit on 200) ncol= 1965  [lam=1e-08] test F=0.1078 E=0.00523 V=0.0330 train F=0.0984 | [best lam=1e-08] test F=0.1078 E=0.00523 V=0.0330 train F=0.0984 | 31 it 6 s
+
+---- perwidth P=2 on 150, early stop on 50  (mode=perwidth P=2 ntheta=30)
+  init  L=1.801002e+02  train F=0.09634
+  it   1  train150 F=0.09634  val50 F=0.11403  (best 0.11403 @ it 1)
+  it   2  train150 F=0.09609  val50 F=0.11266  (best 0.11266 @ it 2)
+  it   3  train150 F=0.09586  val50 F=0.11213  (best 0.11213 @ it 3)
+  it   4  train150 F=0.09527  val50 F=0.11131  (best 0.11131 @ it 4)
+  it   5  train150 F=0.09502  val50 F=0.11111  (best 0.11111 @ it 5)
+  it   6  train150 F=0.09484  val50 F=0.11131  (best 0.11111 @ it 5)
+  it   7  train150 F=0.09467  val50 F=0.11122  (best 0.11111 @ it 5)
+  it   8  train150 F=0.09444  val50 F=0.11105  (best 0.11105 @ it 8)
+  it   9  train150 F=0.09439  val50 F=0.11105  (best 0.11105 @ it 9)
+  it  10  train150 F=0.09434  val50 F=0.11101  (best 0.11101 @ it 10)
+  it  11  train150 F=0.09431  val50 F=0.11106  (best 0.11101 @ it 10)
+  it  12  train150 F=0.09427  val50 F=0.11096  (best 0.11096 @ it 12)
+  it  13  train150 F=0.09417  val50 F=0.11080  (best 0.11080 @ it 13)
+  it  14  train150 F=0.09411  val50 F=0.11082  (best 0.11080 @ it 13)
+  it  15  train150 F=0.09398  val50 F=0.11072  (best 0.11072 @ it 15)
+  it  16  train150 F=0.09395  val50 F=0.11062  (best 0.11062 @ it 16)
+  it  17  train150 F=0.09391  val50 F=0.11063  (best 0.11062 @ it 16)
+  it  18  train150 F=0.09387  val50 F=0.11060  (best 0.11060 @ it 18)
+  it  19  train150 F=0.09385  val50 F=0.11052  (best 0.11052 @ it 19)
+  it  20  train150 F=0.09380  val50 F=0.11042  (best 0.11042 @ it 20)
+  it  21  train150 F=0.09374  val50 F=0.11026  (best 0.11026 @ it 21)
+  it  22  train150 F=0.09374  val50 F=0.11025  (best 0.11025 @ it 22)
+  it  23  train150 F=0.09371  val50 F=0.11019  (best 0.11019 @ it 23)
+  it  24  train150 F=0.09371  val50 F=0.11020  (best 0.11019 @ it 23)
+  it  25  train150 F=0.09369  val50 F=0.11016  (best 0.11016 @ it 25)
+  it  26  train150 F=0.09368  val50 F=0.11017  (best 0.11016 @ it 25)
+  it  27  train150 F=0.09367  val50 F=0.11016  (best 0.11016 @ it 25)
+  it  28  train150 F=0.09365  val50 F=0.11013  (best 0.11013 @ it 28)
+  it  29  train150 F=0.09362  val50 F=0.11007  (best 0.11007 @ it 29)
+  it  30  train150 F=0.09362  val50 F=0.11005  (best 0.11005 @ it 30)
+  it  31  train150 F=0.09360  val50 F=0.10999  (best 0.10999 @ it 31)
+  it  32  train150 F=0.09359  val50 F=0.10998  (best 0.10998 @ it 32)
+  it  33  train150 F=0.09358  val50 F=0.10994  (best 0.10994 @ it 33)
+  it  34  train150 F=0.09358  val50 F=0.10994  (best 0.10994 @ it 34)
+  it  35  train150 F=0.09357  val50 F=0.10994  (best 0.10994 @ it 35)
+  it  36  train150 F=0.09357  val50 F=0.10994  (best 0.10994 @ it 35)
+  it  37  train150 F=0.09357  val50 F=0.10993  (best 0.10993 @ it 37)
+  it  38  train150 F=0.09357  val50 F=0.10993  (best 0.10993 @ it 38)
+  it  39  train150 F=0.09356  val50 F=0.10994  (best 0.10993 @ it 38)
+  it  40  train150 F=0.09356  val50 F=0.10993  (best 0.10993 @ it 40)
+  it  41  train150 F=0.09356  val50 F=0.10993  (best 0.10993 @ it 40)
+  it  42  train150 F=0.09356  val50 F=0.10994  (best 0.10993 @ it 40)
+  it  43  train150 F=0.09356  val50 F=0.10993  (best 0.10993 @ it 43)
+  it  44  train150 F=0.09356  val50 F=0.10992  (best 0.10992 @ it 44)
+  it  45  train150 F=0.09356  val50 F=0.10992  (best 0.10992 @ it 45)
+  it  46  train150 F=0.09355  val50 F=0.10992  (best 0.10992 @ it 46)
+  it  47  train150 F=0.09355  val50 F=0.10992  (best 0.10992 @ it 47)
+  it  48  train150 F=0.09355  val50 F=0.10992  (best 0.10992 @ it 48)
+  it  49  train150 F=0.09355  val50 F=0.10992  (best 0.10992 @ it 48)
+  it  50  train150 F=0.09355  val50 F=0.10992  (best 0.10992 @ it 50)
+  it  51  train150 F=0.09355  val50 F=0.10992  (best 0.10992 @ it 50)
+  it  52  train150 F=0.09355  val50 F=0.10993  (best 0.10992 @ it 50)
+  it  53  train150 F=0.09355  val50 F=0.10994  (best 0.10992 @ it 50)
+  it  54  train150 F=0.09354  val50 F=0.10998  (best 0.10992 @ it 50)
+  it  55  train150 F=0.09353  val50 F=0.10999  (best 0.10992 @ it 50)
+  it  56  train150 F=0.09353  val50 F=0.11000  (best 0.10992 @ it 50)
+  it  57  train150 F=0.09353  val50 F=0.11001  (best 0.10992 @ it 50)
+  it  58  train150 F=0.09353  val50 F=0.11000  (best 0.10992 @ it 50)
+  it  59  train150 F=0.09353  val50 F=0.10999  (best 0.10992 @ it 50)
+  it  60  train150 F=0.09353  val50 F=0.10999  (best 0.10992 @ it 50)
+  done: 60 iterations, 16 s, L 1.801002e+02 -> 1.697823e+02 (-5.73%), non-monotone steps: 0, |g|=3.10e+00
+  early stop: best val50 F=0.10992 at iteration 50 of 60
+RES VarPro perwidth P=2 (learned on 150, early-stopped, c refit on 200) ncol= 1980  [lam=1e-08] test F=0.1061 E=0.00505 V=0.0316 train F=0.0967 | [best lam=1e-08] test F=0.1061 E=0.00505 V=0.0316 train F=0.0967 | 50 it 16 s
+RES VarPro perwidth P=2 (learned on 150, final iterate, c refit on 200) ncol= 1980  [lam=1e-08] test F=0.1061 E=0.00506 V=0.0315 train F=0.0967 | [best lam=1e-08] test F=0.1061 E=0.00506 V=0.0315 train F=0.0967 | 60 it 16 s
+
+---- perwidth P=3 on 150, early stop on 50  (mode=perwidth P=3 ntheta=45)
+  init  L=1.779296e+02  train F=0.09576
+  it   1  train150 F=0.09576  val50 F=0.11347  (best 0.11347 @ it 1)
+  it   2  train150 F=0.09497  val50 F=0.11180  (best 0.11180 @ it 2)
+  it   3  train150 F=0.09429  val50 F=0.11120  (best 0.11120 @ it 3)
+  it   4  train150 F=0.09422  val50 F=0.11113  (best 0.11113 @ it 4)
+  it   5  train150 F=0.09394  val50 F=0.11088  (best 0.11088 @ it 5)
+  it   6  train150 F=0.09381  val50 F=0.11064  (best 0.11064 @ it 6)
+  it   7  train150 F=0.09366  val50 F=0.11051  (best 0.11051 @ it 7)
+  it   8  train150 F=0.09353  val50 F=0.11021  (best 0.11021 @ it 8)
+  it   9  train150 F=0.09339  val50 F=0.11005  (best 0.11005 @ it 9)
+  it  10  train150 F=0.09334  val50 F=0.11000  (best 0.11000 @ it 10)
+  it  11  train150 F=0.09330  val50 F=0.10991  (best 0.10991 @ it 11)
+  it  12  train150 F=0.09326  val50 F=0.11000  (best 0.10991 @ it 11)
+  it  13  train150 F=0.09320  val50 F=0.10982  (best 0.10982 @ it 13)
+  it  14  train150 F=0.09304  val50 F=0.10960  (best 0.10960 @ it 14)
+  it  15  train150 F=0.09290  val50 F=0.10952  (best 0.10952 @ it 15)
+  it  16  train150 F=0.09283  val50 F=0.10970  (best 0.10952 @ it 15)
+  it  17  train150 F=0.09279  val50 F=0.10967  (best 0.10952 @ it 15)
+  it  18  train150 F=0.09274  val50 F=0.10974  (best 0.10952 @ it 15)
+  it  19  train150 F=0.09272  val50 F=0.10970  (best 0.10952 @ it 15)
+  it  20  train150 F=0.09271  val50 F=0.10965  (best 0.10952 @ it 15)
+  it  21  train150 F=0.09267  val50 F=0.10958  (best 0.10952 @ it 15)
+  it  22  train150 F=0.09264  val50 F=0.10956  (best 0.10952 @ it 15)
+  it  23  train150 F=0.09260  val50 F=0.10949  (best 0.10949 @ it 23)
+  it  24  train150 F=0.09256  val50 F=0.10946  (best 0.10946 @ it 24)
+  it  25  train150 F=0.09252  val50 F=0.10938  (best 0.10938 @ it 25)
+  it  26  train150 F=0.09251  val50 F=0.10936  (best 0.10936 @ it 26)
+  it  27  train150 F=0.09249  val50 F=0.10938  (best 0.10936 @ it 26)
+  it  28  train150 F=0.09247  val50 F=0.10942  (best 0.10936 @ it 26)
+  it  29  train150 F=0.09246  val50 F=0.10943  (best 0.10936 @ it 26)
+  it  30  train150 F=0.09246  val50 F=0.10942  (best 0.10936 @ it 26)
+  it  31  train150 F=0.09245  val50 F=0.10943  (best 0.10936 @ it 26)
+  it  32  train150 F=0.09245  val50 F=0.10940  (best 0.10936 @ it 26)
+  it  33  train150 F=0.09244  val50 F=0.10942  (best 0.10936 @ it 26)
+  it  34  train150 F=0.09244  val50 F=0.10941  (best 0.10936 @ it 26)
+  it  35  train150 F=0.09244  val50 F=0.10941  (best 0.10936 @ it 26)
+  it  36  train150 F=0.09244  val50 F=0.10939  (best 0.10936 @ it 26)
+  done: 36 iterations, 12 s, L 1.779296e+02 -> 1.656546e+02 (-6.90%), non-monotone steps: 0, |g|=8.41e-01
+  early stop: best val50 F=0.10936 at iteration 26 of 36
+RES VarPro perwidth P=3 (learned on 150, early-stopped, c refit on 200) ncol= 1995  [lam=1e-08] test F=0.1055 E=0.00521 V=0.0310 train F=0.0958 | [best lam=1e-08] test F=0.1055 E=0.00521 V=0.0310 train F=0.0958 | 26 it 12 s
+RES VarPro perwidth P=3 (learned on 150, final iterate, c refit on 200) ncol= 1995  [lam=1e-08] test F=0.1054 E=0.00521 V=0.0309 train F=0.0957 | [best lam=1e-08] test F=0.1054 E=0.00521 V=0.0309 train F=0.0957 | 36 it 12 s
+
+==== SUMMARY  D=4  split0 (train 200 / test 100)  lambda fixed = 1.0e-8 ====
+variant                                                         ncol  nth  train F   test F   test E   test V |  bestlam   best F |  vs lin vs sqrt vs tilt | CI(sqrt)    it   wall
+linear ACE                                                      1950    0   0.1094   0.1201  0.00622   0.0414 |    1e-07   0.1201 |   +0.0%   +4.9%  +12.5% | [+4.0,+5.9]     0     0s
+sqrt(rho_tot) K=3 [ref, = perwidth P=1 init]                    1965    0   0.1037   0.1144  0.00595   0.0352 |    1e-08   0.1144 |   -4.7%   +0.0%   +7.2% | [+0.0,+0.0]     0     0s
+ref + tilt +Cr (perwidth P=2 fixed)                             1980    0   0.1028   0.1137  0.00600   0.0347 |    1e-08   0.1137 |   -5.3%   -0.7%   +6.5% | [-1.1,-0.3]     0     0s
+ref + tilt +Mn (perwidth P=2 fixed)                             1980    0   0.0997   0.1098  0.00555   0.0313 |    1e-08   0.1098 |   -8.5%   -4.0%   +2.9% | [-4.8,-3.3]     0     0s
+ref + tilt +Fe (perwidth P=2 fixed)                             1980    0   0.1028   0.1132  0.00574   0.0352 |    1e-08   0.1132 |   -5.7%   -1.1%   +6.1% | [-1.4,-0.7]     0     0s
+ref + tilt +Co (perwidth P=2 fixed)                             1980    0   0.1023   0.1124  0.00567   0.0352 |    1e-08   0.1124 |   -6.4%   -1.7%   +5.4% | [-2.2,-1.4]     0     0s
+ref + tilt +Ni (perwidth P=2 fixed)                             1980    0   0.1018   0.1124  0.00561   0.0337 |    1e-08   0.1124 |   -6.3%   -1.7%   +5.4% | [-2.2,-1.2]     0     0s
+ref + all 5 tilts sqrt(rho_tot + rho^s) [hand]                  2040    0   0.0969   0.1067  0.00539   0.0309 |    1e-08   0.1067 |  -11.1%   -6.8%   +0.0% | [-7.8,-5.7]     0     0s
+VarPro perwidth P=1 (init equal)                                1965   15   0.0983   0.1078  0.00523   0.0329 |    1e-08   0.1078 |  -10.2%   -5.7%   +1.1% | [-6.7,-4.9]    63    14s
+VarPro perwidth P=2 (init equal + tilt Mn)                      1980   30   0.0963   0.1056  0.00503   0.0312 |    1e-08   0.1056 |  -12.0%   -7.7%   -1.0% | [-8.7,-6.7]   121    39s
+VarPro perwidth P=3 (init equal + tilts Mn,Co)                  1995   45   0.0955   0.1051  0.00520   0.0301 |    1e-08   0.1051 |  -12.4%   -8.1%   -1.5% | [-9.2,-7.1]   121    48s
+VarPro perwidth P=1 (learned on 150, early-stopped, c refit on 200)  1965   15   0.0984   0.1079  0.00525   0.0331 |    1e-08   0.1079 |  -10.1%   -5.7%   +1.1% | [-6.6,-4.9]    21     6s
+VarPro perwidth P=1 (learned on 150, final iterate, c refit on 200)  1965   15   0.0984   0.1078  0.00523   0.0330 |    1e-08   0.1078 |  -10.2%   -5.8%   +1.1% | [-6.7,-4.9]    31     6s
+VarPro perwidth P=2 (learned on 150, early-stopped, c refit on 200)  1980   30   0.0967   0.1061  0.00505   0.0316 |    1e-08   0.1061 |  -11.6%   -7.3%   -0.6% | [-8.4,-6.2]    50    16s
+VarPro perwidth P=2 (learned on 150, final iterate, c refit on 200)  1980   30   0.0967   0.1061  0.00506   0.0315 |    1e-08   0.1061 |  -11.6%   -7.3%   -0.6% | [-8.4,-6.2]    60    16s
+VarPro perwidth P=3 (learned on 150, early-stopped, c refit on 200)  1995   45   0.0958   0.1055  0.00521   0.0310 |    1e-08   0.1055 |  -12.2%   -7.8%   -1.2% | [-9.0,-6.8]    26    12s
+VarPro perwidth P=3 (learned on 150, final iterate, c refit on 200)  1995   45   0.0957   0.1054  0.00521   0.0309 |    1e-08   0.1054 |  -12.2%   -7.9%   -1.2% | [-9.0,-6.8]    36    12s
+saved /Users/u1470235/.julia/dev/ACEpotentials/acejax/spike_fs/varpro_learned_D4.jls

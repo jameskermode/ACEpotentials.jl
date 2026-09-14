@@ -1,0 +1,6 @@
+sqrt  width k=1: test sites with |u|>1:    1 /  4032 (0.02%), in  1 structures; max |u| = 1.017; T_8(max u) = 2.3
+sqrt  width k=2: test sites with |u|>1:    1 /  4032 (0.02%), in  1 structures; max |u| = 1.013; T_8(max u) = 2.0
+sqrt  width k=3: test sites with |u|>1:    0 /  4032 (0.00%), in  0 structures; max |u| = 0.995; T_8(max u) = 0.7
+log   width k=1: test sites with |u|>1:    1 /  4032 (0.02%), in  1 structures; max |u| = 1.023; T_8(max u) = 2.9
+log   width k=2: test sites with |u|>1:    1 /  4032 (0.02%), in  1 structures; max |u| = 1.023; T_8(max u) = 2.9
+log   width k=3: test sites with |u|>1:    1 /  4032 (0.02%), in  1 structures; max |u| = 1.005; T_8(max u) = 1.3

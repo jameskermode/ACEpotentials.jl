@@ -1,0 +1,60 @@
+
+==== D=4  (nace=1950) ====
+linear ACE                       ncol= 1950  test F=0.1201 E=0.00622 V=0.0414  train F=0.1094  lam=1e-07
++ sqrt(rho), K=3 [main]          ncol= 2025  test F=0.1170 E=0.00610 V=0.0375  train F=0.1058  lam=1e-08   dF=-2.5%
++ sqrt(rho_tot), K=3             ncol= 1965  test F=0.1144 E=0.00595 V=0.0352  train F=0.1037  lam=1e-08   dF=-4.7%
++ rho_tot, K=3 (ctrl)            ncol= 1965  test F=0.1192 E=0.00619 V=0.0411  train F=0.1086  lam=1e-08   dF=-0.7%
++ sqrt(rho), K=6                 ncol= 2100  test F=0.1167 E=0.00610 V=0.0369  train F=0.1051  lam=1e-07   dF=-2.8%
++ sqrt(rho_tot), K=6             ncol= 1980  test F=0.1136 E=0.00609 V=0.0339  train F=0.1027  lam=1e-08   dF=-5.4%
++ sqrt(rho), K=3, r0=2.0         ncol= 2025  test F=0.1167 E=0.00608 V=0.0374  train F=0.1057  lam=1e-08   dF=-2.8%
++ sqrt(rho), K=3, r0=3.0         ncol= 2025  test F=0.1174 E=0.00614 V=0.0376  train F=0.1060  lam=1e-08   dF=-2.2%
+bootstrap (2000 resamples of test structures): + sqrt(rho), K=3 [main] vs baseline, test F change = -2.5%  95% CI [-3.1%, -1.9%]
+  density tercile 1 (mean rho_tot 1.21..1.50): baseline F=0.1124  variant F=0.1089  (-3.1%)
+  density tercile 2 (mean rho_tot 1.50..1.68): baseline F=0.1204  variant F=0.1173  (-2.5%)
+  density tercile 3 (mean rho_tot 1.69..2.38): baseline F=0.1272  variant F=0.1246  (-2.0%)
+  structures with lower force SSE under the variant: 80 / 100
+bootstrap (2000 resamples of test structures): + sqrt(rho_tot), K=3 vs baseline, test F change = -4.7%  95% CI [-5.6%, -3.8%]
+  density tercile 1 (mean rho_tot 1.21..1.50): baseline F=0.1124  variant F=0.1074  (-4.5%)
+  density tercile 2 (mean rho_tot 1.50..1.68): baseline F=0.1204  variant F=0.1152  (-4.3%)
+  density tercile 3 (mean rho_tot 1.69..2.38): baseline F=0.1272  variant F=0.1205  (-5.2%)
+  structures with lower force SSE under the variant: 89 / 100
+
+==== D=5  (nace=3795) ====
+linear ACE                       ncol= 3795  test F=0.1119 E=0.00674 V=0.0358  train F=0.0911  lam=1e-07
++ sqrt(rho), K=3 [main]          ncol= 3870  test F=0.1110 E=0.00676 V=0.0353  train F=0.0901  lam=1e-07   dF=-0.8%
++ sqrt(rho_tot), K=3             ncol= 3810  test F=0.1075 E=0.00694 V=0.0354  train F=0.0882  lam=1e-07   dF=-3.9%
++ rho_tot, K=3 (ctrl)            ncol= 3810  test F=0.1117 E=0.00673 V=0.0359  train F=0.0910  lam=1e-07   dF=-0.1%
++ sqrt(rho), K=6                 ncol= 3945  test F=0.1110 E=0.00663 V=0.0353  train F=0.0897  lam=1e-07   dF=-0.8%
++ sqrt(rho_tot), K=6             ncol= 3825  test F=0.1075 E=0.00693 V=0.0353  train F=0.0881  lam=1e-07   dF=-3.9%
++ sqrt(rho), K=3, r0=2.0         ncol= 3870  test F=0.1108 E=0.00676 V=0.0353  train F=0.0901  lam=1e-07   dF=-0.9%
++ sqrt(rho), K=3, r0=3.0         ncol= 3870  test F=0.1112 E=0.00676 V=0.0353  train F=0.0902  lam=1e-07   dF=-0.6%
+bootstrap (2000 resamples of test structures): + sqrt(rho), K=3 [main] vs baseline, test F change = -0.8%  95% CI [-1.1%, -0.4%]
+  density tercile 1 (mean rho_tot 1.21..1.50): baseline F=0.1034  variant F=0.1022  (-1.2%)
+  density tercile 2 (mean rho_tot 1.50..1.68): baseline F=0.1140  variant F=0.1132  (-0.7%)
+  density tercile 3 (mean rho_tot 1.69..2.38): baseline F=0.1180  variant F=0.1173  (-0.5%)
+  structures with lower force SSE under the variant: 69 / 100
+bootstrap (2000 resamples of test structures): + sqrt(rho_tot), K=3 vs baseline, test F change = -3.9%  95% CI [-4.8%, -3.0%]
+  density tercile 1 (mean rho_tot 1.21..1.50): baseline F=0.1034  variant F=0.0999  (-3.4%)
+  density tercile 2 (mean rho_tot 1.50..1.68): baseline F=0.1140  variant F=0.1089  (-4.5%)
+  density tercile 3 (mean rho_tot 1.69..2.38): baseline F=0.1180  variant F=0.1136  (-3.7%)
+  structures with lower force SSE under the variant: 89 / 100
+
+==== D=6  (nace=6890) ====
+linear ACE                       ncol= 6890  test F=0.1133 E=0.00738 V=0.0427  train F=0.0754  lam=1e-07
++ sqrt(rho), K=3 [main]          ncol= 6965  test F=0.1129 E=0.00737 V=0.0431  train F=0.0750  lam=1e-07   dF=-0.3%
++ sqrt(rho_tot), K=3             ncol= 6905  test F=0.1111 E=0.00742 V=0.0424  train F=0.0744  lam=1e-07   dF=-1.9%
++ rho_tot, K=3 (ctrl)            ncol= 6905  test F=0.1129 E=0.00731 V=0.0402  train F=0.0777  lam=1e-05   dF=-0.3%
++ sqrt(rho), K=6                 ncol= 7040  test F=0.1129 E=0.00734 V=0.0429  train F=0.0753  lam=1e-06   dF=-0.4%
++ sqrt(rho_tot), K=6             ncol= 6920  test F=0.1110 E=0.00742 V=0.0422  train F=0.0743  lam=1e-07   dF=-2.0%
++ sqrt(rho), K=3, r0=2.0         ncol= 6965  test F=0.1128 E=0.00739 V=0.0432  train F=0.0750  lam=1e-07   dF=-0.4%
++ sqrt(rho), K=3, r0=3.0         ncol= 6965  test F=0.1130 E=0.00735 V=0.0430  train F=0.0750  lam=1e-07   dF=-0.3%
+bootstrap (2000 resamples of test structures): + sqrt(rho), K=3 [main] vs baseline, test F change = -0.3%  95% CI [-0.6%, -0.1%]
+  density tercile 1 (mean rho_tot 1.21..1.50): baseline F=0.1045  variant F=0.1040  (-0.5%)
+  density tercile 2 (mean rho_tot 1.50..1.68): baseline F=0.1137  variant F=0.1134  (-0.3%)
+  density tercile 3 (mean rho_tot 1.69..2.38): baseline F=0.1213  variant F=0.1209  (-0.3%)
+  structures with lower force SSE under the variant: 55 / 100
+bootstrap (2000 resamples of test structures): + sqrt(rho_tot), K=3 vs baseline, test F change = -1.9%  95% CI [-2.5%, -1.4%]
+  density tercile 1 (mean rho_tot 1.21..1.50): baseline F=0.1045  variant F=0.1027  (-1.8%)
+  density tercile 2 (mean rho_tot 1.50..1.68): baseline F=0.1137  variant F=0.1111  (-2.3%)
+  density tercile 3 (mean rho_tot 1.69..2.38): baseline F=0.1213  variant F=0.1192  (-1.8%)
+  structures with lower force SSE under the variant: 81 / 100

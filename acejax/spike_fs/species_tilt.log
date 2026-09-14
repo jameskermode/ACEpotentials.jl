@@ -1,0 +1,20 @@
+FD check (per-species channels, both tilts, 165 cols): |F|max=2.26e+00 |V|max=2.69e+01  err F=3.90e-10 V=1.43e-09
+max |per-species-channel sqrt(rho_tot) - FSSpec(total)| = 7.105427357601002e-15
+
+==== D=4  (nace=1950) ====
+sqrt(rho_tot) [ref]            ncol= 1965  test F=0.1144 E=0.00595 V=0.0352  train F=0.1037  lam=1e-08  cond(X)=3.6e+03
++ sqrt(rho_tot + rho^s)        ncol= 2040  test F=0.1067 E=0.00539 V=0.0309  train F=0.0969  lam=1e-08  dF(vs sqrt)=-6.8% CI[-7.8,-5.7]  cond(X)=1.1e+06
++ sqrt(rho_tot - rho^s)        ncol= 2040  test F=0.1070 E=0.00561 V=0.0316  train F=0.0975  lam=1e-08  dF(vs sqrt)=-6.5% CI[-7.3,-5.6]  cond(X)=3.9e+05
++ both tilts                   ncol= 2115  test F=0.1061 E=0.00539 V=0.0305  train F=0.0960  lam=1e-07  dF(vs sqrt)=-7.3% CI[-8.3,-6.2]  cond(X)=5.5e+06
+
+==== D=5  (nace=3795) ====
+sqrt(rho_tot) [ref]            ncol= 3810  test F=0.1075 E=0.00694 V=0.0354  train F=0.0882  lam=1e-07  cond(X)=3.6e+03
++ sqrt(rho_tot + rho^s)        ncol= 3885  test F=0.1040 E=0.00639 V=0.0334  train F=0.0855  lam=1e-07  dF(vs sqrt)=-3.3% CI[-4.1,-2.5]  cond(X)=1.1e+06
++ sqrt(rho_tot - rho^s)        ncol= 3885  test F=0.1043 E=0.00659 V=0.0334  train F=0.0857  lam=1e-07  dF(vs sqrt)=-3.0% CI[-3.6,-2.4]  cond(X)=3.9e+05
++ both tilts                   ncol= 3960  test F=0.1038 E=0.00653 V=0.0323  train F=0.0849  lam=1e-07  dF(vs sqrt)=-3.5% CI[-4.2,-2.7]  cond(X)=5.5e+06
+
+==== D=6  (nace=6890) ====
+sqrt(rho_tot) [ref]            ncol= 6905  test F=0.1111 E=0.00742 V=0.0424  train F=0.0744  lam=1e-07  cond(X)=3.6e+03
++ sqrt(rho_tot + rho^s)        ncol= 6980  test F=0.1095 E=0.00729 V=0.0399  train F=0.0737  lam=1e-06  dF(vs sqrt)=-1.5% CI[-2.1,-0.9]  cond(X)=1.1e+06
++ sqrt(rho_tot - rho^s)        ncol= 6980  test F=0.1098 E=0.00743 V=0.0396  train F=0.0737  lam=1e-06  dF(vs sqrt)=-1.1% CI[-1.8,-0.5]  cond(X)=3.9e+05
++ both tilts                   ncol= 7055  test F=0.1094 E=0.00730 V=0.0399  train F=0.0734  lam=1e-06  dF(vs sqrt)=-1.5% CI[-2.2,-0.8]  cond(X)=5.5e+06
