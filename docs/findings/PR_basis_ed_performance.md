@@ -324,7 +324,10 @@ verbatim into the benchmark script and run in the same process
 
 (The single-site "new" numbers include building the full
 `(length_basis x nneigh)` `dB` matrix, 13-40 MB, which the
-`energy_forces_virial_basis` path does not do.)
+`energy_forces_virial_basis` path does not do.  These Part A numbers were
+taken before Part B; with Part B's radial kernel the serial
+`energy_forces_virial_basis` is 23.0 ms / 18.5 MB (D = 6) and
+75.8 ms / 58.9 MB (D = 8) on the same structure, i.e. 250x / 190x.)
 
 The `assemble` ratios (18x / 48x) are far below the
 `energy_forces_virial_basis` ratios (218x / 174x) because, once the feature
