@@ -1,0 +1,80 @@
+### device empty before: --npz fixtures/si_l2849.npz --reps 6 --repeats 20 --modes julia balanced (12:49:24)
+########  si_l2849.npz  n_A=238 n_AA=24116 n_B=2849 | 1728 atoms 76920 edges | f64 A2B=sparse | gpu
+  baseline  model.site_basis   11.712 ms | spike flat site_basis   11.315 ms | flat E+F   46.724 ms
+  ORACLE (AA products deleted, gather only): site_basis    9.205 ms | E+F   34.677 ms
+  => whole AA budget: site_basis   2.109 ms (18.6%) | E+F  12.047 ms (25.8%)  <- ceiling for any AA scheme
+  -- mode=julia: build 0.49s, nodes 24995 (aux 897), cols 25233 vs 24116, depth 3, levels [1438, 14301, 9256]
+     mults 24995 vs 63816 (2.55x), reads 49990 vs 87932 (1.76x)
+     dus     AA max-rel 5.21e-16 dF 1.47e-15 | site_basis   11.898 ms (0.951x) | E+F   49.336 ms (0.947x)
+     concat  AA max-rel 5.21e-16 dF 1.34e-15 | site_basis    9.018 ms (1.255x) | E+F   50.290 ms (0.929x)
+     cvjp    AA max-rel 5.21e-16 dF 1.34e-15 | site_basis    9.584 ms (1.181x) | E+F  193.423 ms (0.242x)
+  -- mode=balanced: build 0.32s, nodes 26183 (aux 2085), cols 26421 vs 24116, depth 2, levels [2757, 23426]
+     mults 26183 vs 63816 (2.44x), reads 52366 vs 87932 (1.68x)
+     dus     AA max-rel 5.21e-16 dF 1.27e-15 | site_basis   11.771 ms (0.961x) | E+F   49.446 ms (0.945x)
+     concat  AA max-rel 5.21e-16 dF 1.34e-15 | site_basis    9.006 ms (1.256x) | E+F   47.258 ms (0.989x)
+     cvjp    AA max-rel 5.21e-16 dF 1.47e-15 | site_basis    9.108 ms (1.242x) | E+F  197.267 ms (0.237x)
+### after: --npz fixtures/si_l2849.npz --reps 6 --repeats 20 --modes julia balanced (12:50:42) occupancy: []
+### device empty before: --npz fixtures/si_l2849.npz --reps 6 --repeats 20 --modes julia balanced --f32 (12:50:42)
+########  si_l2849.npz  n_A=238 n_AA=24116 n_B=2849 | 1728 atoms 76920 edges | f32 A2B=sparse | gpu
+  baseline  model.site_basis    6.177 ms | spike flat site_basis    6.206 ms | flat E+F   31.288 ms
+  ORACLE (AA products deleted, gather only): site_basis    4.021 ms | E+F   19.808 ms
+  => whole AA budget: site_basis   2.186 ms (35.2%) | E+F  11.480 ms (36.7%)  <- ceiling for any AA scheme
+  -- mode=julia: build 0.50s, nodes 24995 (aux 897), cols 25233 vs 24116, depth 3, levels [1438, 14301, 9256]
+     mults 24995 vs 63816 (2.55x), reads 49990 vs 87932 (1.76x)
+     dus     AA max-rel 2.84e-07 dF 8.64e-07 | site_basis    6.460 ms (0.961x) | E+F   30.161 ms (1.037x)
+     concat  AA max-rel 2.84e-07 dF 7.92e-07 | site_basis    5.442 ms (1.140x) | E+F   28.529 ms (1.097x)
+     cvjp    AA max-rel 2.84e-07 dF 7.92e-07 | site_basis    5.407 ms (1.148x) | E+F  107.009 ms (0.292x)
+  -- mode=balanced: build 0.32s, nodes 26183 (aux 2085), cols 26421 vs 24116, depth 2, levels [2757, 23426]
+     mults 26183 vs 63816 (2.44x), reads 52366 vs 87932 (1.68x)
+     dus     AA max-rel 2.82e-07 dF 5.76e-07 | site_basis    6.450 ms (0.962x) | E+F   30.158 ms (1.037x)
+     concat  AA max-rel 2.82e-07 dF 7.92e-07 | site_basis    5.954 ms (1.042x) | E+F   26.248 ms (1.192x)
+     cvjp    AA max-rel 2.82e-07 dF 8.64e-07 | site_basis    5.979 ms (1.038x) | E+F  114.778 ms (0.273x)
+### after: --npz fixtures/si_l2849.npz --reps 6 --repeats 20 --modes julia balanced --f32 (12:52:27) occupancy: []
+### device empty before: --npz fixtures/si_m710.npz --reps 6 --repeats 20 --modes julia balanced (12:52:27)
+########  si_m710.npz  n_A=116 n_AA=2956 n_B=710 | 1728 atoms 76920 edges | f64 A2B=sparse | gpu
+  baseline  model.site_basis    3.340 ms | spike flat site_basis    3.357 ms | flat E+F   15.145 ms
+  ORACLE (AA products deleted, gather only): site_basis    2.900 ms | E+F   13.721 ms
+  => whole AA budget: site_basis   0.457 ms (13.6%) | E+F   1.425 ms ( 9.4%)  <- ceiling for any AA scheme
+  -- mode=julia: build 0.05s, nodes 3077 (aux 135), cols 3193 vs 2956, depth 3, levels [395, 2056, 626]
+     mults 3077 vs 7095 (2.31x), reads 6154 vs 10051 (1.63x)
+     dus     AA max-rel 5.17e-16 dF 1.62e-15 | site_basis    3.310 ms (1.014x) | E+F   15.218 ms (0.995x)
+     concat  AA max-rel 5.17e-16 dF 1.08e-15 | site_basis    3.182 ms (1.055x) | E+F   15.019 ms (1.008x)
+     cvjp    AA max-rel 5.17e-16 dF 1.35e-15 | site_basis    3.106 ms (1.081x) | E+F   31.970 ms (0.474x)
+  -- mode=balanced: build 0.04s, nodes 3230 (aux 288), cols 3346 vs 2956, depth 2, levels [558, 2672]
+     mults 3230 vs 7095 (2.20x), reads 6460 vs 10051 (1.56x)
+     dus     AA max-rel 5.17e-16 dF 1.42e-15 | site_basis    3.344 ms (1.004x) | E+F   14.971 ms (1.012x)
+     concat  AA max-rel 5.17e-16 dF 1.35e-15 | site_basis    2.664 ms (1.260x) | E+F   14.702 ms (1.030x)
+     cvjp    AA max-rel 5.17e-16 dF 1.49e-15 | site_basis    3.150 ms (1.066x) | E+F   28.803 ms (0.526x)
+### after: --npz fixtures/si_m710.npz --reps 6 --repeats 20 --modes julia balanced (12:56:28) occupancy: []
+### device empty before: --npz fixtures/si_l2849.npz --reps 3 --repeats 20 --modes julia balanced (12:56:28)
+########  si_l2849.npz  n_A=238 n_AA=24116 n_B=2849 | 216 atoms 9582 edges | f64 A2B=sparse | gpu
+  baseline  model.site_basis    1.759 ms | spike flat site_basis    1.948 ms | flat E+F    3.942 ms
+  ORACLE (AA products deleted, gather only): site_basis    1.741 ms | E+F    3.006 ms
+  => whole AA budget: site_basis   0.206 ms (10.6%) | E+F   0.935 ms (23.7%)  <- ceiling for any AA scheme
+  -- mode=julia: build 0.50s, nodes 24995 (aux 897), cols 25233 vs 24116, depth 3, levels [1438, 14301, 9256]
+     mults 24995 vs 63816 (2.55x), reads 49990 vs 87932 (1.76x)
+     dus     AA max-rel 4.91e-16 dF 1.36e-15 | site_basis    1.824 ms (1.068x) | E+F    4.357 ms (0.905x)
+     concat  AA max-rel 4.91e-16 dF 1.29e-15 | site_basis    1.731 ms (1.125x) | E+F    4.270 ms (0.923x)
+     cvjp    AA max-rel 4.91e-16 dF 1.50e-15 | site_basis    1.703 ms (1.144x) | E+F    4.474 ms (0.881x)
+  -- mode=balanced: build 0.31s, nodes 26183 (aux 2085), cols 26421 vs 24116, depth 2, levels [2757, 23426]
+     mults 26183 vs 63816 (2.44x), reads 52366 vs 87932 (1.68x)
+     dus     AA max-rel 4.89e-16 dF 1.22e-15 | site_basis    1.843 ms (1.057x) | E+F    4.306 ms (0.915x)
+     concat  AA max-rel 4.89e-16 dF 1.09e-15 | site_basis    1.758 ms (1.108x) | E+F    3.540 ms (1.113x)
+     cvjp    AA max-rel 4.89e-16 dF 1.09e-15 | site_basis    1.664 ms (1.170x) | E+F    3.691 ms (1.068x)
+### after: --npz fixtures/si_l2849.npz --reps 3 --repeats 20 --modes julia balanced (13:00:47) occupancy: []
+### device empty before: --npz fixtures/si_s69.npz --reps 6 --repeats 20 --modes julia balanced (13:00:47)
+########  si_s69.npz  n_A=25 n_AA=105 n_B=69 | 1728 atoms 76920 edges | f64 A2B=sparse | gpu
+  baseline  model.site_basis    0.840 ms | spike flat site_basis    0.841 ms | flat E+F    3.313 ms
+  ORACLE (AA products deleted, gather only): site_basis    0.835 ms | E+F    3.326 ms
+  => whole AA budget: site_basis   0.006 ms ( 0.7%) | E+F  -0.013 ms (-0.4%)  <- ceiling for any AA scheme
+  -- mode=julia: build 0.00s, nodes 97 (aux 0), cols 122 vs 105, depth 2, levels [39, 58]
+     mults 97 vs 176 (1.81x), reads 194 vs 281 (1.45x)
+     dus     AA max-rel 4.43e-16 dF 1.13e-15 | site_basis    0.842 ms (0.998x) | E+F    3.372 ms (0.982x)
+     concat  AA max-rel 4.43e-16 dF 1.25e-15 | site_basis    0.826 ms (1.018x) | E+F    3.293 ms (1.006x)
+     cvjp    AA max-rel 4.43e-16 dF 1.25e-15 | site_basis    0.791 ms (1.063x) | E+F    3.329 ms (0.995x)
+  -- mode=balanced: build 0.00s, nodes 97 (aux 0), cols 122 vs 105, depth 2, levels [39, 58]
+     mults 97 vs 176 (1.81x), reads 194 vs 281 (1.45x)
+     dus     AA max-rel 4.43e-16 dF 1.13e-15 | site_basis    0.803 ms (1.048x) | E+F    3.383 ms (0.979x)
+     concat  AA max-rel 4.43e-16 dF 1.13e-15 | site_basis    0.786 ms (1.070x) | E+F    3.348 ms (0.990x)
+     cvjp    AA max-rel 4.43e-16 dF 1.13e-15 | site_basis    0.876 ms (0.960x) | E+F    3.341 ms (0.991x)
+### after: --npz fixtures/si_s69.npz --reps 6 --repeats 20 --modes julia balanced (13:01:36) occupancy: []

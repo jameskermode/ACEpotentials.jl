@@ -1,0 +1,14 @@
+########  si_l2849.npz  n_A=238 n_AA=24116 n_B=2849 | 216 atoms 9582 edges | f64 A2B=sparse | cpu
+  baseline  model.site_basis   53.273 ms | spike flat site_basis   53.168 ms | flat E+F  272.498 ms
+  ORACLE (AA products deleted, gather only): site_basis   39.925 ms | E+F   68.476 ms
+  => whole AA budget: site_basis  13.243 ms (24.9%) | E+F 204.022 ms (74.9%)  <- ceiling for any AA scheme
+  -- mode=julia: build 0.52s, nodes 24995 (aux 897), cols 25233 vs 24116, depth 3, levels [1438, 14301, 9256]
+     mults 24995 vs 63816 (2.55x), reads 49990 vs 87932 (1.76x)
+     dus     AA max-rel 4.57e-16 dF 8.16e-16 | site_basis   62.718 ms (0.848x) | E+F  158.038 ms (1.724x)
+     concat  AA max-rel 4.57e-16 dF 8.16e-16 | site_basis   68.957 ms (0.771x) | E+F  155.805 ms (1.749x)
+     cvjp    AA max-rel 4.57e-16 dF 9.52e-16 | site_basis   76.239 ms (0.697x) | E+F  161.625 ms (1.686x)
+  -- mode=balanced: build 0.31s, nodes 26183 (aux 2085), cols 26421 vs 24116, depth 2, levels [2757, 23426]
+     mults 26183 vs 63816 (2.44x), reads 52366 vs 87932 (1.68x)
+     dus     AA max-rel 4.74e-16 dF 8.16e-16 | site_basis   46.531 ms (1.143x) | E+F  118.430 ms (2.301x)
+     concat  AA max-rel 4.74e-16 dF 8.16e-16 | site_basis   53.754 ms (0.989x) | E+F  133.702 ms (2.038x)
+     cvjp    AA max-rel 4.74e-16 dF 9.52e-16 | site_basis   53.744 ms (0.989x) | E+F  170.572 ms (1.598x)

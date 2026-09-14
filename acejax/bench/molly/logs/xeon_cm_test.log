@@ -1,0 +1,8 @@
+# molly-ace  mode=cached  atoms=216  julia_threads=1  blas_threads=1  dt=0.25fs  inner=10  skin=0.5  remove_CM=0  L=16.29  cutoff=6.0 Å  tag=cm0_t1
+RESULT tag=cm0_t1 mode=cached atoms=216 julia_threads=1 steps=60 reps=4 ms_per_step_min=27.020998166666665 atom_steps_per_s=7993.783155888721 spread_pct=0.8756781739662993 final_PE=-35245.836866093356 final_KE=14.805456296712803
+# molly-ace  mode=cached  atoms=216  julia_threads=16  blas_threads=1  dt=0.25fs  inner=10  skin=0.5  remove_CM=0  L=16.29  cutoff=6.0 Å  tag=cm0_t16
+RESULT tag=cm0_t16 mode=cached atoms=216 julia_threads=16 steps=60 reps=4 ms_per_step_min=4.314139583333334 atom_steps_per_s=50067.92103678456 spread_pct=8.696705938370277 final_PE=-35245.836866093334 final_KE=14.805456296712803
+# molly-ace  mode=cached  atoms=216  julia_threads=1  blas_threads=1  dt=0.25fs  inner=10  skin=0.5  remove_CM=1  L=16.29  cutoff=6.0 Å  tag=cm1_t1
+RESULT tag=cm1_t1 mode=cached atoms=216 julia_threads=1 steps=60 reps=4 ms_per_step_min=27.011914683333337 atom_steps_per_s=7996.471280626193 spread_pct=29.56156388867019 final_PE=-35245.83686609336 final_KE=14.805456296712807
+# molly-ace  mode=cached  atoms=216  julia_threads=16  blas_threads=1  dt=0.25fs  inner=10  skin=0.5  remove_CM=1  L=16.29  cutoff=6.0 Å  tag=cm1_t16
+RESULT tag=cm1_t16 mode=cached atoms=216 julia_threads=16 steps=60 reps=4 ms_per_step_min=4.582342716666668 atom_steps_per_s=47137.46076092817 spread_pct=34.1301348830074 final_PE=-35245.836866093334 final_KE=14.805456296712807

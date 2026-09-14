@@ -1,0 +1,5 @@
+# Regenerable by fit_v06.jl (~2 min).  The yace alone is 10 MB, and it does not
+# currently load under pair_style pace anyway -- see docs/findings.
+si_v06.yace
+si_v06_check.xyz
+si_v06_pairpot.table

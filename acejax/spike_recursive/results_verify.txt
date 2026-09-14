@@ -1,0 +1,44 @@
+
+######## si_s69.npz  n_A=25 n_AA=105 n_B=69 | 64 atoms, 2852 edges (CPU, f64)
+  mode=chain     depth 3  nodes 109    levels [48, 40, 21]              
+     structural spec identity : EXACT
+     AA vs flat               : bitwise True, max 0 ulp, mean 0.000 ulp
+     B  bitwise True  rel 0.000e+00 | E rel 0.000e+00 | F rel 7.435e-16   -> PASS
+  mode=julia     depth 2  nodes 97     levels [39, 58]                  
+     structural spec identity : EXACT
+     AA vs flat               : bitwise False, max 2 ulp, mean 0.136 ulp
+     B  bitwise False rel 1.645e-16 | E rel 2.511e-16 | F rel 7.435e-16   -> PASS
+  mode=balanced  depth 2  nodes 97     levels [39, 58]                  
+     structural spec identity : EXACT
+     AA vs flat               : bitwise False, max 2 ulp, mean 0.136 ulp
+     B  bitwise False rel 1.645e-16 | E rel 2.511e-16 | F rel 5.576e-16   -> PASS
+
+######## si_m710.npz  n_A=116 n_AA=2956 n_B=710 | 64 atoms, 2852 edges (CPU, f64)
+  mode=chain     depth 3  nodes 3678   levels [571, 1626, 1481]         
+     structural spec identity : EXACT
+     AA vs flat               : bitwise True, max 0 ulp, mean 0.000 ulp
+     B  bitwise True  rel 0.000e+00 | E rel 2.803e-16 | F rel 7.000e-16   -> PASS
+  mode=julia     depth 3  nodes 3077   levels [395, 2056, 626]          
+     structural spec identity : EXACT
+     AA vs flat               : bitwise False, max 3 ulp, mean 0.261 ulp
+     B  bitwise False rel 4.358e-18 | E rel 2.803e-16 | F rel 8.400e-16   -> PASS
+  mode=balanced  depth 2  nodes 3230   levels [558, 2672]               
+     structural spec identity : EXACT
+     AA vs flat               : bitwise False, max 3 ulp, mean 0.304 ulp
+     B  bitwise False rel 4.358e-18 | E rel 2.803e-16 | F rel 7.000e-16   -> PASS
+
+######## si_l2849.npz  n_A=238 n_AA=24116 n_B=2849 | 64 atoms, 2852 edges (CPU, f64)
+  mode=chain     depth 3  nodes 29616  levels [2111, 11213, 16292]      
+     structural spec identity : EXACT
+     AA vs flat               : bitwise True, max 0 ulp, mean 0.000 ulp
+     B  bitwise True  rel 0.000e+00 | E rel 1.600e-16 | F rel 8.394e-16   -> PASS
+  mode=julia     depth 3  nodes 24995  levels [1438, 14301, 9256]       
+     structural spec identity : EXACT
+     AA vs flat               : bitwise False, max 3 ulp, mean 0.306 ulp
+     B  bitwise False rel 6.674e-17 | E rel 1.600e-16 | F rel 5.596e-16   -> PASS
+  mode=balanced  depth 2  nodes 26183  levels [2757, 23426]             
+     structural spec identity : EXACT
+     AA vs flat               : bitwise False, max 3 ulp, mean 0.366 ulp
+     B  bitwise False rel 1.335e-16 | E rel 1.600e-16 | F rel 8.394e-16   -> PASS
+
+ALL CHECKS PASS
