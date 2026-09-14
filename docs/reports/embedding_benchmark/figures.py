@@ -98,7 +98,8 @@ series = {
     "MACE-MH-1, mace-jax (e3nn-jax)":       ([3.9e3, 6.8e3, 7.6e3], "#333333", "s", "--"),
     "MACE-MH-1, torch plain":               ([1.0e3, 2.2e3, 2.2e3], "#333333", "^", ":"),
     "MACE-MP-0 medium, torch + cuEq":       ([1.0e3, 8.3e3, 2.8e4], "#8c8c8c", "D", "-"),
-    "MACE-MP-0 small, mace-jax":            ([8.7e3, 2.0e4, 2.4e4], "#8c8c8c", "s", "--"),
+    "MACE-MP-0 medium, mace-jax":           ([5.3e3, 9.5e3, 1.1e4], "#8c8c8c", "s", "--"),
+    "MACE-MP-0 medium, torch plain":        ([1.6e3, 3.9e3, 3.9e3], "#8c8c8c", "^", ":"),
 }
 fig, ax = plt.subplots(figsize=(7.0, 3.2))
 for lab, (v, c, mk, ls) in series.items():
