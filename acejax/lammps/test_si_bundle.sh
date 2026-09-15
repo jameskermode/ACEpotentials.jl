@@ -55,7 +55,7 @@ if [ -f si_undersized.lammps-jax.json ]; then
   echo "### undersized max_local -> NaN ###"
   $V/bin/lmp $KK -var pjrt $PJRT -var bundle si_undersized.lammps-jax.json \
       -var dump_path undersized.dump -in in.mlip_si > undersized.log 2>&1 || true
-  PE_LINE=$(grep -A1 "^ *Step" undersized.log | awk 'NR==2')
+  PE_LINE=$(grep -A1 "^ *Step" undersized.log | awk 'NR==2' || true)
   if echo "$PE_LINE" | grep -qi nan || grep -qi "Non-numeric" undersized.log; then
     echo "OK: potential energy is NaN (or LAMMPS aborted loudly)"
   else
