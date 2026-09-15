@@ -7,3 +7,7 @@ si_s69.npz
 si_m710.npz
 si_l2849.npz
 si_211.npz
+
+# committed test fixture, two species, random weights:
+#   ACE_ELEMENTS=Si,Ge ACE_ORDER=3 ACE_TOTALDEGREE=6 ACE_NOFIT=1 \
+#     julia --project=julia julia/export_model.jl fixtures/sige_nofit.npz ace1

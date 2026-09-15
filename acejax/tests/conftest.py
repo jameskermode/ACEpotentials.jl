@@ -29,6 +29,9 @@ REQUIRE = bool(os.environ.get("ACEJAX_REQUIRE_FIXTURES"))
 MODELS = {
     "ace1_spline_spherical": "si_fitted.npz",
     "ace_analytic_solid": "si_ace_model.npz",
+    # two species, random (unfitted) weights: exercises every per-species index
+    # path -- Wnlq[:,:,iz,jz], E0[z], WB[:,z] and the folded ctilde[:,z]
+    "ace1_two_species": "sige_nofit.npz",
 }
 
 
