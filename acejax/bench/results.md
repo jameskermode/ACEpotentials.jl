@@ -1061,3 +1061,29 @@ magnitude as the final reviewer's numbers on moriarty (`si_s69` |dE| 5.7e-14;
 |ΔE| = 0, |ΔF| 1.75e-13 eV/Å; np2 |ΔE| 7.3e-12, |ΔF| 1.48e-13. An undersized
 bundle (`max_local` 200) produced thermo `PotEng nan` as designed; the
 negative-energy sanity print still came out OK.
+
+## CPU, single core: acejax (XLA-CPU) against `pair_style pace` (2026-09-15)
+
+Bearing on a possible CPU backend for `pair jax/kk`. moriarty Xeon Silver
+4216, one pinned core each (`taskset`, `OMP_NUM_THREADS=1`, XLA single-thread
+Eigen), 1728 Si atoms, f64, 100 single-point steps (`timestep 0.0`), repeats
+within 0.3-7%. pace rows are inside LAMMPS (ML-PACE build, no Kokkos); the
+acejax rows are the raw Python kernel via `bench_acejax.py` under
+`JAX_PLATFORMS=cpu` (folded readout, sparse A2B at 710/2849; no neighbour
+list, no plugin padding), so the ratio flatters acejax. Same matched bases
+as the CORRECTION series (`~/si-ace/pace/pace_{s78,m693,l2874}.ace`).
+
+| n_B (ours / pace) | pace `product` ms/step | pace `recursive` ms/step | acejax XLA-CPU ms/step | acejax / recursive |
+|---|---|---|---|---|
+| 69 / 78 | 119 | 70 | 195 | 2.8x |
+| 710 / 693 | 918 | 282 | 1027 | 3.6x |
+| 2849 / 2874 | 3910 | 1050 | 6330 | 6.0x |
+
+`recursive` is `pair_style pace`'s CPU default and its real mode; `product`
+is what `pace/kk` supports, which is why GPU parity (1.02x above) was
+reachable. Per core the XLA kernel is 2.8-6x behind ML-PACE, worst at
+production basis size, tracking the AA share -- the subproduct sharing the
+recursive evaluator exploits. A CPU port of the plugin would therefore need a
+CPU-oriented recursive AA evaluator in the kernel (the DAG spike's reverse-pass
+buffer argument was a GPU one) before it competes; it does not on today's
+kernel. Raw logs: `moriarty:~/si-ace/cpu_bench/`.
