@@ -6,7 +6,7 @@ reproduces our forces to 1e-10 eV/A?
 **Answer.** No. Every route through libpace evaluates radial functions from a
 cubic Hermite table in r (or from a fixed polynomial family we cannot produce),
 and the best measured residual is **max |dF| = 5.4e-9 eV/A (3.2e-10 relative)**,
-50x the criterion, with no parameter that improves it further. Details, numbers
+54x the criterion, with no parameter that improves it further. Details, numbers
 and dead ends below.
 
 **Recommendation (one line).** Not exact; CPU users deploy via the
@@ -133,10 +133,73 @@ The v0.10 `ace1_model` radial is `Rnl(r) = spline(x) * env(r, x)` with
   interpolation `O(h^3 R'''')` (`O(h^2 [R'''])` in an interval straddling a
   knot) and rounding `O(eps |R| / h)` from differencing O(1) nodal values --
   the second grows as `nbins` grows. Neither is removable.
-- **(c) `ChebExpCos`/`ChebPow` + `crad`**: a least-squares fit of our
-  functions onto PACE's family *and then* the same 0.001 A Hermite table.
-  Strictly dominated by (b); not attempted beyond this observation. It is the
-  only family `pace/kk` accepts.
+- **(c) `ChebExpCos`/`ChebPow` + `crad`**: PACE evaluates
+  `fr(n,l) = sum_k crad(n,l,k) g_k(r)`, so the best this route can do is the
+  least-squares projection of our `R_nl` onto `{g_k}`, *and then* the same
+  0.001 A Hermite table. Shown below to be worse than (b) by 6-8 orders of
+  magnitude. It is the only family `pace/kk` accepts.
+
+### Route (c): PACE's transform and cutoff against ours
+
+`ChebExpCos` (`ML-PACE/ace-evaluator/ace_radial.cpp:294-326` at
+v.2023.11.25.fix2):
+
+```
+x     = 1 - 2 (exp(-lam r/rc) - exp(-lam)) / (1 - exp(-lam))        # :298-300
+g_1   = T_0(x) = 1;   g_k = 1/2 (1 - T_{k-1}(x)),  k = 2..nradbase   # :303-308
+env   = 1/2 (1 + cos(pi r/rc))                                      # :310
+taper = 1/2 (1 + cos(pi (r - (rc-dcut))/dcut))  on [rc-dcut, rc]    # :317-323
+```
+
+(`ChebPow`, `:329-370`: `x = 2 (1 - (1 - r/rc)^lam) - 1`,
+`g_k = 1/2 (1 - T_k(x))`, no separate cutoff -- a polynomial in r for integer
+`lam`; the same argument applies.) v0.10 `ace1_model` (parameters read
+from the model, `chebexpcos_lsq.jl`):
+
+```
+s    = (r - rin)/(r0 - rin),  rin = 0, r0 = 2.40                    # GeneralizedAgnesiTransform p=2 q=4 a=0.769
+y    = 1 / (1 + a s^q / (1 + s^(q-p)))
+x    = clamp(-1 + 2 (y - yin)/(ycut - yin), -1, 1),  yin = 1, ycut = 0.1944   # NormalizedTransform
+R_nl = B-spline_nl(x) * (x - x1)^p1 (x2 - x)^p2,  x1 = -1, x2 = 1, p1 = p2 = 2  # PolyEnvelope2sX
+```
+
+No choice of `(lam, rc, dcut, crad)` makes these equal, and not because of
+parameter values: every finite combination of PACE's `g_k` is a
+real-analytic function of r on `(0, rc - dcut)` (exponential, Chebyshev
+polynomial, cosine), whereas `R_nl` is a cubic B-spline in `x(r)` with 100
+knots -- C2 with a nonzero jump in `R'''` at each knot (the jumps are the
+third differences of the `Wnlq`-folded coefficients and do not vanish). An
+analytic function cannot have a discontinuous third derivative, so equality
+on any interval is impossible; only approximation remains. (The un-splined
+v0.10 basis would also not match: its argument is a rational function of
+`(r/r0)^2`, PACE's an exponential in r, and PACE's cos envelope is not a
+polynomial in either.) No special case rescues it -- `lam -> 0` makes
+`x -> 1 - 2 r/rc`, still analytic.
+
+### Route (c): least-squares residual (measured)
+
+`acejax/spike_yace/chebexpcos_lsq.jl`: the same degree-10 model's 37 `R_nl`
+projected onto `g_1..g_K` (formulas above, `dcut = 0.01`) by least squares on
+20000 points, `K` = ours (10 distinct n), 2x, 4x, `lam` scanned over
+{1, 2, 3.5, 5.25, 8}; best `lam` per row shown. "int." = max over
+`[2.0, 5.9]`, away from the fit edges and PACE's taper.
+
+| window | K | lam | max\|dR\| | max\|dR'\| | at r (fn) | int. max\|dR\| | int. max\|dR'\| |
+|---|---|---|---|---|---|---|---|
+| [0, 6] (the brief's `[rin, rcut]`) | 10 | 2.0 | 1.2 | 52 | 0.001 (6) | 1.2 | 8.8 |
+| | 20 | 2.0 | 0.94 | 148 | 0.001 (10) | 0.51 | 4.6 |
+| | 40 | 1.0 | 6.0e-4 | 0.17 | 0.001 (10) | 4.7e-4 | 1.6e-2 |
+| [1.8, 6] (edges start at 2.14) | 10 | 2.0 | 1.1 | 54 | 1.8 (9) | 0.40 | 4.6 |
+| | 20 | 3.5 | 9.8e-4 | 0.12 | 1.8 (10) | 9.8e-4 | 2.7e-2 |
+| | 40 | 1.0 | 3.6e-4 | 9.7e-2 | 5.997 (10) | 2.6e-4 | 1.0e-2 |
+
+pyace's default `lam = 5.25` is markedly worse (K = 40, [1.8, 6]: 8.7e-3 /
+3.3) because `x(r)` then compresses `r > 3` into `x > 0.99`. Even at 4x our
+radial count and the best `lam`, the residual is **1e-4 in value and 1e-2 in
+derivative** -- seven orders above the tabulation floor of route (b), before
+PACE's own 0.001 A Hermite table (which alone costs 1e-6 on derivatives at
+that spacing, first row of the table below). Route (c) is worse than (b) by
+measurement, and it is a fit, not an export.
 
 ### Radial-level residual of (b) for the v0.10 model (Julia only)
 
@@ -162,9 +225,14 @@ rise**. Diagnostics: at 1e6 bins the error is identical with BigFloat
 interpolation arithmetic on the same Float64 nodal data (so it is the data's
 rounding amplified by 1/h, not the arithmetic), and at 1e5 bins the largest
 errors sit in intervals straddling an x-knot (7.4e-9 straddling vs 5.3e-10
-not). Forces sum ~45 neighbours x 37 functions of these, so 1e-10 on forces
-is out of reach on this route; production models (degree 16+) have larger
-R'''' and are worse.
+not). The rand-set column is not monotone either (7.4e-9 -> 1.5e-9 -> 4.0e-9
+from 1e5 to 1e6 bins): the two error terms cross over, and where the minimum
+falls depends on which distances are sampled. Forces sum ~45 neighbours x 37
+functions of these, so 1e-10 on forces is out of reach on this route. A
+higher-degree model is worse, as measured with the same script at
+`totaldegree = 16` (91 radial functions, max |dR/dr| = 11.5): edge
+max |dR'| = 3.1e-6 at 9999 bins, best 2.6e-9 at 3e5 bins, 9.0e-9 at 1e6 --
+6-10x the degree-10 numbers at every setting.
 
 ## Step 4: end-to-end under `pair_style pace` (fork binary)
 
@@ -234,4 +302,6 @@ relative to `pair_style pace` are unmeasured.
   `v06_ref_forces.txt`, `si_v06_n{10000,100000}.yace`, `dump.*`, `log.*`,
   `compare.py`, `radial_tabulation_error.jl`; pyace text files preserved in
   `~/si-ace/pace/`.
-- Local (uncommitted, throwaway): `acejax/spike_yace/radial_tabulation_error.jl`.
+- Local (uncommitted, throwaway): `acejax/spike_yace/radial_tabulation_error.jl`
+  (`ACE_TOTALDEGREE` selects the model) and `acejax/spike_yace/chebexpcos_lsq.jl`;
+  both also copied to the host directory.
