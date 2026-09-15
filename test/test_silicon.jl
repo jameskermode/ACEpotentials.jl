@@ -29,7 +29,7 @@ data_keys = [:energy_key => "dft_energy",
              :virial_key => "dft_virial"]
 
 weights = Dict("default" => Dict("E"=>30.0, "F"=>1.0, "V"=>1.0),
-                   "liq" => Dict("E"=>10.0, "F"=>0.66, "V"=>0.25))
+                   "liq" => Dict("E"=>15.0, "F"=>0.66, "V"=>0.25))
 
 ## ----- perform tests -----
 
