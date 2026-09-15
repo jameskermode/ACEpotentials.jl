@@ -176,3 +176,45 @@ def test_max_local_above_max_atoms_rejected(npz):
     mod = _export_bundle()
     with pytest.raises(ValueError, match="max_local"):
         mod.build(npz, max_atoms=100, edges_per_atom=1, max_local=101)
+
+
+def _diamond(reps, a=5.43):
+    from ase.build import bulk
+    return bulk("Si", "diamond", a=a, cubic=True) * (reps, reps, reps)
+
+
+def test_size_capacities_counts_are_exact_and_ordered():
+    mod = _export_bundle()
+    atoms = _diamond(3)                       # 216 atoms, L = 16.29
+    caps = mod.size_capacities(atoms, rcut=6.0, skin=1.0, margin_edges=1.0, margin_atoms=1.0)
+    assert caps["n_local"] == 216
+    # brute-force ghost count: images of every atom inside the box grown by rcut+skin
+    pos = atoms.get_positions(); L = np.diag(atoms.get_cell().array); rc = 7.0
+    ghosts = 0
+    for s in np.array(np.meshgrid(*[[-1, 0, 1]] * 3)).reshape(3, -1).T:
+        if not s.any():
+            continue
+        p = pos + s * L
+        ghosts += int(np.all((p > -rc) & (p < L + rc), axis=1).sum())
+    assert caps["n_ghost"] == ghosts
+    g = sparse_graph(pos, atoms.get_cell().array, np.ones(3, bool), 6.0)
+    assert caps["n_edges"] == len(g.senders)
+    assert caps["max_local"] == 216 and caps["max_atoms"] == 216 + ghosts
+    assert caps["max_edges"] == len(g.senders)
+
+
+def test_size_capacities_applies_margins_and_rounds_up():
+    mod = _export_bundle()
+    caps = mod.size_capacities(_diamond(2), rcut=6.0, margin_edges=1.3, margin_atoms=1.15)
+    assert caps["max_local"] == int(np.ceil(64 * 1.15))
+    assert caps["max_atoms"] == int(np.ceil((64 + caps["n_ghost"]) * 1.15))
+    assert caps["max_edges"] == int(np.ceil(caps["n_edges"] * 1.3))
+    assert caps["max_local"] <= caps["max_atoms"]
+
+
+def test_size_capacities_rejects_triclinic():
+    mod = _export_bundle()
+    atoms = _diamond(2)
+    atoms.set_cell(atoms.get_cell().array + np.array([[0, 1.0, 0], [0, 0, 0], [0, 0, 0]]), scale_atoms=False)
+    with pytest.raises(ValueError, match="orthorhombic"):
+        mod.size_capacities(atoms, rcut=6.0)

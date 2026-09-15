@@ -24,7 +24,8 @@ def capacities(reps, rcut, skin=1.0, atom_margin=1.25, edge_margin=2.0):
     # full pairing within rcut (the pair style filters the skin away)
     edges = n * (4/3) * math.pi * rcut**3 * rho
     max_edges = int(math.ceil(edges * edge_margin))
-    return n, max_atoms, max_edges
+    max_local = int(math.ceil(n * atom_margin))
+    return n, max_atoms, max_edges, max_local
 
 
 def main():
@@ -36,21 +37,27 @@ def main():
     p.add_argument("--precision", choices=["float64", "float32"], default="float64")
     p.add_argument("--edge-margin", type=float, default=2.0)
     p.add_argument("--a2b-sparse", action="store_true")
+    p.add_argument("--no-fold", action="store_true", help="baseline row: unfolded readout")
+    p.add_argument("--no-max-local", action="store_true", help="baseline row: node axis = max_atoms")
     a = p.parse_args()
     a.outdir.mkdir(parents=True, exist_ok=True)
     meta = json.loads(bytes(__import__("numpy").load(a.npz)["meta_json"]).decode())
     rcut = float(meta["rcut"])
     for reps in a.reps:
-        n, ma, me = capacities(reps, rcut, edge_margin=a.edge_margin)
+        n, ma, me, ml = capacities(reps, rcut, edge_margin=a.edge_margin)
         out = a.outdir / f"si_r{reps}_n{n}.lammps-jax.json"
         print(f"reps={reps} atoms={n} max_atoms={ma} max_edges={me} -> {out.name}", flush=True)
-        subprocess.run([a.python, str(HERE.parent / "lammps" / "export_bundle.py"),
-                        "--npz", str(a.npz), "--out", str(out),
-                        "--max-atoms", str(ma),
-                        "--edges-per-atom", str(max(1, -(-me // ma))),
-                        "--precision", a.precision]
-                       + (["--a2b-sparse"] if a.a2b_sparse else []),
-                       check=True, stdout=subprocess.DEVNULL)
+        cmd = [a.python, str(HERE.parent / "lammps" / "export_bundle.py"),
+               "--npz", str(a.npz), "--out", str(out),
+               "--max-atoms", str(ma), "--edges-per-atom", str(max(1, -(-me // ma))),
+               "--precision", a.precision]
+        if not a.no_max_local:
+            cmd += ["--max-local", str(ml)]
+        if a.no_fold:
+            cmd += ["--no-fold"]
+        if a.a2b_sparse:
+            cmd += ["--a2b-sparse"]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

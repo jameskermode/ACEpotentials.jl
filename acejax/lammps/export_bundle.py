@@ -29,8 +29,12 @@ Export with the same jax as the runtime PJRT plugin ships (0.11.1 in
 /storage/eng/essswb/venvs/lammps-jax).
 """
 import argparse
+import json
+import math
 import pathlib
 import sys
+
+import numpy as np
 
 import jax
 
@@ -43,7 +47,7 @@ from acejax import load
 
 
 def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
-          a2b_sparse=False, edge_a_kind="gather", max_local=None):
+          a2b_sparse=False, edge_a_kind="gather", max_local=None, fold=True):
     """Return (energy_fn, model, meta, rcut, max_atoms, max_edges, max_local).
 
     `edge_a_kind` is baked into the exported program: the LAMMPS plugin has no
@@ -69,7 +73,7 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
     if not 0 < max_local <= max_atoms:
         raise ValueError(f"max_local must be in (0, max_atoms]; got {max_local} vs {max_atoms}")
     model, meta, _ = load(npz, dtype=dtype, a2b_sparse=a2b_sparse,
-                          edge_a_kind=edge_a_kind)
+                          edge_a_kind=edge_a_kind, fold=fold)
     rcut = float(meta["rcut"])
     n_species = len(meta["elements"])
     max_edges = max_atoms * edges_per_atom
@@ -97,6 +101,44 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
     return energy_fn, model, meta, rcut, max_atoms, max_edges, max_local
 
 
+def size_capacities(atoms, rcut, skin=1.0, margin_edges=1.3, margin_atoms=1.15):
+    """Single-rank capacities for `atoms` (ase.Atoms, periodic, orthorhombic).
+
+    nlocal is exact; nghost counts periodic images inside the box grown by
+    rcut + skin on every face, which is LAMMPS's communication cutoff; edges
+    are full pairing within rcut, since the pair style filters skin pairs when
+    it packs.  Domain decomposition only shrinks each rank's share, so the
+    1-rank numbers bound every rank.  The margins cover atoms moving during
+    a run; capacity cost is U-shaped (bench/results.md), so do not over-pad.
+    """
+    import itertools
+
+    from acejax.nlist import sparse_graph
+    cell = np.asarray(atoms.get_cell().array, float)
+    if not np.allclose(cell, np.diag(np.diag(cell))):
+        raise ValueError("--size-from needs an orthorhombic cell; pass --max-atoms, "
+                         "--max-local and --edges-per-atom explicitly instead")
+    if not np.all(atoms.get_pbc()):
+        raise ValueError("--size-from needs a fully periodic structure")
+    pos = atoms.get_positions(wrap=True)
+    L = np.diag(cell)
+    n = len(pos)
+    rc = rcut + skin
+    reps = np.ceil(rc / L).astype(int)
+    n_ghost = 0
+    for s in itertools.product(*[range(-r, r + 1) for r in reps]):
+        if not any(s):
+            continue
+        p = pos + np.array(s) * L
+        n_ghost += int(np.all((p > -rc) & (p < L + rc), axis=1).sum())
+    n_edges = len(sparse_graph(pos, cell, np.ones(3, bool), rcut).senders)
+    ceil = lambda x: int(math.ceil(x))
+    return dict(n_local=n, n_ghost=n_ghost, n_edges=n_edges,
+                max_local=ceil(n * margin_atoms),
+                max_atoms=ceil((n + n_ghost) * margin_atoms),
+                max_edges=ceil(n_edges * margin_edges))
+
+
 def main():
     from lammps_jax.export import export_model   # only the export needs the plugin package
     p = argparse.ArgumentParser(description=__doc__,
@@ -106,12 +148,20 @@ def main():
                    help="exported model npz (default: fixtures/si_fitted.npz)")
     p.add_argument("--out", type=pathlib.Path,
                    default=HERE / "si_ace.lammps-jax.json")
-    p.add_argument("--max-atoms", type=int, default=2560)
-    p.add_argument("--edges-per-atom", type=int, default=64)
+    p.add_argument("--max-atoms", type=int, default=None)
+    p.add_argument("--edges-per-atom", type=int, default=None)
     p.add_argument("--max-local", type=int, default=None,
                    help="node-axis capacity for local atoms (default: max_atoms). "
                         "Size it to nlocal with margin; ghosts do not need rows. "
                         "Exceeding it makes every energy NaN, by design.")
+    p.add_argument("--size-from", type=pathlib.Path, default=None,
+                   help="size max_local/max_atoms/max_edges from this structure "
+                        "(ASE-readable, periodic, orthorhombic); explicit --max-* override")
+    p.add_argument("--skin", type=float, default=1.0, help="LAMMPS neighbor skin (A)")
+    p.add_argument("--margin-edges", type=float, default=1.3)
+    p.add_argument("--margin-atoms", type=float, default=1.15)
+    p.add_argument("--no-fold", action="store_true",
+                   help="keep the B-materialising readout (benchmark by difference only)")
     p.add_argument("--a2b-sparse", action="store_true",
                    help="gather/segment-sum A2B contraction instead of a dense "
                         "matmul; A2B is ~0.07%% occupied at large basis")
@@ -126,9 +176,23 @@ def main():
     if not a.npz.exists():
         p.error(f"npz not found: {a.npz}")
 
+    max_atoms, edges_per_atom, max_local = a.max_atoms, a.edges_per_atom, a.max_local
+    if a.size_from is not None:
+        import ase.io
+        model_meta = json.loads(bytes(np.load(a.npz)["meta_json"]).decode())
+        caps = size_capacities(ase.io.read(a.size_from), float(model_meta["rcut"]),
+                               a.skin, a.margin_edges, a.margin_atoms)
+        print("sized from", a.size_from, "| actual nlocal", caps["n_local"],
+              "nghost", caps["n_ghost"], "edges", caps["n_edges"])
+        max_atoms = max_atoms or caps["max_atoms"]
+        max_local = max_local or caps["max_local"]
+        edges_per_atom = edges_per_atom or max(1, -(-caps["max_edges"] // max_atoms))
+    max_atoms = max_atoms or 2560
+    edges_per_atom = edges_per_atom or 64
+
     energy_fn, model, meta, rcut, max_atoms, max_edges, max_local = build(
-        a.npz, a.max_atoms, a.edges_per_atom, a.precision, a.a2b_sparse,
-        a.edge_a_kind, max_local=a.max_local)
+        a.npz, max_atoms, edges_per_atom, a.precision, a.a2b_sparse,
+        a.edge_a_kind, max_local=max_local, fold=not a.no_fold)
     print("model:", a.npz, "| elements", meta["elements"], "rcut", rcut,
           "n_B", meta["n_B"], "lmax", meta["lmax"],
           "| radial", meta["radial_kind"], "| Y", meta["ybasis_kind"],
