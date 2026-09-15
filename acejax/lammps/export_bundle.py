@@ -19,8 +19,10 @@ Contract notes (cpp/lammps_jax_model.h ModelContract):
     no FFI handler needs registering at run time.
   * The node axis is max_local, not max_atoms: senders are always local, so
     ghost rows are pure padding on the per-atom stages.  If nlocal exceeds
-    max_local every energy is NaN -- segment_sum would otherwise drop the
-    excess silently and the plugin does not check this capacity.
+    max_local every row of the output -- energy AND the autodiff gradient
+    the plugin reads as forces -- is NaN, everywhere, not just the local
+    rows: segment_sum would otherwise drop the excess silently and the
+    plugin does not check this capacity.
 
 Export with the same jax as the runtime PJRT plugin ships (0.11.1 in
 /storage/eng/essswb/venvs/lammps-jax).
@@ -52,8 +54,10 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
     The pair style packs edges from local centres only (PackNeighborFunctor
     iterates ilist over nlocal rows for n_hops=1), so ghost rows of the
     max_atoms axis are zero-neighbour rows that cost full per-atom work (AA,
-    readout) and contribute nothing -- 3.1x nlocal at 1728 Si atoms.  None
-    means max_atoms, the old behaviour.
+    readout) and contribute nothing.  None means max_atoms, the old
+    behaviour.  If any masked-in edge has a sender >= max_local, every row of
+    the returned energy is NaN, and so is every entry of the autodiff
+    gradient (the plugin's forces) -- never a plausible wrong value.
     """
     dtype = jnp.float64 if precision == "float64" else jnp.float32
     if max_local is None:
@@ -61,7 +65,7 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
     if not 0 < max_local <= max_atoms:
         raise ValueError(f"max_local must be in (0, max_atoms]; got {max_local} vs {max_atoms}")
     model, meta, _ = load(npz, dtype=dtype, a2b_sparse=a2b_sparse,
-                          edge_a_kind=edge_a_kind)          # folded by default
+                          edge_a_kind=edge_a_kind)
     rcut = float(meta["rcut"])
     n_species = len(meta["elements"])
     max_edges = max_atoms * edges_per_atom
@@ -78,10 +82,21 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
         e_local = model.site_energies(rij, node_z[centers], node_z[neighbors],
                                       centers, max_local, node_z[:max_local], mask)
         # segment_sum DROPS ids >= max_local silently; the plugin only checks
-        # max_atoms.  Make an undersized bundle loud rather than subtly wrong.
+        # max_atoms.  Make an undersized bundle loud rather than subtly wrong --
+        # multiplicatively, so the NaN also reaches the autodiff gradient (the
+        # plugin's forces): `where(overflow, nan, e_local)` would NaN the energy
+        # but have a zero VJP into the untaken branch, silently zeroing forces.
         overflow = jnp.any(mask & (graph.senders >= max_local))
-        e_local = jnp.where(overflow, jnp.nan, e_local)
-        return jnp.zeros(positions.shape[0], e_local.dtype).at[:max_local].set(e_local)
+        out = jnp.zeros(positions.shape[0], e_local.dtype).at[:max_local].set(e_local)
+        # A row of `positions` that never appears as a sender or receiver (real
+        # unused capacity beyond nlocal+nghost) has NO path into `out` at all, so
+        # JAX gives it a structural zero cotangent that even an upstream NaN
+        # can't perturb by multiplication. Route every row through the output
+        # with a literal (always-zero-valued) dependency so the overflow NaN
+        # reaches every row of the gradient too, not just the ones already wired
+        # into an edge.
+        touch = jnp.sum(positions, axis=-1) * jnp.asarray(0.0, positions.dtype)
+        return (out + touch) * jnp.where(overflow, jnp.nan, 1.0)
 
     return energy_fn, model, meta, rcut, max_atoms, max_edges, max_local
 
