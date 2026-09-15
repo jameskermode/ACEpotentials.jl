@@ -142,11 +142,19 @@ n_B = 2849. The spec target (≤1.5x at 2849, ≤2x at 69) is met at 2849 and no
 yet at 69; the next lever is the f32 tier, then edge-force export (not
 started).
 
-**Known limitation.** The LAMMPS path is verified for single-point evaluation
-and short runs only. Beyond roughly 50 MD steps it aborts with
-`cudaErrorIllegalAddress`. This is not a capacity problem — tripling the bundle
-capacities does not help — and the reneighbour repack path is the suspect. It is
-unfixed. Do not use `pair_style jax/kk` for production MD yet.
+**Known limitation.** MD stability is unestablished for the demo bundle. An
+earlier run beyond roughly 50 steps aborted with `cudaErrorIllegalAddress`;
+`compute-sanitizer` traced that to LAMMPS's own neighbour-bin kernel
+(`NBinKokkos::bin_atoms()`, no `pair_jax_kokkos` frame in the trace), not the
+pair style, and the root cause is the `Si_tiny`-fitted demo potential having
+no repulsive core (`repulsion_restraint=false`) — its dimer curve turns over
+and diverges attractively below ~1.5 Å, so atoms collapse into each other,
+reproducing with no LAMMPS at all in pure ASE NVE. See
+`docs/findings/FINDINGS_lammps.md` ("RESOLVED: the crash is the test
+potential, not any of our code") and `docs/findings/FINDINGS_benchmark.md`
+("The MD abort, and why the method changed"). The next step, not yet done, is
+retesting MD stability with a potential fitted using
+`repulsion_restraint=true`.
 
 `gpu/aware off` is required for multi-rank runs; with GPU-aware MPI the ghost
 exchange aborts inside `CommKokkos::borders_device`, for stock bundles too.
