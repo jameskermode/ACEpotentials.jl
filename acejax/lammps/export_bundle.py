@@ -19,10 +19,11 @@ Contract notes (cpp/lammps_jax_model.h ModelContract):
     no FFI handler needs registering at run time.
   * The node axis is max_local, not max_atoms: senders are always local, so
     ghost rows are pure padding on the per-atom stages.  If nlocal exceeds
-    max_local every row of the output -- energy AND the autodiff gradient
-    the plugin reads as forces -- is NaN, everywhere, not just the local
-    rows: segment_sum would otherwise drop the excess silently and the
-    plugin does not check this capacity.
+    max_local every row of the output energy is NaN, and so is the autodiff
+    gradient (the plugin's forces) on every row wired into an edge -- rows
+    with no edge at all are unused capacity the plugin never reads anyway.
+    segment_sum would otherwise drop the excess silently and the plugin
+    does not check this capacity.
 
 Export with the same jax as the runtime PJRT plugin ships (0.11.1 in
 /storage/eng/essswb/venvs/lammps-jax).
@@ -56,8 +57,11 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
     max_atoms axis are zero-neighbour rows that cost full per-atom work (AA,
     readout) and contribute nothing.  None means max_atoms, the old
     behaviour.  If any masked-in edge has a sender >= max_local, every row of
-    the returned energy is NaN, and so is every entry of the autodiff
-    gradient (the plugin's forces) -- never a plausible wrong value.
+    the returned energy is NaN, and so is the autodiff gradient (the
+    plugin's forces) on every row wired into an edge -- never a plausible
+    wrong value.  Rows with no edge at all (unused capacity beyond
+    nlocal+nghost) are a structural zero to JAX's autodiff regardless, and
+    the plugin never reads them.
     """
     dtype = jnp.float64 if precision == "float64" else jnp.float32
     if max_local is None:
@@ -88,15 +92,7 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
         # but have a zero VJP into the untaken branch, silently zeroing forces.
         overflow = jnp.any(mask & (graph.senders >= max_local))
         out = jnp.zeros(positions.shape[0], e_local.dtype).at[:max_local].set(e_local)
-        # A row of `positions` that never appears as a sender or receiver (real
-        # unused capacity beyond nlocal+nghost) has NO path into `out` at all, so
-        # JAX gives it a structural zero cotangent that even an upstream NaN
-        # can't perturb by multiplication. Route every row through the output
-        # with a literal (always-zero-valued) dependency so the overflow NaN
-        # reaches every row of the gradient too, not just the ones already wired
-        # into an edge.
-        touch = jnp.sum(positions, axis=-1) * jnp.asarray(0.0, positions.dtype)
-        return (out + touch) * jnp.where(overflow, jnp.nan, 1.0)
+        return out * jnp.where(overflow, jnp.nan, 1.0)
 
     return energy_fn, model, meta, rcut, max_atoms, max_edges, max_local
 

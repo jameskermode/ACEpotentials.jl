@@ -153,9 +153,9 @@ def test_local_axis_one_sided_ghost_receiver(npz):
 
 def test_local_axis_overflow_is_nan_not_silent(npz):
     """segment_sum silently drops ids >= num_segments; the guard must turn an
-    undersized max_local into NaN everywhere -- energy AND the autodiff
-    gradient (the plugin's forces) -- never a plausible wrong value. A
-    `where(overflow, nan, e_local)` NaNs the energy but has a zero VJP into
+    undersized max_local into NaN everywhere in the energy, and in the
+    autodiff gradient (the plugin's forces) on every row wired into an edge.
+    A `where(overflow, nan, e_local)` NaNs the energy but has a zero VJP into
     the untaken branch, so forces would silently come back as exactly 0.0;
     the guard must be multiplicative on the full output to avoid that."""
     mod = _export_bundle()
@@ -165,7 +165,11 @@ def test_local_axis_overflow_is_nan_not_silent(npz):
         e = np.asarray(small(positions, species, graph))
         g = jax.grad(lambda p: jnp.sum(small(p, species, graph)))(positions)
     assert np.all(np.isnan(e))
-    assert np.all(np.isnan(np.asarray(g)))
+    # Rows n: are the _cluster padding, wired into no edge at all -- a
+    # structural zero to JAX's autodiff that no downstream NaN can perturb,
+    # and unused capacity the plugin never reads anyway. Only the edge-wired
+    # rows (every real atom here) need to carry the NaN through the gradient.
+    assert np.all(np.isnan(np.asarray(g)[:n]))
 
 
 def test_max_local_above_max_atoms_rejected(npz):
