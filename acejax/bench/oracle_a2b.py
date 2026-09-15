@@ -27,7 +27,7 @@ def main():
         jax.config.update("jax_enable_x64", True)
     import jax.numpy as jnp
     from acejax import load, highest_precision
-    from acejax.model import ACEModel, pool_sparse
+    from acejax.model import ACEModel
 
     def edges(pos, cell, rcut):
         n = len(pos)
@@ -44,7 +44,7 @@ def main():
         return ii[o].astype(np.int32), jj[o].astype(np.int32), rr[o]
 
     dt = jnp.float32 if a.f32 else jnp.float64
-    model, meta, _ = load(a.npz, dtype=dt, a2b_sparse=a.a2b_sparse)
+    model, meta, _ = load(a.npz, dtype=dt, a2b_sparse=a.a2b_sparse, fold=False)
     pos, cell = diamond(a.reps)
     ii, jj, rr = edges(pos, cell, float(meta["rcut"]))
     n = len(pos)

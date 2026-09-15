@@ -108,6 +108,12 @@ class ACEModel(eqx.Module):
     # that never use it do not carry the arrays
     a_sel_r: jax.Array = None                     # (n_rnl, n_A)
     a_sel_y: jax.Array = None                     # (n_ylm, n_A)
+    # C-tilde readout (PACE's ctilde): ctilde = A2B^T @ WB, (n_AA, NZ).  When
+    # `folded`, site energies contract AA directly against it and the A2B
+    # contraction never runs.  `site_basis` keeps using A2B, since descriptors
+    # and fitting need B itself.  See `fold_readout`.
+    ctilde: jax.Array = None
+    folded: bool = eqx.field(static=True, default=False)
 
     # -------------------------------------------------- edge embeddings
     def _radial_one(self, r, zi, zj, kind, trans, coefs, grid, Wnlq, ABC, env):
@@ -180,8 +186,11 @@ class ACEModel(eqx.Module):
             edge_A = Rnl[:, self.aspec_r] * Ylm[:, self.aspec_y]
         return edge_A, Rpair
 
+    def _aa(self, A):
+        return jnp.concatenate([jnp.prod(A[:, g], axis=-1) for g in self.aa_specs], axis=-1)
+
     def _from_pooled(self, A, Apair):
-        AA = jnp.concatenate([jnp.prod(A[:, g], axis=-1) for g in self.aa_specs], axis=-1)
+        AA = self._aa(A)
         if self.a2b_sparse:
             # gather the nnz contributing columns and scatter into basis rows.
             # There is usually exactly one nonzero per column, so this replaces
@@ -192,6 +201,11 @@ class ACEModel(eqx.Module):
         else:
             B = AA @ self.A2B.T
         return B, Apair
+
+    def _readout_folded(self, A, Apair, node_z):
+        e = jnp.einsum("ia,ai->i", self._aa(A), self.ctilde[:, node_z])
+        e = e + jnp.einsum("ip,pi->i", Apair, self.Wpair[:, node_z])
+        return e + self.E0[node_z]
 
     def site_basis(self, rij, zi, zj, segment_ids, n_nodes, mask=None):
         """Sparse (edge-list) pooling -- the layout lammps-jax exports."""
@@ -240,9 +254,21 @@ class ACEModel(eqx.Module):
 
     def site_energies(self, rij, zi, zj, segment_ids, n_nodes, node_z, mask=None):
         """Per-site energies (n_nodes,).  `node_z` is the centre species index per node."""
+        if self.folded:
+            edge_A, Rpair = self.edge_features(rij, zi, zj)
+            return self._readout_folded(pool_sparse(edge_A, segment_ids, n_nodes, mask),
+                                        pool_sparse(Rpair, segment_ids, n_nodes, mask),
+                                        node_z)
         return self._readout(*self.site_basis(rij, zi, zj, segment_ids, n_nodes, mask), node_z)
 
     def site_energies_dense(self, rij, zi, zj, mask, node_z):
+        if self.folded:
+            n, K = mask.shape
+            flat = lambda a: a.reshape(n * K, *a.shape[2:])
+            edge_A, Rpair = self.edge_features(flat(rij), flat(zi), flat(zj))
+            un = lambda a: a.reshape(n, K, -1)
+            return self._readout_folded(pool_dense(un(edge_A), mask),
+                                        pool_dense(un(Rpair), mask), node_z)
         return self._readout(*self.site_basis_dense(rij, zi, zj, mask), node_z)
 
     # -------------------------------------------------- energy / forces / virial
@@ -287,6 +313,23 @@ class ACEModel(eqx.Module):
             rij = jnp.where(edge_mask[:, None], rij, pad)
         zi, zj = node_z[senders], node_z[receivers]
         return self.site_energies(rij, zi, zj, senders, n_nodes, node_z, edge_mask)
+
+
+# ------------------------------------------------------------------ readout fold
+def fold_readout(model):
+    """Return `model` with the linear readout folded through A2B.
+
+    e_i = WB[:,z] . (A2B AA_i)  ==  (A2B^T WB[:,z]) . AA_i, so ctilde = A2B^T WB
+    is computed once here and the A2B contraction -- the largest isolated stage at
+    production basis size -- and its adjoint never run.  Exact (tests/test_fold.py
+    holds it to 1e-12).  This is the same fold as PACE's ctilde basis.
+    """
+    import dataclasses
+    if model.folded:
+        return model
+    with highest_precision():                 # TF32 would corrupt ctilde on Ampere+
+        ctilde = model.A2B.T @ model.WB       # (n_AA, NZ)
+    return dataclasses.replace(model, ctilde=ctilde, folded=True)
 
 
 # ------------------------------------------------------------------ edge_A kind

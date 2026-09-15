@@ -50,7 +50,7 @@ def _a2b_triplets(z, n_B, n_AA):
             np.asarray(z["A2B_vals"]))
 
 
-def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather"):
+def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather", fold=True):
     """Load a model.  Caller controls dtype; nothing here touches jax.config, so
     f64 requires the caller to have enabled x64 first.
 
@@ -64,6 +64,10 @@ def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather"):
     adjoint is a matmul rather than a scatter.  Which is faster depends on the
     backend, the dtype and the edge-buffer length -- see `calibrate_edge_a`,
     and do not guess from the platform.
+
+    `fold` (default True) folds the linear readout through A2B (see
+    `fold_readout`); pass False to keep the B-materialising path, e.g. to
+    measure the fold by difference.  Descriptors are unaffected either way.
     """
     if edge_a_kind not in ("gather", "matmul"):
         raise ValueError(f'edge_a_kind must be "gather" or "matmul", got {edge_a_kind!r}')
@@ -138,4 +142,7 @@ def load(path, dtype=jnp.float64, a2b_sparse=False, edge_a_kind="gather"):
         pair_grid=(float(ps_["x0"]), float(ps_["h"]), int(ps_["n"])),
         elements=tuple(int(e) for e in meta["elements"]),
     )
+    if fold:
+        from .model import fold_readout
+        model = fold_readout(model)
     return model, meta, z
