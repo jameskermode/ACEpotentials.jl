@@ -306,3 +306,250 @@ relative to `pair_style pace` are unmeasured.
 - Local (uncommitted, throwaway): `acejax/spike_yace/radial_tabulation_error.jl`
   (`ACE_TOTALDEGREE` selects the model) and `acejax/spike_yace/chebexpcos_lsq.jl`;
   both also copied to the host directory.
+
+## Part 2 (2026-09-15): a physical five-element model, and exact nodal derivatives
+
+**Questions.** (i) On a *physical* multi-element model, at what force
+tolerance does the fork-pinned `.yace` route pass -- 1e-10, 1e-9 or 1e-8 eV/A?
+(ii) Is the tabulation floor removable by supplying exact nodal derivatives
+instead of letting libpace reconstruct them?
+
+**Answers.** (i) Max |dF| = **1.9e-10 eV/A at 1e4 nodes** and **9.8e-11 at
+1e5 nodes** (as-is), on forces of 1-4 eV/A; energies to 8.5e-14 eV/atom.
+**1e-9 and 1e-8 absolute pass at both node counts with >= 5x margin; 1e-9
+relative passes with >= 8x margin; 1e-10 absolute fails at 1e4 and passes
+at 1e5 only by 2% (as-is) / 30% (exact derivatives)** -- not a margin to
+promise on. (ii) **libpace does not reconstruct derivatives**: the fork reads
+`splinenodalderivs` from the file and uses them verbatim as the Hermite end
+slopes; Part 1's attribution was wrong about the mechanism (the exporter, not
+libpace, was supplying spline-derived slopes). Writing exact analytic nodal
+values and derivatives instead needs no C++ change, is a 20-line exporter
+change, and **does not remove the floor**: it leaves 1e4 nodes unchanged and
+improves 1e5 nodes by 30% (9.8e-11 -> 7.0e-11). The floor is intrinsic to the
+Hermite form itself (`3(f1-f0)` in the cubic coefficients, divided by h on
+evaluation) acting on Float64 nodal *values*, and shows up identically in a
+Julia-only replica for both v0.6 and v0.10 radials.
+
+### Fork source: how `splinenodalvals`/`splinenodalderivs` are consumed
+
+`build-SKX-AMPERE86-acejl/lammps-user-pace-main/ML-PACE/ace-evaluator/acejl_radial.cpp`
+(wcwitt fork, `ACEjlRadialFunctions::read_yaml`):
+
+| line | what |
+|---|---|
+| 53 | `splinenodalvals = bond_yaml["splinenodalvals"].as<map<int,vector<DOUBLE_TYPE>>>()` |
+| 54 | `splinenodalderivs = bond_yaml["splinenodalderivs"].as<...>()` -- **read from the file, required** |
+| 74-77 | `f0 = vals[n]; f1 = vals[n+1]; f0d1 = derivs[n]*d; f1d1 = derivs[n+1]*d` |
+| 79-82 | `c0 = f0; c1 = f0d1; c2 = 3(f1-f0) - f1d1 - 2 f0d1; c3 = -2(f1-f0) + f1d1 + f0d1` |
+| 149-171 | `evaluate`: `spline.calcSplines(r)` (upstream `SplineInterpolator`, derivative `= (c1 + 2 c2 s + 3 c3 s^2) * rscalelookup`), then `fr(n,l) = values(n)` for every `l` |
+
+No finite differences, no spline solve: whatever slopes are in the file are the
+interpolant's slopes. What the v0.6.12 exporter puts there (`export.jl`, copied
+in `export_n.jl`): `ACE1.Splines.RadialSplines(J; nnodes)` builds an
+**Interpolations.jl C2 cubic B-spline in r with `Flat(OnGrid())` boundary
+conditions** through the analytic radials at the nodes
+(`ACE1/src/polynomials/splines.jl:104-131`), and the exporter writes that
+spline's values `spl.(rg)` and its gradient `Interpolations.gradient(spl, r)` at
+the nodes -- so libpace reproduces the Interpolations spline exactly, and the
+residual is (C2 spline in r) vs (analytic). The derivative floor Part 1 saw is
+therefore not "libpace differencing the values"; it is the Hermite
+coefficients `c2, c3` differencing O(1) values (lines 81-82) and `calcSplines`
+multiplying by `1/h`, which is the same whichever slopes are supplied.
+
+**Patch.** None to the fork. Exporter-side (throwaway `export_n.jl`,
+`exact_derivs = true`): replace the spline nodal data by the analytic ACE1
+radials, using the same `(z, z0)` indexing `RadialSplines` uses:
+
+```julia
+if exact_derivs
+    J = V3.pibasis.basis1p.J
+    for iz1 in 1:size(nodalvals,2), iz2 in 1:size(nodalvals,3)
+        z, z0 = zlist[iz1], zlist[iz2]; rr = ranges[1,iz1,iz2]
+        for (ir, r) in enumerate(rr)
+            Jv[:, ir] = ACE1.evaluate(J, r, z, z0)
+            Jd[:, ir] = ACE1.evaluate_d(J, r, z, z0)
+        end
+        for i in 1:NB; nodalvals[i,iz1,iz2] = Jv[i,:]; nodalderivs[i,iz1,iz2] = Jd[i,:]; end
+    end
+end
+```
+
+The binary is unchanged, so the "as-is" and "exact" rows below are the same
+`lmp` (`build-SKX-AMPERE86-acejl/lmp`, `pair_style pace`, CPU, 1 rank, 1 thread).
+
+### The model and its physicality
+
+ACEpotentials **v0.6.12** (Julia 1.11.7, `acejax/bench/v06` environment),
+`acemodel(elements = [Cr, Mn, Fe, Co, Ni], order = 3, totaldegree = 6,
+rcut = 6.25, r0 = 2.54, Eref = <per-element least squares of the training
+energies>)`; `r0` must be given because JuLIP has no bond length for Mn.
+Basis 4115 (pair + many-body); many-body radial `nradial = 13`, exported
+functions 1065 per species (60 rank 1, 310 rank 2, 695 rank 3), **`lmax = 1`**
+(ACE1x's degree weighting at totaldegree 6). Fit: `acefit!(...; solver = BLR(),
+repulsion_restraint = true)`, keys `mace_energy/mace_force/mace_virial`,
+default weights, on configs 1-250 of `cantor1k_b_mh1.xyz` (9920 atoms, 904 s);
+held-out set = configs 991-1000 (32-48 atoms each, all five species).
+
+| set | E RMSE [meV/atom] | F RMSE [eV/A] | V RMSE [meV/atom] |
+|---|---|---|---|
+| train (250) | 0.23 | 0.101 | 19.4 |
+| held-out (10) | 6.0 | 0.124 | 55.8 |
+
+Held-out max |F| per config: full potential 1.3-4.2 eV/A (MACE reference
+1.4-4.3); many-body part alone 1.1-3.3. Dimer curves `E(r) - 2 E0` [eV] of the
+full potential rise monotonically as r shrinks: Cr-Cr 0.31 (3.0 A), 1.47
+(1.8), 2.74 (1.4), 5.90 (1.0); Fe-Ni 0.44, 1.74, 3.04, 6.17; Mn-Co 0.56, 1.99,
+3.31, 6.43; Ni-Ni 0.42, 1.70, 3.00, 6.14. Caveat that matters for the
+contract: the many-body component `V3` is *exactly zero* on every dimer
+(ACE1x's default `delete2b`), so the repulsive core lives entirely in the
+`PolyPairPot`, which the v0.6 exporter writes to a separate `pair_style table`
+file (0.001 A grid) and which is **not** part of the yace comparison below.
+The end-to-end numbers are for the many-body component, as in Part 1.
+
+### Julia-side floor: v0.10 radials of the same spec (five species)
+
+`acejax/spike_yace/radial_tabulation_error_cantor.jl` (local, Julia 1.12.7,
+ACEpotentials 0.10.2): `ace1_model(CrMnFeCoNi, order 3, totaldegree 6,
+rcut 6.25, r0 2.54)`, random weights, fork Hermite formula with **exact**
+nodal values and derivatives, max over all 25 species pairs, on the 2638 edge
+distances of held-out config 10 (r in [2.24, 6.25]) and 20000 random
+r in [1.8, 6.25]. `rbasis`: 74 functions, max |R| = 1.27, max |dR/dr| = 4.7.
+
+| `nbins` | h [A] | edge max\|dR\| | edge max\|dR'\| | rand max\|dR\| | rand max\|dR'\| |
+|---|---|---|---|---|---|
+| 9999 | 6.3e-4 | 1.6e-11 | 8.3e-8 | 1.8e-11 | 9.7e-8 |
+| 30000 | 2.1e-4 | 4.0e-13 | 3.8e-9 | 6.0e-13 | 1.1e-8 |
+| 100000 | 6.3e-5 | 7.1e-15 | **2.2e-10** | 1.7e-14 | 9.7e-10 |
+| 300000 | 2.1e-5 | 6.7e-15 | 5.5e-10 | 9.8e-15 | 6.5e-10 |
+| 1000000 | 6.3e-6 | 7.1e-15 | 1.9e-9 | 9.7e-15 | 2.0e-9 |
+
+Pair basis (30 functions): best 9.2e-11 at 1e5, 9.3e-10 at 1e6. Same shape
+and level as Part 1's Si table: values converge, derivatives floor at 1e5 bins
+and rise.
+
+The same replica applied to the **fitted v0.6 model's analytic ACE1 radials**
+(`v06_radial_floor.jl` on the host; 13 functions, 25 pairs, 32422 held-out edge
+distances in [2.09, 6.25], max |R| = 2.3, max |dR/dr| = 12.7), with the nodal
+data either as the exporter writes it (`asis`: Interpolations C2 spline values
+and gradient) or exact:
+
+| `nnodes` | h [A] | nodal data | edge max\|dR\| | edge max\|dR'\| | rand max\|dR\| | rand max\|dR'\| |
+|---|---|---|---|---|---|---|
+| 10000 | 6.3e-4 | asis | 5.8e-12 | 2.5e-8 | 6.4e-12 | 3.1e-8 |
+| 10000 | 6.3e-4 | exact | 5.8e-12 | 2.5e-8 | 6.4e-12 | 3.1e-8 |
+| 30000 | 2.1e-4 | asis | 6.5e-14 | 9.9e-10 | 7.9e-14 | 1.2e-9 |
+| 30000 | 2.1e-4 | exact | 6.4e-14 | 9.9e-10 | 7.9e-14 | 1.2e-9 |
+| 100000 | 6.3e-5 | asis | 5.5e-14 | 1.0e-9 | 6.2e-14 | 1.0e-9 |
+| 100000 | 6.3e-5 | exact | 4.4e-14 | **9.1e-10** | 4.6e-14 | 9.0e-10 |
+| 300000 | 2.1e-5 | asis | 4.0e-14 | 2.1e-9 | 4.2e-14 | 2.0e-9 |
+| 300000 | 2.1e-5 | exact | 3.8e-14 | 2.6e-9 | 3.9e-14 | 2.2e-9 |
+
+At 1e4 nodes the C2 spline and the exact-slope Hermite have the *same* O(h^3)
+derivative error (they agree to three digits); from 3e4 nodes both sit on a
+~1e-9 floor that exact slopes do not move, and both rise beyond. So the v0.10
+and v0.6 radials of this model sit on the same floor, and it is not a
+derivative-supply problem.
+
+### End to end: `pair_style pace` (fork) vs the v0.6 Julia calculator
+
+Ten held-out configs, rotated to LAMMPS triclinic form in Julia and written
+with 17 significant digits (`cantor_all.jl`; the Julia reference is computed
+on the rotated cell, so both codes see identical doubles); one yace parse per
+run, configs cycled with `delete_atoms` + `change_box` + `read_data add append`
+(validated against a fresh parse: 1e-14, neighbour-order noise). Many-body
+component only; `max|F|` is the largest force *component* in the config.
+
+`nnodes = 10000` (yace 185 MB, 3.9 GB RSS, 48 s per LAMMPS start):
+
+| cfg | N | max\|F\| | as-is max\|dF\| | rel | mean\|dF\| | exact max\|dF\| | rel | mean\|dF\| | \|dE\|/atom |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 48 | 3.22 | 1.89e-10 | 5.9e-11 | 4.0e-11 | 1.89e-10 | 5.9e-11 | 4.0e-11 | 8.5e-14 |
+| 2 | 32 | 0.98 | 7.4e-11 | 7.6e-11 | 2.6e-11 | 7.5e-11 | 7.6e-11 | 2.6e-11 | 1.4e-14 |
+| 3 | 32 | 1.21 | 1.52e-10 | 1.3e-10 | 2.8e-11 | 1.49e-10 | 1.2e-10 | 2.8e-11 | 2.8e-14 |
+| 4 | 32 | 1.07 | 8.1e-11 | 7.6e-11 | 2.3e-11 | 8.0e-11 | 7.5e-11 | 2.2e-11 | 7.1e-15 |
+| 5 | 48 | 2.14 | 1.24e-10 | 5.8e-11 | 3.4e-11 | 1.24e-10 | 5.8e-11 | 3.4e-11 | 4.7e-15 |
+| 6 | 48 | 1.43 | 1.14e-10 | 8.0e-11 | 2.6e-11 | 1.14e-10 | 8.0e-11 | 2.6e-11 | 1.4e-14 |
+| 7 | 32 | 2.51 | 1.21e-10 | 4.8e-11 | 3.6e-11 | 1.19e-10 | 4.8e-11 | 3.6e-11 | 3.6e-15 |
+| 8 | 48 | 2.38 | 1.68e-10 | 7.0e-11 | 3.9e-11 | 1.71e-10 | 7.2e-11 | 3.9e-11 | 5.2e-14 |
+| 9 | 32 | 1.79 | 9.9e-11 | 5.5e-11 | 2.6e-11 | 9.9e-11 | 5.6e-11 | 2.6e-11 | 1.1e-14 |
+| 10 | 32 | 1.79 | 1.10e-10 | 6.1e-11 | 3.1e-11 | 1.10e-10 | 6.2e-11 | 3.1e-11 | 1.1e-14 |
+| **all** | | | **1.89e-10** | **1.3e-10** | | **1.89e-10** | **1.2e-10** | | **8.5e-14** |
+
+`nnodes = 100000` (yace 1.9 GB, **37 GB RSS, 465 s** per LAMMPS start):
+
+| cfg | N | max\|F\| | as-is max\|dF\| | rel | mean\|dF\| | exact max\|dF\| | rel | mean\|dF\| | \|dE\|/atom |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 48 | 3.22 | 7.7e-11 | 2.4e-11 | 1.8e-11 | 4.3e-11 | 1.3e-11 | 1.2e-11 | 8.5e-14 |
+| 2 | 32 | 0.98 | 6.7e-11 | 6.9e-11 | 1.8e-11 | 5.4e-11 | 5.4e-11 | 1.4e-11 | 1.8e-14 |
+| 3 | 32 | 1.21 | 6.4e-11 | 5.3e-11 | 1.9e-11 | 5.3e-11 | 4.4e-11 | 1.3e-11 | 3.6e-15 |
+| 4 | 32 | 1.07 | 8.1e-11 | 7.6e-11 | 2.0e-11 | 4.1e-11 | 3.8e-11 | 1.2e-11 | 7.1e-15 |
+| 5 | 48 | 2.14 | 5.6e-11 | 2.6e-11 | 1.7e-11 | 3.7e-11 | 1.7e-11 | 1.1e-11 | 4.7e-15 |
+| 6 | 48 | 1.43 | 7.1e-11 | 5.0e-11 | 2.0e-11 | 4.2e-11 | 2.9e-11 | 1.3e-11 | 4.7e-15 |
+| 7 | 32 | 2.51 | 6.8e-11 | 2.7e-11 | 1.7e-11 | 3.7e-11 | 1.5e-11 | 1.2e-11 | 3.6e-15 |
+| 8 | 48 | 2.38 | 9.8e-11 | 4.1e-11 | 1.8e-11 | 7.0e-11 | 2.9e-11 | 1.4e-11 | 5.2e-14 |
+| 9 | 32 | 1.79 | 4.9e-11 | 2.8e-11 | 1.6e-11 | 4.2e-11 | 2.3e-11 | 1.1e-11 | 1.8e-14 |
+| 10 | 32 | 1.79 | 6.1e-11 | 3.4e-11 | 2.1e-11 | 5.2e-11 | 2.9e-11 | 1.4e-11 | 1.1e-14 |
+| **all** | | | **9.8e-11** | **7.6e-11** | | **7.0e-11** | **5.4e-11** | | **8.5e-14** |
+
+Energies agree to 8.5e-14 eV/atom in every case (float64 resolution on
+-650 to -1000 eV totals). The 1e5 rows reach the same ~1e-10 level the
+Julia replica predicts once the 13 radials x ~40 neighbours are weighted by
+the fitted (small, smooth) coefficients; Part 1's 5.4e-9 on the Si model was
+the same floor under 10x larger forces and wild coefficients.
+
+### Verdicts (max |dF| over the 10 held-out configs, many-body component)
+
+| tolerance | 1e4 as-is | 1e4 exact | 1e5 as-is | 1e5 exact |
+|---|---|---|---|---|
+| **1e-10 eV/A absolute** | **FAIL** (1.89e-10) | **FAIL** (1.89e-10) | pass by 2% (9.8e-11) | pass by 30% (7.0e-11) |
+| **1e-9 eV/A absolute** | PASS (5x margin) | PASS (5x) | PASS (10x) | PASS (14x) |
+| **1e-8 eV/A absolute** | PASS (53x) | PASS (53x) | PASS (100x) | PASS (140x) |
+| **1e-9 relative** (to max \|F\|) | PASS (8x) | PASS (8x) | PASS (13x) | PASS (19x) |
+
+Nothing was loosened: same fork binary, same exporter conventions, same
+comparison as Part 1; the only new fields are the exact nodal data written
+into the two keys the fork already requires.
+
+### Updated recommendation
+
+The Part 1 recommendation stands -- **not exact; CPU users deploy via
+`lammps-export`** -- but the fork-pinned yace route is now characterised
+rather than dismissed: on a physical model it delivers **<= 2e-10 eV/A
+absolute and ~1e-10 relative at the default 1e4 nodes** and cannot be made
+exact by any nodal-data choice (the Hermite-in-r form itself floors at ~1e-9
+in dR/dr). A fork-pinned exporter's contract would therefore be: forces to
+**1e-9 eV/A absolute / 1e-9 relative** (not 1e-10), energies to float64;
+`nnodes = 1e4` default (1e5 buys ~2x at 10x the file, 37 GB of LAMMPS RSS and
+an 8-minute load per start -- not worth it); analytic nodal derivatives
+written (free, harmless, ~30% at 1e5); many-body component only, with the
+pair potential's accuracy a *separate* question (today a 0.001 A
+`pair_style table`; folding it into the yace as rank-1 functions on the same
+Hermite radials is possible in the fork's format but was not tested); CPU
+`pair_style pace` only (the fork's `ACE.jl` radials are rejected by
+`pace/kk`); pinned to the wcwitt fork at the tested SHA. That is an
+explicitly approximate deliverable with a different contract from Package 2's,
+as Part 1 said.
+
+### Dead ends and notes
+
+- Julia 1.12 environments on the host (`pyjuliapkg`) do not load
+  ACEpotentials v0.10 (missing `MbedTLS_jll`); the v0.10 radial check was run
+  locally, as in Part 1.
+- `ExtXYZ.load(...)[1]` returns an `AtomView` that `PairList` rejects; use
+  `ExtXYZ.Atoms(ExtXYZ.read_frame(f))`.
+- `JuLIP.read_extxyz(file, k)` does not select a frame; read the whole file
+  and index.
+- The 1e5-node five-species yace is 1.9 GB on disk and parses to 37 GB in
+  yaml-cpp; the host had 45 GB free, so runs were serialised.
+
+### Artefacts (Part 2)
+
+- Host `~/si-ace/spike_yace/`: `cantor_all.jl` (fit, physicality, data/ref
+  files, four yace exports), `export_n.jl` (with `exact_derivs`),
+  `v06_radial_floor.jl`, `in.cantor`, `in.cantor_one`, `run_pace.sh`,
+  `compare_cantor.py`, `cantor_v06.json` (the fitted model),
+  `cantor/` (`cantor_{1..10}.{data,box}`, `cantor_ref_*.txt`, the four
+  `.yace`, the pair `.table`), `dump.n1*`, `log.n1*`, `log.cantor_all`,
+  `log.v06_radial_floor`.
+- Local (untracked) `acejax/spike_yace/`: the same scripts plus
+  `radial_tabulation_error_cantor.jl`, `cantor_held.xyz`.
