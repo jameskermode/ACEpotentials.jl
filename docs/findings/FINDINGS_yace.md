@@ -151,7 +151,7 @@ env   = 1/2 (1 + cos(pi r/rc))                                      # :310
 taper = 1/2 (1 + cos(pi (r - (rc-dcut))/dcut))  on [rc-dcut, rc]    # :317-323
 ```
 
-(`ChebPow`, `:329-370`: `x = 2 (1 - (1 - r/rc)^lam) - 1`,
+(`ChebPow`, `:328-362` (doc comment + body): `x = 2 (1 - (1 - r/rc)^lam) - 1`,
 `g_k = 1/2 (1 - T_k(x))`, no separate cutoff -- a polynomial in r for integer
 `lam`; the same argument applies.) v0.10 `ace1_model` (parameters read
 from the model, `chebexpcos_lsq.jl`):
@@ -232,7 +232,8 @@ functions of these, so 1e-10 on forces is out of reach on this route. A
 higher-degree model is worse, as measured with the same script at
 `totaldegree = 16` (91 radial functions, max |dR/dr| = 11.5): edge
 max |dR'| = 3.1e-6 at 9999 bins, best 2.6e-9 at 3e5 bins, 9.0e-9 at 1e6 --
-6-10x the degree-10 numbers at every setting.
+about 10x the degree-10 number at 9999 bins, ~1.9x at 3e5 and ~2.3x at 1e6:
+up to 10x at coarse tables, ~2x near the floor.
 
 ## Step 4: end-to-end under `pair_style pace` (fork binary)
 
