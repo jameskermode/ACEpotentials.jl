@@ -513,3 +513,18 @@ of one radial layer, plus the non-ACE1 radials:
 - The non-ACE1 radial heuristics cost 2.3% (0.1087 vs 0.1063): Jacobi with
   the envelope folded in, agnesi (2,4) and splining are worth keeping; the
   degree rule is the part of ACE1 worth replacing (Stage 1F).
+
+### Learning curves, corrected model (1k, test / train F)
+
+| N | deg 6 categorical | deg 6 embedded d≤16 | deg 8 categorical | deg 8 embedded d≤16 |
+|---|---|---|---|---|
+| 50 | 0.153 / 0.084 | **0.131** / 0.074 | 0.157 / 0.057 | **0.121** / 0.062 |
+| 100 | 0.132 / 0.080 | **0.114** / 0.076 | 0.136 / 0.071 | **0.109** / 0.071 |
+| 200 | 0.113 / 0.073 | **0.103** / 0.084 | 0.114 / 0.063 | **0.094** / 0.064 |
+| 400 | 0.101 / 0.082 | **0.099** / 0.089 | 0.099 / 0.063 | **0.086** / 0.069 |
+| 800 | 0.097 / 0.087 | 0.0975 / 0.092 | 0.0855 / 0.063 | **0.0822** / 0.073 |
+
+The embedded model is the more data-efficient at both degrees and shares the
+categorical floor at degree 6; at degree 8 both are still data-limited at
+N = 800 (gaps 0.022 / 0.009). The earlier reading "the embedded basis wants
+degree, not data" was an artefact of the missing tail blocks.

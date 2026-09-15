@@ -73,10 +73,10 @@ Three things follow from @tab-main and @fig-acc. First, *at matched degree the f
 #figure(
   placement: auto,
   image("fig_learning_curves.png", width: 92%),
-  caption: [Learning curves on the 1k set (test solid, train dashed). Degree 6 is basis-limited for both models; at degree 8 the categorical model is still data-limited (gap 0.022 at N = 800) while the embedded one has converged.],
+  caption: [Learning curves on the 1k set (test solid, train dashed). The embedded model is the more data-efficient at both degrees (23% better at N = 50, degree 8). Degree 6 is basis-limited for both by N = 400; at degree 8 both are still data-limited at N = 800 (gaps 0.022 and 0.009).],
 ) <fig-lc>
 
-The learning curves (@fig-lc) explain the shape of the table. Both degree-6 models saturate — train and test meet — by 400 structures; the embedded model gets there by 200 and is the better model below that. At degree 8 the categorical model still has slope at 800 and duly gains 11% from 4× the data, while the embedded models gain 2%. *The embedded basis wants degree, not data*; the categorical basis wants data. This is the mechanism behind "accurate per structure vs accurate per parameter".
+The learning curves (@fig-lc) explain the shape of the table. At degree 6 both models saturate — train and test meet — by 400 structures, at the same floor; the embedded model is below the categorical one at every smaller N (15% at N = 50). At degree 8 the embedded model is better at every N (23% at N = 50, 4% at 800) and both are still data-limited at 800, which is why both gain from the 4k set (categorical −11%, embedded −4%). The embedded model has fewer parameters to fill and fills them sooner; it does not have a lower ceiling. Degree, not data, is the lever for both at degree 6; at degree 8 more data still pays.
 
 == The embedding's values, and the ACE1 heuristics (Stage 1F)
 
