@@ -113,12 +113,34 @@ reachable, but no training loop is implemented.
 bundle for `pair_style jax/kk`:
 
 ```bash
-python lammps/export_bundle.py --npz fixtures/si_fitted.npz --out si.lammps-jax.json
+python lammps/export_bundle.py --npz fixtures/si_fitted.npz --size-from my_structure.xyz --out si.lammps-jax.json
 ```
+
+`--size-from` reads an ASE-readable, periodic, orthorhombic structure and
+sizes `max_atoms`/`max_edges`/`max_local` from it (skin + margins on top of
+the actual atom/ghost/edge counts, printed at export time along with the
+resulting capacities); pass explicit `--max-atoms`/`--edges-per-atom`/
+`--max-local` to override. Capacity cost is U-shaped — too small pads nothing
+but breaks at runtime, too large pads every step — so size from a structure
+representative of the run rather than guessing. Exceeding `max_local` (the
+node-axis capacity for local atoms) makes every energy NaN, and every
+gradient NaN on edge-wired rows, by design: this is meant to fail loudly
+rather than silently truncate. The readout is folded through `A2B` (C-tilde)
+by default; `--no-fold` disables folding for benchmarking only, not for
+production use.
 
 Verified on an RTX A4500: energies match the Python calculator exactly and
 forces to 1.4e-13 eV/Å, on 1 and 2 MPI ranks, with 1314 and 1024/1025 ghost
 atoms respectively (`lammps/run_artifacts/`).
+
+Like-for-like throughput against `pair_style pace/kk` (1728 Si atoms, f64,
+RTX A4500, single-point, sized capacities, same-day measurement; see
+`bench/results.md` "Lever rows"): pace/kk ÷ jax/kk goes from 3.0x to **2.79x**
+at n_B = 69, 2.1x to **1.63x** at n_B = 710, and 2.6x to **1.02x** at
+n_B = 2849, with retention through the plugin rising from 0.30 to 0.76 at
+n_B = 2849. The spec target (≤1.5x at 2849, ≤2x at 69) is met at 2849 and not
+yet at 69; the next lever is the f32 tier, then edge-force export (not
+started).
 
 **Known limitation.** The LAMMPS path is verified for single-point evaluation
 and short runs only. Beyond roughly 50 MD steps it aborts with

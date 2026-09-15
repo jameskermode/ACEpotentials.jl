@@ -230,6 +230,18 @@ on identical systems.
 
 ### Prior evidence (corroborated)
 
+**The recursive/DAG AA spike, resolved (Phase 8; `acejax/spike_recursive/`).**
+Subproduct sharing for the AA products is a dead end for the GPU evaluator —
+0.99x on E+F in f64 at the production basis (1.19x in f32; the reverse pass
+materialises ~25 000 intermediate columns, and AA is only 18% of `site_basis`
+on the GPU when measured against an oracle, so any AA scheme is capped at
+1.34x there) — but **2.30x on CPU**, where AA is 75% of the E+F cost. That
+makes it a live option for the *Julia* evaluator once the radial-spline
+cost is removed (`fix/basis-ed-performance`, Part B): the AA products then
+become its largest stage. EquivariantTensors already has `SparseSymmProdDAG`;
+the trial is a swap of `aabasis` on the fixed kernels, and it should come
+before the 3-factor A basis in the forward-profile's ranked list.
+
 `benchmark/FORCE_REGRESSION_FINDINGS.md` records that ET autograd forces cost
 **~2.1× their own energy evaluation** — the same regime `jax.grad` occupies. And
 the ET kernels are already written in JAX style: `sparsesymmprod_ka.jl` does a
@@ -811,8 +823,8 @@ the linear route exists to avoid.
 3. **Spec construction** — build the single-species `mb_spec`, then replicate each
    entry over `k = 1:d_nu(length(bb))`. Keep it **sorted by correlation order**:
    `sparse_equivariant_tensor` mis-couples an ungrouped spec (see N1 in the spike
-   findings; fixed on `jameskermode/EquivariantTensors.jl:fix-spec-ordering`, not
-   yet merged, so do not rely on the fix being present).
+   findings; fixed in ACEsuit/EquivariantTensors.jl#145 (draft), so do not rely on the
+   fix being present until it is released).
 4. **`ace_embedding_model(; elements, order, totaldegree, embedding, d_max, ...)`**
    returning an `ACEPotential` that `acefit!` accepts unchanged.
 
@@ -1118,48 +1130,102 @@ is the gate on the whole programme -- and a nonlinearity that buys accuracy at
 *low* degree is worth more than it first appears, because it may avoid that
 requirement entirely.
 
+#### Stage 1F — a clean multi-species model family, leaving the ACE1 heuristics behind (proposed 2026-09-14)
+
+`ace1_model` is the compat layer, and its heuristics were tuned for
+few-element DFT fits in 2021: a **species-folded degree rule**
+(`level = n' - 1 + z'/NZ + wL*l`, so different species get different radial
+budgets for no physical reason — the block-set defect the TT spike exposed
+is a consequence), agnesi (2,4) + Jacobi(4,4) with the envelope folded into
+the orthogonality, splined radials, per-pair cutoffs `2.5 r0(z1,z2)`, an
+ACE1 r-envelope pair basis, spherical harmonics. For many elements,
+distillation and pre-trained radials none of these was chosen for the
+problem; uniform cutoffs (MACE-style, measured a no-op on TiAl/Cantor) is
+the first departure already made.
+
+**The clean family is `ace_model`** (v0.10's own constructor): degree on the
+radial index only (species-symmetric); species entering through a learnable
+per-pair mixing `Wnlq[:, :, z_i, z_j]` whose *initialisation* selects the
+species model — `:onehot` = categorical, `set_embedding_weights!` = frozen
+embedding, `:glorot_normal` (the default, which `acefit!` leaves frozen) = a
+random per-pair projection, i.e. Darby's random embedding; learned = Stage
+2B pre-training; and it is the constructor ET #130's `CPACEbasis` slots
+under. So the work is: make `ace_model` the family with categorical /
+embedded / learned as initialisations of one radial layer, and choose its
+defaults deliberately — species-symmetric degree; one cutoff; Jacobi-with-
+envelope or Legendre (measure); spherical vs solid (different models for a
+frozen-radial linear fit, a reparameterisation once radials are learned);
+pair basis under the same rule; E0s from data.
+
+*Gate:* the clean defaults must match or beat `ace1_model` on the DFT test
+sets (Si, TiAl; `test_silicon` thresholds) before anything switches default.
+`ace1_model` stays as the validated reference either way, and the report's
+ACE1-parity comparison stands as the "faithful compression of the
+production model" result.
+
+*First measurement (cheap, queued):* 1k degree 6 on the Cantor set,
+`ace_model`-family categorical (onehot) vs frozen embedding
+(`ace1_compat = false`) vs random projection (glorot), against the
+ACE1-parity numbers — what the legacy heuristics are worth on this problem.
+
 #### Stage 1D — distil a real multi-element model (**run; results in `acejax/bench/distil/RESULTS.md`**)
 
-**Status (2026-09-13).** Three rounds run on CrMnFeCoNi, S=5, order 3.
+**Status (2026-09-15) — complete; final numbers in `acejax/bench/distil/RESULTS.md` and
+`docs/reports/embedding_benchmark/report.pdf`.** CrMnFeCoNi, S=5, order 3, MH-1 labels,
+bounded generator. The embedded model is now an *exact special case* of `ace1_model`
+(two oracles in `test/models/test_embeddings.jl`: at S=1 it is `ace1_model`, span
+residual 5e-16; at S=2 lossless spans the categorical space to 7e-15). Earlier
+rounds measured a mis-built embedded model (solid harmonics, a species-blind
+truncated pair basis, and a single-channel degree rule that dropped 40–45% of the
+categorical blocks); every embedded number before commit `6440ff88` is superseded.
 
-| round | generator | teacher | categorical test F | embedded `d_max=16` | what it taught |
-|---|---|---|---|---|---|
-| 1 (250) | 6% Gaussian | MP-0-small | 0.1736 | 0.1771 | embedding is a fair trade |
-| 2 (1k) | 6% Gaussian | MP-0-small / MH-1 | 0.4328 / 0.1801 | 0.4388 / — | flat learning curve; MP-0 labels **rough** (difference-fit); ten crushed cells = 77% of test error |
-| 3 (1k) | **bounded uniform** | **MH-1** | **0.0969** | **0.1101** | generator was the limit; energies 3–4 meV/atom |
-| 3, degree 8 | bounded uniform | MH-1 | **0.0855** | **0.0911** (+7%, 5.1× fewer params) | gap narrows with degree; energies unchanged |
-| 4k, degree 8 | bounded uniform | MH-1 | **0.0763** | 0.0894 | categorical data-limited (−11%), embedded basis-limited (−2%) |
-| 4k, degree 10 | bounded uniform | MH-1 | **0.0641** (46k params, 151 GB, BIGMEM) | **0.0767** (8k params); lossless 0.0753 | embedded wanted degree: d≤16 matches deg-8 categorical at 2.4× fewer params; fast assembly path 25 min vs 14 h |
+| set / degree | categorical (params) | embedded lossless | embedded d≤16 | embedded d≤8 |
+|---|---|---|---|---|
+| 1k deg 6 | 0.0969 (6 740) | **0.0953** (5 375) | 0.0975 (3 190) | 0.1076 (1 710) |
+| 1k deg 8 | 0.0855 (19 120) | **0.0812** (12 850) | **0.0822** (7 245) | 0.0950 (3 800) |
+| 4k deg 8 | 0.0763 | **0.0755** | 0.0787 | 0.0915 |
+| 4k deg 10 | 0.0641 (46 635) | **0.0639** (27 325) | 0.0678 (14 785) | 0.0796 (7 650) |
 
 Decisions that came out of it, in order of how much they mattered:
 
-1. **The structure generator decides the result.** Round 2 → 3 halved the
-   force error with the same basis, the same budget and the same teacher, by
-   removing a Gaussian tail nobody intended (36% compression, 20–27 eV/Å).
-   Bounded uniform draws, a min-separation filter, and a post-label `--fmax`
-   filter are now the default (`make_structures.py`, `label.py`).
-2. **Test the teacher before the basis.** The difference-fit (fit MP-0 − MH-1
-   with the same design matrix) discriminates a smooth disagreement from a
-   rough one; MP-0-small's was rough (0.28 in-sample). MH-1 is the teacher.
-3. **The embedding costs 12–14% on forces at S=5** for 2.8–4.2× fewer
-   parameters, and `d_max=16` is indistinguishable from lossless. Energies are
-   slightly *better* embedded. Inside the band set in advance.
-4. **Speed-up is measured, in process, fp32, A4500** (`latency.py`; the
-   subprocess-by-difference `head2head.py` needs ~1000 frames and was noise at
-   the 64 used here — its 1000-frame S=75 result stands). Degree-6 student vs MH-1 kernel: 21× / 22× / 11× at
-   40 / 330 / 1100 atoms; 4× end-to-end through an ASE calculator because the
-   host neighbour list dominates ACE's frame time. MH-1 OOMs at 3 000 atoms on
-   20 GB. **ACE kernel throughput is not flat in cell size** (1.5e5 → 7.9e4
-   atom-steps/s between ~330 and ~1100 atoms) — that is Phase 15's target and
-   it is now the biggest known lever on the MD number.
-5. **"Comparable accuracy" is student-vs-teacher until a DFT test set exists.**
-   Nothing here says the student is as good as MH-1 at physics; it says it
-   reproduces MH-1 to 0.11 eV/Å on this distribution.
+1. **The structure generator decides the result.** A bounded generator halves the
+   force error of a Gaussian one at the same basis, budget and teacher (the
+   Gaussian tail gave 36%-compressed cells at 20–27 eV/Å). Bounded uniform draws,
+   a min-separation filter and a post-label `--fmax` filter are the default
+   (`make_structures.py`, `label.py`).
+2. **Test the teacher before the basis.** The difference-fit (fit MP-0 − MH-1 with
+   the same design matrix) discriminates a smooth disagreement from a rough one;
+   MP-0-small's was rough (0.28 in-sample). MH-1 (head `matpes_r2scan`) is the teacher.
+3. **At matched degree the frozen embedding costs nothing.** Lossless is 0.3–5%
+   *better* than categorical at every degree (same span, different prior shape)
+   with 1.3–1.7× fewer parameters; d≤16 within 1–6% at 2.1–3.2× fewer; d≤8
+   truncates order 2 and costs 10–24% — keep `d_max = 16`. Learning curves: the
+   embedded model is the more data-efficient at both degrees (23% better at N=50,
+   degree 8), shares the categorical floor at degree 6, and is still data-limited
+   at degree 8 like the categorical one.
+4. **The embedding's values matter a little at S=5.** MH-1 vs a random projection,
+   everything else matched: 1.8% (0.1063 vs 0.1082). The table/reduction 2×2 on the
+   old model showed no difference; transferred chemistry is a `d_max < S` question.
+5. **Stage 1F measured (1k, degree 6):** the ACE1 species-folded degree rule is worth
+   7% over a species-symmetric rule only because it admits 2.8× more tail blocks;
+   the ACE1 radial heuristics (Jacobi+envelope, agnesi (2,4), splined, spherical)
+   are worth 2.3% over Legendre/agnesi (2,2)/unsplined/solid — keep the radials,
+   replace the degree rule. `block_rule = :symmetric`, `identity_embedding`,
+   `random_embedding` exist for this.
+6. **Speed, in process, fp32, A4500, corrected degree-6 d≤16 model (638 functions):**
+   vs MH-1 through mace-jax 17× / 16× / 8× at 40 / 330 / 1100 atoms; vs MH-1
+   through MACE-torch + cuEquivariance (the best MACE; measured in a one-off venv)
+   89× / 17× / **4×**; f64 52× at 330 atoms. mace-jax's own `cueq` backend is
+   `method='naive'` and cannot be accelerated as shipped. Julia CPU (fixed
+   evaluator): 1.4e3 / 8.2e3 atom-steps/s at 1 / 32 threads on moriarty's Xeon
+   Silver; the categorical model evaluates 2× faster than embedded on CPU because
+   the tail blocks carry 7× the AA products — per-site cost is in the product
+   basis, not the function count (→ Stage 1F degree rule, recursive AA).
+7. **"Comparable accuracy" is student-vs-teacher until a DFT test set exists.**
 
-Still open from this stage: a learning curve on the bounded set (best λ is
-1e-9, so the prior is idle and the fit is data-regularised); short-range
-order in the generator; a small DFT test set; the degeneracy probe for
-incompleteness; S=10/20 where categorical is not buildable.
+Still open from this stage: short-range order and unary/binary structures in the
+generator; a small DFT test set; the degeneracy probe for incompleteness; S=10/20
+where categorical is not buildable.
 
 **Prior art (checked 2026-09-13), and what is actually ours.**
 
@@ -2086,7 +2152,20 @@ Stage 1.
 
 #### Stage 2A — linear fit in JAX (the priority)
 
-**Language choice for the fitter, settled (2026-09-13).** The requirement set
+**Language choice for the fitter — REOPENED (2026-09-14).** The paragraph
+below was written before the assembly profile. Its premise — that Julia
+assembly was structurally slow and GPU assembly the only way to fit at scale
+— no longer holds: `fix/basis-ed-performance` assembles the 151 GB degree-10
+matrix in 25 min on CPU, the forward evaluator is at 12-18x with CPU parity
+projected, and VarPro pre-training (2B) runs on Julia's existing rrules. The
+honest state of 2A is a choice between **(i) Julia assembly + solve** (single
+source of truth; phase 18 via TSQR/ScaLAPACK in Julia, the gap_fit lineage)
+and **(ii) porting assembly to JAX** (GPU bandwidth, ~10x on a gather-bound
+assembly; one descriptor shared with the evaluator; MACE moving to JAX). The
+S=25 gate experiment (~150 GB assembly) is the natural test of whether (i)
+suffices. The assessment of Rust and PyTorch below stands.
+
+*Original paragraph, kept for the record:* The requirement set
 is: gradients w.r.t. *basis parameters* (VarPro pre-training, Stage 2B), GPU
 throughput for assembly (irregular gather/scatter — not BLAS-bound; only the
 solve is), a legible cost model for code that runs for hours unattended, and
@@ -2306,6 +2385,101 @@ parameter count; (b) the FS term `sqrt(Σ_k w_k A_k)` inside the model — the
 θ-gradient comes from the same rrule; plus its export. JAX would only buy
 GPU throughput for a large pre-training set, and pre-training is on a
 subset by design.
+
+*Where the learnable mixing should come from — EquivariantTensors PR #130
+(CP/TRACE format), not ACEpotentials.* Reviewed 2026-09-14. `EquivLinearL` +
+`CPACEbasis` + `CPACElayer` are exactly the learnable Stage-2 mixing
+`Ā^k = W^l · A` with rrules, a rank-K CP evaluated per rank, and a `λ`
+readout. Our `ace_embedding_model` is that format with W frozen, W of the
+species-only form `δ_nn' E[z,k]`, the mixing folded into the radials (gauge
+G3 in trace.md), and a per-order rank `d_ν` where TRACE has one global K.
+The two-stage route is supported natively: learn W, freeze
+`ps.basis.mixer.W`, the model is linear in `λ`. So the "structured
+`Wnlq(E)`" item above should be *adopted from #130 when `restructure`
+(#109) lands*, not built here; the frozen model should then become a
+`CPACEbasis` with frozen W rather than a widened sparse spec (which is also
+what exposed #145). Not usable today: CPU reference only, ragged W, no
+efficient Jacobian (that is `pushforward_rows!` (#144) looped over k — a
+follow-up to offer), targets an unmerged branch. One data point to give
+CO on his global-K decision: in a linear fit, padding an order beyond its
+species-tensor dimension makes the design matrix rank-deficient (why
+`embedding_widths` is per-order); harmless under gradient descent, not
+under QR/BLR.
+
+*Tensor trains, and why "linear fits in this space are underexploited"
+(CO, 2026-09-14).* In the carrier ⊗ coefficient framework of ET #130
+(`eqtensor_interface.md`: every equivariant format is a fixed CG carrier
+times a G-trivial coefficient tensor `c`, and a "format" is a compression of
+`c`), the models in this plan line up as follows:
+
+| format of `c_{n_1…n_ν}` | parameters | who |
+|---|---|---|
+| dense (categorical ACE) | `n^ν` per coupling block | ACEpotentials today |
+| CP, fixed factors | `K` channels, `c = Σ_k λ_k w_k^{⊗ν}` with `w_k` frozen | our frozen embedding, `K = d_ν` |
+| CP, learned factors | + `W` | TRACE / MACE / ET #130 |
+| **tensor train** (MPS) | cores `G_t[n] ∈ R^{r_{t-1} × r_t}`, `c = G_1[n_1] G_2[n_2] ⋯ G_ν[n_ν]` | not yet in ET or ACEpotentials |
+
+CP is the TT with diagonal cores and constant bond dimension, so TT strictly
+generalises it at the same rank; and **bond dimensions vary along the train
+by construction** — which is exactly the per-order width `d_ν` this work
+found necessary (and which CO ruled out for CP's single global `K`). The
+never-form-`c` evaluation carries over: contracting a TT `c` with `A^{⊗ν}`
+is a chain of small matmuls, `O(ν r² |A|)` per site, GPU-friendly; its
+Jacobian is `pushforward_rows!` through the chain.
+
+**The linear structure.** A TT is *multilinear*: with every core but one
+frozen, the model is *linear* in the free core. So fitting a TT-compressed
+ACE is a sequence of linear ACE fits — ALS / DMRG-style sweeps in which each
+core update is an ordinary least-squares problem on a design matrix
+assembled by the existing machinery with "everything else frozen" as the
+basis. Each step is convex and gets the whole linear toolkit (smoothness
+priors, BLR, POPS, QP constraints, D-optimal selection, closed-form λ); the
+global problem is multi-convex with monotone ALS convergence, not globally
+convex. This is what the MACE/GRACE gradient-descent codes never do, and it
+is the general form of Stage 2B: "freeze W, fit λ" is one ALS half-sweep of
+a CP format. DMRG's two-site update with SVD truncation also chooses the
+bond dimension adaptively — a principled version of `d_max`, and a place
+where the posterior (BLR/POPS) could inform truncation.
+
+Caveats to state up front: (i) an `S_ν`-symmetric `c` wants *shared* cores,
+in which the model is polynomial (degree ν) rather than linear — the
+standard remedy is ALS on the unsymmetric relaxation (distinct cores per
+slot; contraction against the symmetric product basis symmetrises
+implicitly) and it costs redundancy, or VarPro on the shared core as in the
+spike; (ii) per-site evaluation is `O(r²)` against CP's `O(K)`, so TT buys
+expressivity per *parameter*, not per flop — the trade has to be measured;
+(iii) the per-core design matrix has `r_{t-1} · n · r_t` columns per
+coupling block, comparable to a categorical fit at `r ≈ 16`, so phase 18
+matters here too.
+
+**Prior art.** TT regression with ALS/DMRG sweeps is established outside
+MLIPs — Stoudenmire & Schwab 2016 (supervised learning with MPS, DMRG
+sweeps), Novikov et al. 2016 ("Exponential Machines": polynomial regression
+with a TT weight tensor, which is precisely what an ACE with TT coefficients
+is), Holtz–Rohwedder–Schneider 2012 (ALS for TT). In MLIPs: GRACE's
+"tensor decomposition of the expansion coefficients" and MTP's
+moment-tensor contractions are CP/Tucker-like; CO's `eqtucker.qmd` covers
+Tucker. A symmetric-product ACE with TT coefficients fitted by alternating
+linear solves appears to be **unexplored** — worth a literature check
+before claiming it.
+
+**Spike RUN (2026-09-14; `docs/findings/FINDINGS_tt_spike.md`, `acejax/spike_tt/`).**
+TT over the *species* index (the only reading consistent with the CP oracle),
+cores shared across centre species, readout per (n′,l) block; ALS with exact
+Tikhonov core steps on the cached categorical matrix via a sparse contraction
+`A_cat · M_t` (multiplicity convention verified unit against ET's `A2B`);
+2 144 steps, zero non-monotone — after replacing Julia's pivoted `\` (not a
+minimiser on rank-deficient blocks) by QR+SVD, the one practical trap. Two
+oracles exact (full rank ≡ categorical to 3e-13; diagonal rank-16 cores ≡
+frozen-embedding CP to 2e-15). Degree 5 test F: categorical 0.1119 (3 795
+params) · CP-16 0.1118 (2 195) · **TT(1,4,4,4) 0.1093 (1 025)** · **TT(1,5,8,8)
+0.1079 (2 045)**; transfer holds (frozen cores + readout refit on a disjoint
+split beat both). Per flop TT is level with CP above ~2 500 flops/site and
+behind below; categorical is cheapest per flop at S=5. **TT wins per
+parameter (rank regularisation), not per flop — caveat (ii) confirmed.** Side
+effect: the oracle exposed the three `ace_embedding_model` defects, since
+fixed. Decision for 2B's format still open between CP (#130) and TT; a
+`formats/tt/` proposal to ET should wait for the S>5 gate.
 
 *Then freeze and refit at scale:* nothing moves between languages —
 `Wnlq` and `E` are already the Julia model's arrays, the export splines any
@@ -2626,6 +2800,54 @@ export branch.
 4. Is there a case for an `acesuit-jax-common` package shared with mace-jax
    (nlist adapter, strain helper, ASE calculator)? Premature — vendor now, extract
    later if it proves out.
+
+5. **Open as of 2026-09-15 (pre-compaction checkpoint).**
+   - PR 0 (`fix/basis-ed-performance`) waits on EquivariantTensors #144 being
+     tagged 0.5.2; then delete the temporary `Pkg.add(url=…)` line in
+     `.github/workflows/acejax.yml`. `test_silicon` passes on ET 0.5.2 with the
+     liquid energy weight 10 → 15 (BLR prior is not invariant to ET 0.5's
+     coupling orthonormalisation; QR is).
+   - ET #145 (spec ordering) and #83 (NeighbourLists 0.6, rebased) in review.
+   - The three ACEpotentials PR branches are on the fork, stacked, CI green;
+     squash `pr/element-embeddings`' report-iteration commits when opening.
+   - Report `docs/reports/embedding_benchmark/report.pdf` is final-state and
+     consistent; to be sent to CO.
+   - Next runs when compute is free: Stage 1F defaults gate (clean family vs
+     `ace1_model` on Si/TiAl); S=25 gate on HEA25S (Stage 2C); recursive AA
+     (`SparseSymmProdDAG`) on the fixed Julia evaluator; Phase 15 calibration
+     on the A4500; the fitted Cantor student exported and timed in acejax.
+   - **2026-09-15, later the same day: LAMMPS throughput plan (`docs/plans/lammps_throughput_design.md`) implemented and measured.**
+     - Lever A, fold the readout through `A2B` (C-tilde), default on load
+       (commit `9433ed21`): 1.04x at n_B = 69, under the 3% repeat floor at
+       710, 1.06x at 2849 (in LAMMPS, at 1728 atoms).
+     - Lever B, per-atom stages over a `max_local` node axis instead of
+       `max_atoms`, NaN on overflow by design (commit `f7b1a95f`, hardened in
+       `1c979844`/`831359c4`/`ba9875ca`): 1.01x at 69, 1.14x at 710,
+       **1.94x** at 2849 — the large lever at production basis size.
+     - Lever C, `--size-from` sized bundle capacities in place of guessed
+       `max_atoms`/`edges-per-atom` (commit `07388774`): 1.53x/1.55x/1.41x at
+       69/710/2849; this is the row that is like-for-like against the
+       CORRECTION series.
+     - Verdict against the spec target (≤1.5x at 2849, ≤2x at 69): **met at
+       2849** (pace/kk ÷ jax/kk 2.6x → 1.02x, A+B+C, sized capacities),
+       **not met at 69** (3.0x → 2.79x). At 710: 2.1x → 1.63x. Retention
+       through the plugin 0.30 → 0.76 at 2849.
+     - `pace/kk` OOMs at 2874 functions and 4096 atoms (`Kokkos ERROR: Cuda
+       memory space failed to allocate 13.41 GiB`, 20 GB card); `jax/kk` runs
+       that point without incident.
+     - Full tables and method: `acejax/bench/results.md`, section "Lever
+       rows: fold (A), local node axis (B), sized capacities (C)".
+     - Package 2 (exact yace/ML-PACE export) spike result: **no exact
+       route** — best residual 5.4e-9 eV/Å against the 1e-10 criterion, 54x
+       over; see `docs/findings/FINDINGS_yace.md`. Open CPU question: the
+       ACEsuit `lammps-export` compiled-library route (`juliac --trim` +
+       `pair_style ace` plugin) is the recommended path but is unverified for
+       exactness and throughput.
+     - Benchmark fixtures `si_s69/m710/l2849.npz` are gitignored and their
+       exact export recipe (ace_model kind, `ACE_ORDER=4`,
+       `ACE_MAXL=4/5/5`, max_level unknown) is not recorded; they exist on
+       moriarty at `~/si-ace/ACEpotentials/acejax/fixtures/` and should be
+       regenerated with a recorded recipe before they are needed elsewhere.
 
 ## References
 

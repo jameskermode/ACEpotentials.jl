@@ -1,6 +1,8 @@
 # Closing the gap to ML-PACE in LAMMPS — design
 
-**Date:** 2026-09-15. **Status:** approved design; implementation plan to follow.
+**Date:** 2026-09-15. **Status:** implemented and measured (2026-09-15) —
+see `acejax/bench/results.md` "Lever rows"; Package 2 spike: not exact, see
+`docs/findings/FINDINGS_yace.md`.
 
 ## Problem
 
