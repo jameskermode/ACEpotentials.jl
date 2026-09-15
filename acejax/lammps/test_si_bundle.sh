@@ -46,3 +46,15 @@ for R in np1 np2; do
   PE=$(grep -A1 "^ *Step" $TAG.$R.log | awk 'NR==2{print $3}')
   $PYTHON check_vs_python.py $TAG.$R.dump ../fixtures/si_fitted.npz "$PE"
 done
+
+# Undersized max_local must be LOUD: every energy NaN, never a plausible number.
+if [ -f si_undersized.lammps-jax.json ]; then
+  echo "### undersized max_local -> NaN ###"
+  $V/bin/lmp $KK -var pjrt $PJRT -var bundle si_undersized.lammps-jax.json \
+      -var dump_path undersized.dump -in in.mlip_si > undersized.log 2>&1 || true
+  if grep -qiE 'nan|Non-numeric' undersized.log; then
+    echo "OK: potential energy is NaN (or LAMMPS aborted loudly)"
+  else
+    echo "FAIL: undersized bundle produced a finite energy:"; grep -A1 "^ *Step" undersized.log | head -2; exit 1
+  fi
+fi
