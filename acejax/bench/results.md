@@ -1034,3 +1034,30 @@ levers is 0.68-0.77 across the three basis sizes, against 0.30-0.44 for `base`.
 
 Not obtained: pace at 2874 functions and 4096 atoms (OOM in pace/kk, above); C
 at 216 and 4096 atoms; any f32 row.
+
+**Fold exactness at production size.** The 1e-12 tolerance in `tests/test_fold.py`
+is measured on the small committed fixtures only; the design spec
+(`docs/plans/lammps_throughput_design.md`) calls for checking the fold on the
+three gitignored production fixtures (`si_s69`, `si_m710`, `si_l2849`,
+present locally under `acejax/fixtures/`, not in CI). Folded vs unfolded
+`energy_forces_virial`, 216-atom periodic diamond Si cell
+(`bench.bench_acejax.diamond(3)`, edges as in `bench/oracle_a2b.py`), f64:
+
+| fixture | n_B | n_AA | A2B | E (eV) | \|dE\| | \|dF\| (eV/Å) | \|dV\| |
+|---|---|---|---|---|---|---|---|
+| si_s69 | 69 | 105 | dense | -3.90e2 | 5.7e-14 | 0 | 0 |
+| si_m710 | 710 | 2956 | dense | 2.23e4 | 1.1e-11 | 1.1e-13 | 1.8e-12 |
+| si_l2849 | 2849 | 24116 | sparse | -5.98e5 | 2.3e-10 | 1.5e-11 | 1.2e-10 |
+| si_l2849 | 2849 | 24116 | dense | -5.98e5 | 3.5e-10 | 1.5e-11 | 2.3e-10 |
+
+All roundoff-level (relative ~1e-16 throughout). Reproduced on this laptop
+(CPU, jax 0.10.1) with a throwaway script, not committed; same order of
+magnitude as the final reviewer's numbers on moriarty (`si_s69` |dE| 5.7e-14;
+`si_m710` dense |dE| 3.6e-12, |dF| 2.3e-13, |dV| 4.5e-13; `si_l2849` |dE|
+1.16e-10 sparse, |dF| 1.5e-11, |dV| 1.16e-10 dense).
+
+**LAMMPS validation of the max_local bundle (Task 6, moriarty, 2026-09-15).**
+`si_local` bundle (`max_local` 249, 216 atoms) vs the Python calculator: np1
+|ΔE| = 0, |ΔF| 1.75e-13 eV/Å; np2 |ΔE| 7.3e-12, |ΔF| 1.48e-13. An undersized
+bundle (`max_local` 200) produced thermo `PotEng nan` as designed; the
+negative-energy sanity print still came out OK.

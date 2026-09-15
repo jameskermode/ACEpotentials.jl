@@ -157,7 +157,11 @@ def main():
     p.add_argument("--size-from", type=pathlib.Path, default=None,
                    help="size max_local/max_atoms/max_edges from this structure "
                         "(ASE-readable, periodic, orthorhombic); explicit --max-* override")
-    p.add_argument("--skin", type=float, default=1.0, help="LAMMPS neighbor skin (A)")
+    p.add_argument("--skin", type=float, default=1.0,
+                   help="LAMMPS neighbor skin (A); must equal the `neighbor` skin "
+                        "in the LAMMPS input (default for `units metal` is 2.0 A) "
+                        "-- a mismatch shows up as a pre-launch max_atoms capacity "
+                        "abort, not a wrong result")
     p.add_argument("--margin-edges", type=float, default=1.3)
     p.add_argument("--margin-atoms", type=float, default=1.15)
     p.add_argument("--no-fold", action="store_true",

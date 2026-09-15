@@ -321,8 +321,18 @@ def fold_readout(model):
 
     e_i = WB[:,z] . (A2B AA_i)  ==  (A2B^T WB[:,z]) . AA_i, so ctilde = A2B^T WB
     is computed once here and the A2B contraction -- the largest isolated stage at
-    production basis size -- and its adjoint never run.  Exact (tests/test_fold.py
-    holds it to 1e-12).  This is the same fold as PACE's ctilde basis.
+    production basis size -- and its adjoint never run.  Exact to roundoff
+    (relative ~1e-16; 1e-12 absolute on the fitted test fixtures, ~1e-10 absolute
+    on a random-weight 2849-function fixture with E ~= -6e5 eV -- see
+    `bench/results.md` "Lever rows"; tests/test_fold.py holds it to 1e-12 on the
+    committed fixtures).  This is the same fold as PACE's ctilde basis.
+
+    `WB` is retained on the model after folding -- `site_basis`/`site_descriptors`
+    still use it via `A2B` -- but it is no longer on the energy path once folded:
+    a gradient w.r.t. `WB` on a folded model is zero. Anyone replacing `WB` on a
+    folded model must re-fold it (`dataclasses.replace(model, WB=..., folded=False)`
+    then `fold_readout(...)`), or `ctilde` stays stale and site energies keep
+    using the old weights.
     """
     import dataclasses
     if model.folded:

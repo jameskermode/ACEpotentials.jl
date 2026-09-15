@@ -378,6 +378,13 @@ Expected: PASS (10 tests across the two fixtures × parameters).
 Run: `cd acejax && uv run pytest tests/ -q`
 Expected: PASS, same count as before plus the new tests.
 
+Note: Steps 6-7 run the fold-exactness check only on the small committed
+fixtures (`si_fitted.npz`, `si_ace_model.npz`, `sige_nofit.npz`), not on the
+three gitignored production fixtures (`si_s69`, `si_m710`, `si_l2849`) that
+`docs/plans/lammps_throughput_design.md`'s Verification section calls for.
+That check was done post hoc instead, during the final whole-branch review;
+the numbers are in `bench/results.md` ("Fold exactness at production size").
+
 - [ ] **Step 8: Update `bench/oracle_a2b.py` to `load(..., fold=False)`** (Task 1 Step 1 note) and re-run it once on `si_s69` locally to check it still runs.
 
 - [ ] **Step 9: Commit**

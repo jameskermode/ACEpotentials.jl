@@ -29,7 +29,7 @@ sys.path.insert(0, str(HERE))
 from export_bundle import build
 
 NPZ = sys.argv[1] if len(sys.argv) > 1 else HERE.parent / "si_fitted.npz"
-energy_fn, model, meta, RCUT, MAX_ATOMS, MAX_EDGES = build(NPZ)
+energy_fn, model, meta, RCUT, MAX_ATOMS, MAX_EDGES, MAX_LOCAL = build(NPZ)
 
 rng = np.random.default_rng(3)
 a = 5.43

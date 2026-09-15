@@ -67,8 +67,18 @@ def _cluster(npz, n_pad_atoms=37, n_pad_edges=101):
 
 
 def test_local_axis_matches_full_axis(npz):
+    """max_local = n + 3 leaves 3 rows [n, n+3) inside node-axis capacity but with
+    no edges wired to them.  Those rows are not simply 0: site_energies adds
+    E0[node_z] to every row by construction (see model.py `_readout`/
+    `_readout_folded`), including no-edge rows.  Only rows >= max_local (never
+    written by the `.at[:max_local].set(...)` in `build`'s energy_fn) are exactly
+    zero.  This only reads as `e_loc[n:] == 0.0` when E0 == 0, which happens to
+    hold for all three fixtures here -- assert against E0 explicitly instead of
+    relying on that coincidence."""
     mod = _export_bundle()
     positions, species, graph, e_ref, n, max_atoms = _cluster(npz)
+    model, _, _ = load(npz)
+    e0_pad = np.asarray(model.E0)[np.asarray(species)[n:n + 3]]
     full = mod.build(npz, max_atoms=max_atoms, edges_per_atom=1, max_local=None)[0]
     local = mod.build(npz, max_atoms=max_atoms, edges_per_atom=1, max_local=n + 3)[0]
     with highest_precision():
@@ -77,7 +87,8 @@ def test_local_axis_matches_full_axis(npz):
     assert e_full.shape == e_loc.shape == (max_atoms,)
     assert np.abs(e_full[:n] - e_ref).max() < 1e-12
     assert np.abs(e_loc[:n] - e_ref).max() < 1e-12
-    assert np.all(e_loc[n:] == 0.0)
+    assert np.abs(e_loc[n:n + 3] - e0_pad).max() < 1e-12
+    assert np.all(e_loc[n + 3:] == 0.0)
     assert np.all(np.isfinite(e_loc))
 
 

@@ -122,7 +122,10 @@ the actual atom/ghost/edge counts, printed at export time along with the
 resulting capacities); pass explicit `--max-atoms`/`--edges-per-atom`/
 `--max-local` to override. Capacity cost is U-shaped — too small pads nothing
 but breaks at runtime, too large pads every step — so size from a structure
-representative of the run rather than guessing. Exceeding `max_local` (the
+representative of the run rather than guessing. `--skin` must equal the
+`neighbor` skin in the LAMMPS input (the bench inputs use `neighbor 1.0 bin`;
+LAMMPS's default for `units metal` is 2.0 Å); a mismatch shows up as a
+pre-launch `max_atoms` capacity abort, not a wrong result. Exceeding `max_local` (the
 node-axis capacity for local atoms) makes every energy NaN, and every
 gradient NaN on edge-wired rows, by design: this is meant to fail loudly
 rather than silently truncate. The readout is folded through `A2B` (C-tilde)
