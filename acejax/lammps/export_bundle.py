@@ -29,7 +29,6 @@ import jax
 
 jax.config.update("jax_enable_x64", True)   # before export_model, per its check
 import jax.numpy as jnp
-from lammps_jax.export import export_model
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))        # so `import acejax` works from anywhere
@@ -68,6 +67,7 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
 
 
 def main():
+    from lammps_jax.export import export_model   # only the export needs the plugin package
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--npz", type=pathlib.Path,
