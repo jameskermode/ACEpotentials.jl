@@ -880,12 +880,16 @@ median taken (all n_B = 69 LAMMPS rows, the pace 78 row, the Python rows at
 n_B = 69 and 710 — the disagreements were all at 216 atoms, i.e. loops under
 0.3 s, except Python n_B = 710 unfolded at 1728 atoms, 3.9%). Every other
 point longer than 5 ms/step repeats to within 1.8%, most to within 0.5%; the
-LAMMPS n_B = 2849 rows repeat to 0.1%. GPU checked
-idle (`nvidia-smi` utilization and compute-apps count) before every block; a
-one-to-six-core CPU load from another user's job was present during some blocks
-and did not move the numbers (blocks repeated under different loads agree to
-under 1%). Raw tables: `bench/rows_lever/*.txt` on moriarty and in the local
-checkout (gitignored); `rows_lever/summarise.py` produces the table below.
+LAMMPS n_B = 2849 rows repeat to 0.1%. `nvidia-smi --query-compute-apps` was
+empty at every check before every block. GPU utilization read 0-1% before every
+LAMMPS lever-row block; before nine Python and lever-C blocks it read 6-100%,
+which is the tail of our own just-exited process (the check is sampled within a
+second of it), not a contender — the pairs of blocks that straddle such readings
+(e.g. lever C at n_B = 69, one after "100 %" and one after "0 %") agree to 0.5%.
+A one-to-six-core CPU load from another user's job was present during some
+blocks and did not move the numbers (blocks repeated under different loads
+agree to under 1%). Raw tables: `bench/rows_lever/*.txt` on moriarty and in the
+local checkout (gitignored); `rows_lever/summarise.py` produces the table below.
 
 **Rows.** `base` = `--no-fold --no-max-local` (the pre-lever program:
 B materialised, per-atom stages over `max_atoms`); `+A` = `--no-max-local`
@@ -893,51 +897,69 @@ B materialised, per-atom stages over `max_atoms`); `+A` = `--no-max-local`
 over `max_local = ceil(1.25 nlocal)`). Sparse `A2B` at n_B = 710 and 2849,
 dense at 69, as before. Retention = acejax-in-Python ms/step ÷ LAMMPS ms/step
 at the same point: the unfolded Python row against `base`, the folded Python
-row against `+A+B`. pace ÷ jax = LAMMPS jax ms/step ÷ pace ms/step.
+row against `+A+B`. pace ÷ jax = LAMMPS jax ms/step ÷ pace ms/step, from the
+raw ms/step and quoted to two decimals throughout this section.
+
+**How these rows relate to the CORRECTION series, stated first so the table
+cannot be read as a regression.** The CORRECTION series had pace ÷ jax f64 at
+1728 atoms of **3.0x / 2.1x / 2.6x** at n_B = 69 / 710 / 2849, measured with
+bundles at ~1.4x edge margin (110880 edge slots). Today's `base` rows are the
+same code path but at `make_bundles.py`'s default 2.0x edge margin (157825
+slots), and are slower for that reason alone — 8.44 / 37.1 / 156 ms/step
+against 5.49 / 26.8 / 136 then, i.e. 1.54x / 1.39x / 1.15x. That is the
+U-shape of "Bundle capacity is a tuning parameter" again. **The like-for-like
+row against the CORRECTION series is therefore `+A+B+C`** — lever C's
+`--size-from` capacities carry 105043 edge slots, against the historical
+110880 — and on that row **pace ÷ jax goes 2.6x → 1.02x at n_B = 2849,
+2.1x → 1.63x at 710, and 3.0x → 2.79x at 69** (lever C table below). The
+`base → +A → +A+B` columns measure the code levers at a fixed, deliberately
+untuned capacity; their pace ratios are correct for that capacity and
+pessimistic against the historical series.
 
 ms/step:
 
 | n_B | atoms | base | +A | +A+B | pace/kk | pace ÷ jax base | pace ÷ jax A+B | retention base | retention A+B |
 |---|---|---|---|---|---|---|---|---|---|
-| 69 | 216 | 2.34 | 2.21 | 2.24 | 0.51 | 4.6x | 4.4x | 0.27 | 0.22 |
-| 69 | 1728 | 8.44 | 8.14 | 8.09 | 1.90 | 4.4x | 4.3x | 0.44 | 0.45 |
-| 69 | 4096 | 21.84 | 21.00 | 20.85 | 4.05 | 5.4x | 5.1x | 0.41 | 0.41 |
-| 710 | 216 | 6.03 | 5.67 | 4.82 | 1.95 | 3.1x | 2.5x | 0.30 | 0.38 |
-| 710 | 1728 | 37.14 | 36.19 | 31.75 | 12.51 | 3.0x | 2.5x | 0.42 | 0.50 |
-| 710 | 4096 | 115.17 | 114.13 | 87.78 | 29.77 | 3.9x | 3.0x | 0.37 | 0.48 |
-| 2849 | 216 | 20.61 | 17.92 | 8.56 | 7.68 | 2.7x | 1.1x | 0.20 | 0.46 |
-| 2849 | 1728 | 156.44 | 148.28 | 76.29 | 52.41 | 3.0x | **1.46x** | 0.30 | 0.53 |
-| 2849 | 4096 | 550.31 | 506.59 | 211.59 | not run † | – | – | 0.23 | 0.51 |
+| 69 | 216 | 2.34 | 2.21 | 2.24 | 0.51 | 4.63x | 4.42x | 0.27 | 0.22 |
+| 69 | 1728 | 8.44 | 8.14 | 8.09 | 1.90 | 4.45x | 4.26x | 0.44 | 0.45 |
+| 69 | 4096 | 21.84 | 21.00 | 20.85 | 4.05 | 5.39x | 5.15x | 0.41 | 0.41 |
+| 710 | 216 | 6.03 | 5.67 | 4.82 | 1.95 | 3.09x | 2.47x | 0.30 | 0.38 |
+| 710 | 1728 | 37.14 | 36.19 | 31.75 | 12.51 | 2.97x | 2.54x | 0.42 | 0.50 |
+| 710 | 4096 | 115.17 | 114.13 | 87.78 | 29.77 | 3.87x | 2.95x | 0.37 | 0.48 |
+| 2849 | 216 | 20.61 | 17.92 | 8.56 | 7.68 | 2.68x | 1.11x | 0.20 | 0.46 |
+| 2849 | 1728 | 156.44 | 148.28 | 76.29 | 52.41 | 2.98x | **1.46x** | 0.30 | 0.53 |
+| 2849 | 4096 | 550.31 | 506.59 | 211.59 | not obtained (OOM †) | – | – | 0.23 | 0.51 |
 
 † `pace/kk` at 2874 functions and 4096 atoms aborts in both passes with
 `Kokkos ERROR: Cuda memory space failed to allocate 13.41 GiB
 (label="pace:A_forward_prod")` on the 20 GB card. `jax/kk` runs that point.
 
-The Python denominators (ms/step, min of 10, compile excluded): n_B = 69
-unfolded 0.633 / 3.720 / 8.894, folded 0.490 / 3.624 / 8.602; n_B = 710
-unfolded 1.813 / 15.486 / 42.160, folded 1.853 / 15.793 / 41.892; n_B = 2849
-unfolded 4.070 / 47.249 / 125.310, folded 3.945 / 40.465 / 108.846, at
-216 / 1728 / 4096 atoms.
+The Python denominators (ms/step, min of 10, compile excluded; median of three
+where a third pass was run): n_B = 69 unfolded 0.633 / 3.720 / 8.894, folded
+0.490 / 3.624 / 8.602; n_B = 710 unfolded 1.813 / 15.486 / 42.160, folded
+1.843 / 15.780 / 41.882; n_B = 2849 unfolded 4.070 / 47.249 / 125.310, folded
+3.945 / 40.465 / 108.846, at 216 / 1728 / 4096 atoms.
 
 **What each lever did, at 1728 atoms.**
 
 | | n_B = 69 | n_B = 710 | n_B = 2849 |
 |---|---|---|---|
-| A, in LAMMPS (base → +A) | 1.04x | 1.03x | 1.06x |
-| A, in Python (unfolded → folded) | 1.03x | 0.98x | 1.17x |
+| A, in LAMMPS (base → +A) | 1.038x | 1.026x | 1.055x |
+| A, in Python (unfolded → folded) | 1.026x | 0.981x | 1.168x |
 | A2B deletion oracle (Task 1): ceiling | 1.012x | 1.039x | 1.196x |
-| B, in LAMMPS (+A → +A+B) | 1.01x | 1.14x | **1.94x** |
-| A+B together (base → +A+B) | 1.04x | 1.17x | **2.05x** |
+| B, in LAMMPS (+A → +A+B) | 1.006x | 1.140x | **1.944x** |
+| A+B together (base → +A+B) | 1.044x | 1.170x | **2.051x** |
 
-**A is small everywhere, as the oracle said it would be.** In Python the
-fold recovers 1.17x of the 1.196x ceiling at n_B = 2849 and nothing measurable
-at 710 (the 0.98x is inside the 2-4% scatter of that row). In LAMMPS the
-absolute saving is larger than in Python (8.2 ms against 6.8 ms at 2849,
-0.30 ms against 0.10 ms at 69) because the `base` program runs the readout over
-6313 rows rather than 1728, but the *ratio* is smaller because the base row is
-3.3x slower to begin with. So A is worth 3-6% inside LAMMPS at every basis
-size; the oracle's ceiling is a per-row bound at exact N, which the `base`
-program exceeds only because it runs 3.65x the rows.
+**A is small everywhere, as the oracle said it would be.** Applying the same
+3% floor that governs the repeat rule: in LAMMPS, A is under the floor at
+n_B = 710 (2.6%) and resolved at 69 and 2849 (3.8% and 5.5%). In Python it
+recovers 1.17x of the 1.196x ceiling at n_B = 2849; at 710 the 0.98x is under
+the floor (that row's repeats scatter by 2-4%); at 69 the 1.026x is under the
+floor and consistent with the 1.012x ceiling. The LAMMPS gain at 69 (3.8%)
+exceeds the oracle's 1.2%, which is not a contradiction: the oracle bounds the
+exact-N Python program, whereas the padded `base` program runs the readout over
+6313 rows rather than 1728, so there is 3.65x more B-materialising work for the
+fold to remove. Either way A is worth 3-6% inside LAMMPS at every basis size.
 
 **B is the large lever at production basis size, as the padding experiment
 predicted.** 1.94x at n_B = 2849, 1.14x at 710, nothing at 69 — the same
@@ -949,20 +971,11 @@ that belongs to the node axis. The 4096-atom point at 2849 moves by 2.4x
 (506.6 → 211.6 ms/step), more than at 1728, consistent with the atom-slot
 ratio being the mechanism.
 
-**Same-day pace, and the target.** pace/kk reproduces the CORRECTION series to
-within 5% (1.90 / 12.51 / 52.41 ms/step today against 1.81 / 12.43 / 52.36 then,
-at 1728 atoms). **At n_B = 2849, 1728 atoms, pace ÷ jax goes 2.98x → 1.46x**
-from A+B alone; at 710, 2.97x → 2.54x; at 69, 4.45x → 4.26x. Retention at 2849
-rises from 0.30 to 0.53.
-
-**But the `base` rows here are slower than the historical rows they replace**
-— 8.44 / 37.1 / 156 ms/step against the CORRECTION series' 5.49 / 26.8 / 136
-(1.54x / 1.39x / 1.15x, largest at small basis) — with the same code path. The
-difference is bundle capacity: `make_bundles.py`'s default edge margin is 2.0x
-(157825 edge slots for 79056 edges), where the earlier series ran at ~1.4x
-(110880). That is the U-shape of "Bundle capacity is a tuning parameter" again,
-and it is exactly what lever C is for, so the `base → A+B` ratios above are
-right but the pace ratios against them are pessimistic. Lever C answers this.
+**Same-day pace.** pace/kk reproduces the CORRECTION series to within 5%
+(1.90 / 12.51 / 52.41 ms/step today against 1.81 / 12.43 / 52.36 then, at 1728
+atoms). At the untuned `make_bundles` capacity, **n_B = 2849, 1728 atoms,
+pace ÷ jax goes 2.98x → 1.46x** from A+B alone; at 710, 2.97x → 2.54x; at 69,
+4.45x → 4.26x. Retention at 2849 rises from 0.30 to 0.53.
 
 **Lever C at n_B = 2849, 1728 atoms.** The bundle exported with `--size-from`
 on the exact structure `in.si_bench` builds (written with `write_data`; 1728
@@ -975,11 +988,20 @@ sweep observed) at default margins, against the `+A+B` bundle from
 | `make_bundles` (+A+B) | 2160 / 6313 / 157825 | 75.64 | 1.44x | 0.53 |
 | `--size-from` (+A+B+C) | 1988 / 6179 / 105043 | **53.47** | **1.02x** | 0.76 |
 
+(The +A+B value here, 75.64, and the one in the main table, 76.29, are
+different blocks 0.9% apart; each table uses its own.) Note that `--size-from`
+tightens all three capacities, not only the edge axis: its atom margin is 1.15
+against `make_bundles`' 1.25, so `max_local` drops 2160 → 1988 and `max_atoms`
+6313 → 6179 alongside `max_edges` 157825 → 105043. C is therefore mostly, not
+purely, an edge-axis lever.
+
 **C is worth a further 1.41x at 2849**, and the sized capacities put the pair
 style at parity with pace/kk in f64 at production basis size. Because C is the
-lever that acts on the edge axis, and because the base-row slowdown above was
-largest at small basis, the same one-point comparison was also taken at 69 and
-710 (beyond the brief's single point; same structure, same block design):
+lever that acts mainly on the edge axis, and because the base-row slowdown
+against the historical series was largest at small basis, the same one-point
+comparison was also taken at 69 and 710 (beyond the brief's single point; same
+structure, same block design; same capacity triple, since it depends only on
+the structure):
 
 | n_B | +A+B (make_bundles) | +A+B+C (`--size-from`) | C alone | base → A+B+C | pace ÷ jax with C | retention with C |
 |---|---|---|---|---|---|---|
@@ -987,14 +1009,14 @@ largest at small basis, the same one-point comparison was also taken at 69 and
 | 710 | 31.64 | 20.40 | 1.55x | 1.82x | 1.63x | 0.77 |
 | 2849 | 75.64 | 53.47 | 1.41x | 2.93x | 1.02x | 0.76 |
 
-The C rows at 69 and 2849 (5.30 and 53.5 ms/step) sit at or below the historical
-rows (5.49 and 136 — the latter had no B), which is the consistency check that
-the earlier series and this one are measuring the same thing at different
-capacities. **C is a tuning lever, not a code lever**: it is worth 1.4-1.55x
-here because `make_bundles` over-provisions edges by 2.0x, it is U-shaped, and
-any number quoted from it must carry the capacity triple that produced it.
-Retention with all three levers is 0.68-0.77 across the three basis sizes,
-against 0.30-0.44 for `base`.
+The C rows (5.30 / 20.40 / 53.5 ms/step) sit at or below the historical rows
+(5.49 / 26.8 / 136 — the latter two had no B, and the edge slots are 105043
+against 110880), which is the consistency check that the earlier series and
+this one are measuring the same thing at different capacities. **C is a tuning
+lever, not a code lever**: it is worth 1.4-1.55x here because `make_bundles`
+over-provisions edges by 2.0x, it is U-shaped, and any number quoted from it
+must carry the capacity triple that produced it. Retention with all three
+levers is 0.68-0.77 across the three basis sizes, against 0.30-0.44 for `base`.
 
 **Target (spec): pace ÷ jax ≤ 1.5x at 2849, ≤ 2x at 69.**
 
