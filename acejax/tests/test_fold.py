@@ -45,7 +45,10 @@ def test_fold_matches_unfolded(npz, kind, sparse):
     E0, F0, V0 = _efv(m0, z)
     E1, F1, V1 = _efv(m1, z)
     print(f"\n  |dE| {abs(E0-E1):.2e}  |dF| {np.abs(F0-F1).max():.2e}  |dV| {np.abs(V0-V1).max():.2e}")
-    assert abs(E0 - E1) < TOL_SAME_CODE
+    # Energy is a total over 64 atoms (~1e4 eV): an absolute 1e-12 is below one
+    # ulp there, so the fold's re-association is judged relative; forces and
+    # the virial are O(1) and stay absolute.
+    assert abs(E0 - E1) <= TOL_SAME_CODE * max(1.0, abs(E0))
     assert np.abs(F0 - F1).max() < TOL_SAME_CODE
     assert np.abs(V0 - V1).max() < TOL_SAME_CODE
 
