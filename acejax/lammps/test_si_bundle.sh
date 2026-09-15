@@ -48,11 +48,15 @@ for R in np1 np2; do
 done
 
 # Undersized max_local must be LOUD: every energy NaN, never a plausible number.
+# si_undersized.lammps-jax.json is produced with:
+#   JAX_PLATFORMS=cpu ~/si-ace/.venv/bin/python export_bundle.py --npz ../fixtures/si_fitted.npz \
+#       --out si_undersized.lammps-jax.json --max-atoms 2560 --edges-per-atom 64 --max-local 200
 if [ -f si_undersized.lammps-jax.json ]; then
   echo "### undersized max_local -> NaN ###"
   $V/bin/lmp $KK -var pjrt $PJRT -var bundle si_undersized.lammps-jax.json \
       -var dump_path undersized.dump -in in.mlip_si > undersized.log 2>&1 || true
-  if grep -qiE 'nan|Non-numeric' undersized.log; then
+  PE_LINE=$(grep -A1 "^ *Step" undersized.log | awk 'NR==2')
+  if echo "$PE_LINE" | grep -qi nan || grep -qi "Non-numeric" undersized.log; then
     echo "OK: potential energy is NaN (or LAMMPS aborted loudly)"
   else
     echo "FAIL: undersized bundle produced a finite energy:"; grep -A1 "^ *Step" undersized.log | head -2; exit 1
