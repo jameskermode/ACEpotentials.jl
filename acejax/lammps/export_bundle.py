@@ -17,6 +17,10 @@ Contract notes (cpp/lammps_jax_model.h ModelContract):
     program silently truncates.
   * custom_call_targets is empty: acejax uses a pure-JAX harmonic recursion, so
     no FFI handler needs registering at run time.
+  * The node axis is max_local, not max_atoms: senders are always local, so
+    ghost rows are pure padding on the per-atom stages.  If nlocal exceeds
+    max_local every energy is NaN -- segment_sum would otherwise drop the
+    excess silently and the plugin does not check this capacity.
 
 Export with the same jax as the runtime PJRT plugin ships (0.11.1 in
 /storage/eng/essswb/venvs/lammps-jax).
@@ -36,23 +40,34 @@ from acejax import load
 
 
 def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
-          a2b_sparse=False, edge_a_kind="gather"):
-    """Return (energy_fn, model, meta, rcut, max_atoms, max_edges).
+          a2b_sparse=False, edge_a_kind="gather", max_local=None):
+    """Return (energy_fn, model, meta, rcut, max_atoms, max_edges, max_local).
 
     `edge_a_kind` is baked into the exported program: the LAMMPS plugin has no
     calibration step and cannot run one, so the choice is made here, for a known
     target.  It does not change any value the bundle computes -- the two forms
     agree bit-identically on values and gradients -- only the reverse-pass cost.
+
+    `max_local` is the capacity of the NODE axis the per-atom stages run over.
+    The pair style packs edges from local centres only (PackNeighborFunctor
+    iterates ilist over nlocal rows for n_hops=1), so ghost rows of the
+    max_atoms axis are zero-neighbour rows that cost full per-atom work (AA,
+    readout) and contribute nothing -- 3.1x nlocal at 1728 Si atoms.  None
+    means max_atoms, the old behaviour.
     """
     dtype = jnp.float64 if precision == "float64" else jnp.float32
+    if max_local is None:
+        max_local = max_atoms
+    if not 0 < max_local <= max_atoms:
+        raise ValueError(f"max_local must be in (0, max_atoms]; got {max_local} vs {max_atoms}")
     model, meta, _ = load(npz, dtype=dtype, a2b_sparse=a2b_sparse,
-                          edge_a_kind=edge_a_kind)
+                          edge_a_kind=edge_a_kind)          # folded by default
     rcut = float(meta["rcut"])
     n_species = len(meta["elements"])
     max_edges = max_atoms * edges_per_atom
 
     def energy_fn(positions, species, graph):
-        """Per-atom energies. `species` is the LAMMPS type index (0-based)."""
+        """Per-atom energies (max_atoms,). `species` is the LAMMPS type index (0-based)."""
         mask = graph.edge_mask
         centers = jnp.where(mask, graph.senders, 0)
         neighbors = jnp.where(mask, graph.receivers, 0)
@@ -60,10 +75,15 @@ def build(npz, max_atoms=2560, edges_per_atom=64, precision="float64",
         pad = jnp.asarray([rcut, 0.0, 0.0], positions.dtype)
         rij = jnp.where(mask[:, None], rij, pad)
         node_z = jnp.clip(species, 0, n_species - 1).astype(jnp.int32)
-        return model.site_energies(rij, node_z[centers], node_z[neighbors],
-                                   centers, positions.shape[0], node_z, mask)
+        e_local = model.site_energies(rij, node_z[centers], node_z[neighbors],
+                                      centers, max_local, node_z[:max_local], mask)
+        # segment_sum DROPS ids >= max_local silently; the plugin only checks
+        # max_atoms.  Make an undersized bundle loud rather than subtly wrong.
+        overflow = jnp.any(mask & (graph.senders >= max_local))
+        e_local = jnp.where(overflow, jnp.nan, e_local)
+        return jnp.zeros(positions.shape[0], e_local.dtype).at[:max_local].set(e_local)
 
-    return energy_fn, model, meta, rcut, max_atoms, max_edges
+    return energy_fn, model, meta, rcut, max_atoms, max_edges, max_local
 
 
 def main():
@@ -77,6 +97,10 @@ def main():
                    default=HERE / "si_ace.lammps-jax.json")
     p.add_argument("--max-atoms", type=int, default=2560)
     p.add_argument("--edges-per-atom", type=int, default=64)
+    p.add_argument("--max-local", type=int, default=None,
+                   help="node-axis capacity for local atoms (default: max_atoms). "
+                        "Size it to nlocal with margin; ghosts do not need rows. "
+                        "Exceeding it makes every energy NaN, by design.")
     p.add_argument("--a2b-sparse", action="store_true",
                    help="gather/segment-sum A2B contraction instead of a dense "
                         "matmul; A2B is ~0.07%% occupied at large basis")
@@ -91,15 +115,15 @@ def main():
     if not a.npz.exists():
         p.error(f"npz not found: {a.npz}")
 
-    energy_fn, model, meta, rcut, max_atoms, max_edges = build(
+    energy_fn, model, meta, rcut, max_atoms, max_edges, max_local = build(
         a.npz, a.max_atoms, a.edges_per_atom, a.precision, a.a2b_sparse,
-        a.edge_a_kind)
+        a.edge_a_kind, max_local=a.max_local)
     print("model:", a.npz, "| elements", meta["elements"], "rcut", rcut,
           "n_B", meta["n_B"], "lmax", meta["lmax"],
           "| radial", meta["radial_kind"], "| Y", meta["ybasis_kind"],
           "| edge_A", a.edge_a_kind)
     print("capacities: max_atoms", max_atoms, "max_edges", max_edges,
-          "| precision", a.precision)
+          "max_local", max_local, "| precision", a.precision)
 
     export_model(
         energy_fn=energy_fn,
