@@ -71,11 +71,11 @@ axes[0].set_ylabel("force RMSE (eV/Å)")
 axes[1].legend(frameon=False, fontsize=6.5, loc="upper right")
 fig.savefig("fig_learning_curves.png")
 
-# ---------- Figure 3: throughput (lestrade, deg-6 embedded d<=16 student vs MH-1) ----
-# all on one host (32 cores, RTX 4000 Ada), 256-384-atom cells; f64 and f32 side by side
-labels = ["MACE-MH-1\nGPU", "Julia CPU\n1 thread", "Julia CPU\n32 threads", "JAX GPU\nframe (host nlist)", "JAX GPU\nkernel"]
-f64 = [8.6e2, 4.7e3, 2.1e4, 4.0e4, 8.3e4]
-f32 = [4.9e3, np.nan, np.nan, 5.3e4, 1.8e5]
+# ---------- Figure 3: throughput (moriarty, deg-6 embedded d<=16 student vs MH-1) ----
+# all on one host (32-core Xeon Silver 4216, RTX A4500), 256-384-atom cells; f64 and f32 side by side
+labels = ["MACE-MH-1\nGPU (mace-jax)", "Julia CPU\n1 thread", "Julia CPU\n32 threads", "JAX GPU\nframe (host nlist)", "JAX GPU\nkernel"]
+f64 = [8.8e2, 1.4e3, 8.2e3, 1.9e4, 4.6e4]
+f32 = [6.8e3, np.nan, np.nan, 2.4e4, 1.06e5]
 x = np.arange(len(labels)); w = 0.38
 fig, ax = plt.subplots(figsize=(7.0, 2.4))
 b1 = ax.bar(x - w/2, f64, w, color=[C_D8, C_CAT, C_CAT, C_EMB, C_EMB], label="f64")
@@ -94,7 +94,7 @@ fig.savefig("fig_throughput.png")
 # ---------- Figure 3b: MACE stacks vs the ACE student, kernel throughput, f32, A4500, vs cell size ----
 sizes = [40, 320, 1080]      # mean atoms of the three supercell series
 series = {
-    "ACE deg-6 d≤16 student, JAX":          ([8.3e4, 1.6e5, 8.4e4], C_EMB, "o", "-"),
+    "ACE deg-6 d≤16 student, JAX":          ([6.7e4, 1.06e5, 5.9e4], C_EMB, "o", "-"),
     "MACE-MH-1, torch + cuEquivariance":    ([7.6e2, 6.3e3, 1.4e4], "#333333", "D", "-"),
     "MACE-MH-1, mace-jax (e3nn-jax)":       ([3.9e3, 6.8e3, 7.6e3], "#333333", "s", "--"),
     "MACE-MH-1, torch plain":               ([1.0e3, 2.2e3, 2.2e3], "#333333", "^", ":"),
